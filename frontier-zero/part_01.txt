@@ -1,0 +1,82 @@
+source=r; resources.push(r);
+  registerBlocker(g,1.35*scale);
+}
+function makeRock(x,z,metal=false,scale=1){
+  const mat=new THREE.MeshStandardMaterial({color:metal?0x59616a:0x626763,roughness:.92,metalness:metal?.25:.03});
+  const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1.8*scale,0),mat); m.scale.set(1.4,.9,1.1); m.position.set(x,groundY(x,z)+1.3*scale,z); m.rotation.set(rand(0,2),rand(0,2),rand(0,2)); m.castShadow=true; m.receiveShadow=true; scene.add(m);
+  const r={kind:metal?'metal':'rock',group:m,hp:metal?120:90,maxHp:metal?120:90,yield:metal?{metal:rand(5,10)|0,stone:3}:{stone:rand(7,14)|0},dead:false};
+  m.userData.resource=r; resources.push(r); registerBlocker(m,2.1*scale);
+}
+
+for(let i=0;i<78;i++){
+  let x=rand(-650,650), z=rand(-650,650); if(Math.hypot(x,z)<45){i--;continue;} makeTree(x,z,rand(.75,1.25));
+}
+for(let i=0;i<44;i++){
+  let x=rand(-620,620), z=rand(-620,620); if(Math.hypot(x,z)<32){i--;continue;} makeRock(x,z,Math.random()<.22,rand(.7,1.3));
+}
+
+// Abandoned concrete shell
+function addStaticBox(x,y,z,sx,sy,sz,color=0x70716e){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),new THREE.MeshStandardMaterial({color,roughness:.93}));
+  m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; scene.add(m); registerBlocker(m,Math.max(sx,sz)*.45); return m;
+}
+const bx=-70,bz=95,by=groundY(bx,bz);
+addStaticBox(bx,by+.2,bz,24,.4,20,0x5f625e);
+addStaticBox(bx-12,by+3.2,bz,0.5,6,20);
+addStaticBox(bx+12,by+3.2,bz,0.5,6,20);
+addStaticBox(bx,by+3.2,bz-10,24,6,.5);
+addStaticBox(bx-7,by+3.2,bz+10,10,6,.5);
+addStaticBox(bx+8,by+3.2,bz+10,8,6,.5);
+
+// Destructible raised voxel mining mound. Players can dig downward and horizontally through this material.
+const voxelSize=3.2;
+const voxelMatDirt=new THREE.MeshStandardMaterial({color:0x6c523a,roughness:1});
+const voxelMatStone=new THREE.MeshStandardMaterial({color:0x595d5c,roughness:1});
+const voxelCenter=new THREE.Vector3(150,0,-135);
+const voxels=[];
+for(let gx=-5;gx<=5;gx++) for(let gz=-5;gz<=5;gz++) for(let gy=0;gy<4;gy++){
+  const x=voxelCenter.x+gx*voxelSize, z=voxelCenter.z+gz*voxelSize;
+  const base=groundY(x,z);
+  // carve a starter mouth into the side
+  if(gz===5 && Math.abs(gx)<=1 && gy<=1) continue;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(voxelSize-.05,voxelSize-.05,voxelSize-.05), gy<2?voxelMatDirt:voxelMatStone);
+  m.position.set(x,base+voxelSize*.5+gy*voxelSize,z); m.castShadow=true; m.receiveShadow=true; scene.add(m);
+  const r={kind:'voxel',group:m,hp:gy<2?55:80,maxHp:80,yield:gy<2?{stone:2}:{stone:4,metal:Math.random()<.12?1:0},dead:false};
+  m.userData.resource=r; resources.push(r); registerBlocker(m,voxelSize*.5); voxels.push(m);
+}
+
+// ---------- Player ----------
+const player={pos:new THREE.Vector3(0,groundY(0,0)+1.72,0), yaw:0, pitch:0, height:1.72, speed:8.1, health:100, dead:false, inventory:{wood:0,stone:0,metal:0}};
+camera.position.copy(player.pos);
+let joy={x:0,y:0};
+let joyPointer=null, lookPointer=null, lookLast={x:0,y:0};
+
+function blockedPosition(x,z){
+  for(const c of colliders){
+    if(!c.obj.parent) continue;
+    const p=new THREE.Vector3(); c.obj.getWorldPosition(p);
+    if(Math.hypot(x-p.x,z-p.z)<c.radius+0.55) return true;
+  }
+  for(const s of playerStructures){
+    if(!s.parent) continue;
+    const box=new THREE.Box3().setFromObject(s).expandByScalar(.35);
+    if(x>box.min.x && x<box.max.x && z>box.min.z && z<box.max.z) return true;
+  }
+  return false;
+}
+
+function pointerPos(e){return {x:e.clientX,y:e.clientY};}
+hud.joyBase.addEventListener('pointerdown',e=>{joyPointer=e.pointerId; hud.joyBase.setPointerCapture(e.pointerId); updateJoy(e);});
+hud.joyBase.addEventListener('pointermove',e=>{if(e.pointerId===joyPointer) updateJoy(e);});
+hud.joyBase.addEventListener('pointerup',e=>{if(e.pointerId===joyPointer){joyPointer=null;joy.x=joy.y=0;hud.joyKnob.style.transform='translate(0px,0px)';}});
+hud.joyBase.addEventListener('pointercancel',()=>{joyPointer=null;joy.x=joy.y=0;hud.joyKnob.style.transform='translate(0px,0px)';});
+function updateJoy(e){
+  const r=hud.joyBase.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+  let dx=e.clientX-cx, dy=e.clientY-cy; const max=42, len=Math.hypot(dx,dy)||1, k=Math.min(1,max/len); dx*=k;dy*=k;
+  joy.x=dx/max; joy.y=dy/max; hud.joyKnob.style.transform=`translate(${dx}px,${dy}px)`;
+}
+
+hud.look.addEventListener('pointerdown',e=>{ if(e.target!==hud.look) return; lookPointer=e.pointerId; lookLast=pointerPos(e); hud.look.setPointerCapture(e.pointerId); });
+hud.look.addEventListener('pointermove',e=>{ if(e.pointerId!==lookPointer) return; const p=pointerPos(e), dx=p.x-lookLast.x, dy=p.y-lookLast.y; lookLast=p; player.yaw-=dx*.0041; player.pitch=clamp(player.pitch-dy*.0037,-1.28,1.28); });
+hud.look.addEventListener('pointerup',e=>{if(e.pointerId===lookPointer)lookPointer=null;});
+hud.look.addEventListener('pointercancel',()=>lookPointer=null);
