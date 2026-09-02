@@ -1,0 +1,164 @@
+// ============================================================================
+// FRONTIER ZERO HIGH-FIDELITY CAR SKINS + NPC VISUAL UPGRADE
+// Improves car paint/rust/glass/lights/panel detail and upgrades NPC proportions,
+// clothing, faces, hair, accessories and faction styling without changing AI.
+// ============================================================================
+
+// ---------- Car skin/material upgrade ----------
+function makeCarSkin25(car,i){
+  const g=car.group,tier=car.tier24?.name||'STREET';
+  const palette=[0x1f3e5a,0x7b2525,0x394b36,0x2d3038,0x6b4a2e,0x4d4f54,0x243d2f,0x5b3148];
+  const base=palette[i%palette.length];
+  const cleanPaint=new THREE.MeshPhysicalMaterial({color:base,metalness:.68,roughness:.18,clearcoat:1,clearcoatRoughness:.08});
+  const satinPaint=new THREE.MeshPhysicalMaterial({color:base,metalness:.48,roughness:.32,clearcoat:.62,clearcoatRoughness:.18});
+  const rustyPaint=new THREE.MeshStandardMaterial({color:0x68412c,metalness:.22,roughness:.92});
+  const primer=new THREE.MeshStandardMaterial({color:0x403f3a,metalness:.12,roughness:.97});
+  const glassHQ=new THREE.MeshPhysicalMaterial({color:0x1a3440,transparent:true,opacity:.64,roughness:.05,metalness:.08,transmission:.22,clearcoat:.45});
+  const rubber=new THREE.MeshStandardMaterial({color:0x0c0d0e,roughness:.98,metalness:.01});
+  const brightChrome=new THREE.MeshStandardMaterial({color:0xd7dde0,roughness:.12,metalness:.95});
+
+  // Upgrade existing body materials based on tier.
+  g.traverse(m=>{
+    if(!m.isMesh||!m.material)return;
+    const n=(m.geometry?.type||'');
+    const c=m.material.color?.getHex?.();
+    if(tier==='RUSTY'){
+      if(c!==0x101112&&c!==0x121416&&c!==0x171a1c)m.material=Math.random()<.72?rustyPaint:primer;
+    }else{
+      if((m.material.metalness??0)>.35&&c!==0xaeb6bb&&c!==0xbfc6ca)m.material=tier==='STREET'?satinPaint:cleanPaint;
+    }
+    if(m.material.transparent&&m.material.opacity<.9)m.material=glassHQ;
+  });
+
+  // Add panel seams, vents, badges and lower trim.
+  const seamMat=new THREE.MeshBasicMaterial({color:0x101214,transparent:true,opacity:.52});
+  const trimMat=new THREE.MeshStandardMaterial({color:0x151719,roughness:.4,metalness:.52});
+  for(const x of [-1.54,1.54]){
+    const seam=new THREE.Mesh(new THREE.BoxGeometry(.025,.025,3.55),seamMat);seam.position.set(x,1.13,.10);g.add(seam);
+    const skirt=new THREE.Mesh(new THREE.BoxGeometry(.10,.18,3.75),trimMat);skirt.position.set(x,.48,.12);g.add(skirt);
+  }
+  const hoodSeam=new THREE.Mesh(new THREE.BoxGeometry(2.55,.018,.025),seamMat);hoodSeam.position.set(0,1.36,-1.22);g.add(hoodSeam);
+  const trunkSeam=hoodSeam.clone();trunkSeam.position.z=1.55;g.add(trunkSeam);
+
+  // Different styling by tier.
+  if(tier==='RUSTY'){
+    const rust2=new THREE.MeshStandardMaterial({color:0x9a542d,roughness:1,metalness:.1});
+    const dirt=new THREE.MeshStandardMaterial({color:0x3d3027,roughness:1,metalness:0});
+    for(let p=0;p<12;p++){
+      const patch=new THREE.Mesh(new THREE.BoxGeometry(rand(.12,.48),.018,rand(.16,.62)),Math.random()<.58?rust2:dirt);
+      patch.position.set(rand(-1.45,1.45),1.37+rand(-.08,.12),rand(-2.25,2.25));patch.rotation.y=rand(0,Math.PI);g.add(patch);
+    }
+    // One faded/mismatched panel sometimes.
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(1.15,.035,.82),primer);panel.position.set(i%2?-.92:.92,1.37,-1.62);panel.rotation.x=-.04;g.add(panel);
+  } else if(tier==='SPORT'||tier==='SUPERCAR'||tier==='LAMBO'){
+    // Aggressive intakes and splitter.
+    const splitter=new THREE.Mesh(new THREE.BoxGeometry(2.85,.08,.45),trimMat);splitter.position.set(0,.38,-2.84);g.add(splitter);
+    for(const x of [-.92,.92]){
+      const intake=new THREE.Mesh(new THREE.BoxGeometry(.62,.22,.07),trimMat);intake.position.set(x,.78,-2.93);g.add(intake);
+    }
+    const diffuser=new THREE.Mesh(new THREE.BoxGeometry(2.55,.14,.32),trimMat);diffuser.position.set(0,.42,2.86);g.add(diffuser);
+    if(tier==='LAMBO'){
+      cleanPaint.color.setHex(0xf2c61f);
+      cleanPaint.clearcoat=1;cleanPaint.roughness=.12;
+      const badge=new THREE.Mesh(new THREE.BoxGeometry(.18,.12,.025),brightChrome);badge.position.set(0,1.08,-2.96);g.add(badge);
+      for(const x of [-.92,.92]){
+        const sideIntake=new THREE.Mesh(new THREE.BoxGeometry(.07,.36,.72),trimMat);sideIntake.position.set(x*1.55,1.02,.42);g.add(sideIntake);
+      }
+    }
+  }
+
+  // Higher-quality wheel face and brake discs.
+  for(const wheel of car.wheels22||[]){
+    const brake=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,.035,18),new THREE.MeshStandardMaterial({color:0x73787b,roughness:.34,metalness:.78}));brake.rotation.z=Math.PI/2;wheel.add(brake);
+    const hub=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.045,16),brightChrome);hub.rotation.z=Math.PI/2;wheel.add(hub);
+  }
+}
+for(let i=0;i<cars19.length;i++)makeCarSkin25(cars19[i],i);
+
+// ---------- NPC visual upgrade ----------
+const skinTones25=[0xf0c7a5,0xd9ad88,0xc78e68,0xa96d4f,0x7d4c36,0x5a3529];
+const hairColors25=[0x1b1715,0x38261d,0x5b3a22,0x8d633c,0xb9a17e,0x2c2a29];
+const shirtColors25=[0x3e5361,0x5c3f36,0x3f5a45,0x605066,0x6b5c3f,0x363b44,0x744842,0x41536f];
+const pantsColors25=[0x24282c,0x313843,0x443d38,0x2d3430,0x4e4b45];
+function addNpcMesh25(g,geo,mat,x,y,z,rx=0,ry=0,rz=0){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=true;m.receiveShadow=true;g.add(m);return m;}
+function upgradeNpc25(n,i){
+  const g=n.group;
+  const skin=new THREE.MeshStandardMaterial({color:skinTones25[i%skinTones25.length],roughness:.82});
+  const hair=new THREE.MeshStandardMaterial({color:hairColors25[(i*3)%hairColors25.length],roughness:.9});
+  const shirt=new THREE.MeshStandardMaterial({color:shirtColors25[(i*5)%shirtColors25.length],roughness:.78});
+  const pants=new THREE.MeshStandardMaterial({color:pantsColors25[(i*2)%pantsColors25.length],roughness:.86});
+  const boot=new THREE.MeshStandardMaterial({color:0x24211f,roughness:.92});
+  const dark=new THREE.MeshStandardMaterial({color:0x1d2023,roughness:.65,metalness:.18});
+  const white=new THREE.MeshBasicMaterial({color:0xf3f1ea});
+  const eye=new THREE.MeshBasicMaterial({color:0x171717});
+
+  // Hide the original capsule/body/head/vest silhouette but keep hit meshes active.
+  for(let c=0;c<Math.min(4,g.children.length);c++){const o=g.children[c];if(o?.isMesh)o.visible=false;}
+
+  // Better human proportions.
+  addNpcMesh25(g,new THREE.BoxGeometry(.78,.90,.38),shirt,0,1.48,0);
+  addNpcMesh25(g,new THREE.CylinderGeometry(.34,.38,.48,10),shirt,0,.90,0);
+  addNpcMesh25(g,new THREE.CapsuleGeometry(.13,.66,4,8),skin,-.50,1.42,0,0,0,.06);
+  addNpcMesh25(g,new THREE.CapsuleGeometry(.13,.66,4,8),skin,.50,1.42,0,0,0,-.06);
+  addNpcMesh25(g,new THREE.CapsuleGeometry(.16,.78,4,8),pants,-.22,.48,0);
+  addNpcMesh25(g,new THREE.CapsuleGeometry(.16,.78,4,8),pants,.22,.48,0);
+  addNpcMesh25(g,new THREE.BoxGeometry(.32,.18,.55),boot,-.22,.08,-.08);
+  addNpcMesh25(g,new THREE.BoxGeometry(.32,.18,.55),boot,.22,.08,-.08);
+
+  // Neck + more detailed head/face.
+  addNpcMesh25(g,new THREE.CylinderGeometry(.16,.17,.22,10),skin,0,2.03,0);
+  addNpcMesh25(g,new THREE.SphereGeometry(.34,16,12),skin,0,2.32,0);
+  addNpcMesh25(g,new THREE.BoxGeometry(.10,.12,.08),skin,0,2.27,-.325);
+  for(const x of [-.12,.12]){
+    addNpcMesh25(g,new THREE.SphereGeometry(.035,8,6),white,x,2.36,-.305);
+    addNpcMesh25(g,new THREE.SphereGeometry(.017,8,6),eye,x,2.36,-.337);
+  }
+  const mouth=new THREE.Mesh(new THREE.BoxGeometry(.12,.018,.012),new THREE.MeshBasicMaterial({color:0x633b35}));mouth.position.set(0,2.19,-.337);g.add(mouth);
+  const browMat=new THREE.MeshBasicMaterial({color:hairColors25[(i*3)%hairColors25.length]});
+  for(const x of [-.12,.12])addNpcMesh25(g,new THREE.BoxGeometry(.10,.018,.012),browMat,x,2.44,-.331,0,0,x<0?.08:-.08);
+
+  // Hair variants.
+  const hv=i%6;
+  if(hv===0){addNpcMesh25(g,new THREE.SphereGeometry(.35,12,8,0,Math.PI*2,0,Math.PI/2),hair,0,2.53,0);}
+  else if(hv===1){for(const x of [-.18,0,.18])addNpcMesh25(g,new THREE.ConeGeometry(.09,.24,7),hair,x,2.61,-.02,0,0,0);}
+  else if(hv===2){addNpcMesh25(g,new THREE.BoxGeometry(.62,.15,.48),hair,0,2.56,.02);addNpcMesh25(g,new THREE.BoxGeometry(.12,.22,.48),hair,-.28,2.45,.02);}
+  else if(hv===3){addNpcMesh25(g,new THREE.SphereGeometry(.37,14,8,0,Math.PI*2,0,Math.PI/2),hair,0,2.52,0);for(const x of [-.31,.31])addNpcMesh25(g,new THREE.SphereGeometry(.11,9,7),hair,x,2.49,.02);}
+  else if(hv===4){addNpcMesh25(g,new THREE.BoxGeometry(.64,.12,.50),hair,0,2.57,.02);}
+  else {for(let a=0;a<8;a++){const ang=a/8*Math.PI*2;addNpcMesh25(g,new THREE.SphereGeometry(.105,8,6),hair,Math.cos(ang)*.23,2.54,Math.sin(ang)*.19);}}
+
+  // Clothing detail and faction identity.
+  const faction=n.faction||((i%2===0)?'WARDEN':'RAIDER');
+  const vestColor=faction==='WARDEN'?0x314a43:0x5a3632;
+  const vest=new THREE.MeshStandardMaterial({color:vestColor,roughness:.7,metalness:.08});
+  addNpcMesh25(g,new THREE.BoxGeometry(.84,.52,.40),vest,0,1.52,-.02);
+  addNpcMesh25(g,new THREE.BoxGeometry(.10,.55,.44),dark,-.32,1.51,-.01);
+  addNpcMesh25(g,new THREE.BoxGeometry(.10,.55,.44),dark,.32,1.51,-.01);
+  if(i%3===0){
+    const pack=new THREE.MeshStandardMaterial({color:0x3d4039,roughness:.88});
+    addNpcMesh25(g,new THREE.BoxGeometry(.58,.66,.22),pack,0,1.47,.31);
+  }
+  if(i%4===0){
+    const cap=new THREE.MeshStandardMaterial({color:0x25292b,roughness:.82});
+    addNpcMesh25(g,new THREE.CylinderGeometry(.31,.31,.13,14),cap,0,2.58,0);
+    addNpcMesh25(g,new THREE.BoxGeometry(.30,.035,.18),cap,0,2.54,-.31);
+  }
+  if(i%5===0){
+    const band=new THREE.MeshStandardMaterial({color:faction==='WARDEN'?0x6c9f84:0xa45b4c,roughness:.75});
+    addNpcMesh25(g,new THREE.BoxGeometry(.72,.09,.05),band,0,2.44,-.30);
+  }
+
+  // Recreate visible weapon with more detail while keeping original gun logic untouched.
+  const gunMat25=new THREE.MeshStandardMaterial({color:0x20252a,metalness:.72,roughness:.28});
+  const wood25=new THREE.MeshStandardMaterial({color:0x5d4631,roughness:.78});
+  const wg=new THREE.Group();wg.position.set(.48,1.47,-.38);wg.rotation.set(-.06,.12,-.12);g.add(wg);
+  addNpcMesh25(wg,new THREE.BoxGeometry(.13,.15,.72),gunMat25,0,0,-.16);
+  addNpcMesh25(wg,new THREE.BoxGeometry(.16,.18,.28),wood25,0,-.01,.33);
+  addNpcMesh25(wg,new THREE.CylinderGeometry(.034,.034,.48,8),gunMat25,0,.01,-.72,Math.PI/2,0,0);
+  n.visualGun25=wg;
+}
+for(let i=0;i<npcs.length;i++)upgradeNpc25(npcs[i],i);
+
+// Slightly improve NPC shadow quality/visibility.
+for(const n of npcs){n.group.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});}
+
+message('Car skins + NPC models upgraded to high fidelity',3.3);
