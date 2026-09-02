@@ -1,0 +1,164 @@
+// ============================================================================
+// FRONTIER ZERO 2KM + PHONE/MACBOOK UPDATE
+// 2000m x 2000m world, denser realistic regions, dual control support
+// ============================================================================
+
+const WORLD_HALF_2K=1000;
+camera.far=1500;camera.updateProjectionMatrix();
+scene.fog.density=.00072;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=.98;
+sun.position.set(-520,620,310);sun.intensity=2.75;hemi.intensity=1.18;
+sky.scale.setScalar(3.2);
+if(water){water.scale.set(2.8,2.8,1);water.material.opacity=.61;}
+
+// Remove former 500m boundary embankments so the player can travel through the full 2km map.
+const removeOldBoundary=[];
+for(const o of [...blockers,...playerStructures]){
+  if(!o?.parent)continue;
+  const p=new THREE.Vector3();o.getWorldPosition(p);
+  const b=new THREE.Box3().setFromObject(o),s=new THREE.Vector3();b.getSize(s);
+  if((Math.abs(Math.abs(p.x)-249)<4||Math.abs(Math.abs(p.z)-249)<4)&&Math.max(s.x,s.z)>430)removeOldBoundary.push(o);
+}
+for(const o of removeOldBoundary){
+  scene.remove(o);
+  for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===o)blockers.splice(i,1);
+  for(let i=playerStructures.length-1;i>=0;i--)if(playerStructures[i]===o)playerStructures.splice(i,1);
+}
+if(typeof worldGround500!=='undefined')worldGround500.visible=false;
+
+// Broad regional biomes.
+biomeAt=function(x,z){
+  if(x>350)return BIOMES.badlands;
+  if(x<-350)return BIOMES.alpine;
+  if(z<-350)return BIOMES.marsh;
+  if(z>350)return BIOMES.pine;
+  return BIOMES.meadow;
+};
+
+// 2km terrain mesh. Resolution is intentionally moderate for phone performance.
+const geo2k=new THREE.PlaneGeometry(2000,2000,140,140);geo2k.rotateX(-Math.PI/2);
+const pos2k=geo2k.attributes.position,col2k=[];
+for(let i=0;i<pos2k.count;i++){
+  const x=pos2k.getX(i),z=pos2k.getZ(i),b=biomeAt(x,z);
+  pos2k.setY(i,groundY(x,z)+.07);
+  const c=new THREE.Color(b.ground);
+  c.offsetHSL(0,0,(Math.sin(x*.019)+Math.cos(z*.017)+Math.sin((x-z)*.008))*.024);
+  col2k.push(c.r,c.g,c.b);
+}
+geo2k.setAttribute('color',new THREE.Float32BufferAttribute(col2k,3));geo2k.computeVertexNormals();
+const mat2k=new THREE.MeshStandardMaterial({map:makeGroundTexture(),vertexColors:true,roughness:.985,metalness:.001});
+mat2k.map.repeat.set(115,115);
+const terrain2k=new THREE.Mesh(geo2k,mat2k);terrain2k.receiveShadow=true;scene.add(terrain2k);
+
+// Major road network and rural tracks.
+road(0,0,1985,9.2,0);road(0,0,9.2,1985,0);
+road(-330,230,780,5.2,.24);road(370,-270,850,5.1,-.31);
+road(-460,-410,650,4.8,.62);road(510,430,690,4.8,-.55);
+dirtTrack(-620,120,520,4,-.14);dirtTrack(650,90,470,3.8,.20);
+dirtTrack(-120,650,520,3.8,.08);dirtTrack(140,-650,540,3.8,-.09);
+
+// Towns and outlying settlements. All these buildings contain loot.
+const townCenters=[[0,0],[-420,260],[430,-310],[610,470],[-590,-480],[160,610],[-170,-650],[720,30],[-735,80]];
+for(let t=0;t<townCenters.length;t++){
+  const [cx,cz]=townCenters[t],count=t===0?8:4;
+  for(let j=0;j<count;j++){
+    const a=(j/count)*Math.PI*2+rand(-.18,.18),r=t===0?rand(35,75):rand(18,48);
+    const x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r,b=biomeAt(x,z);
+    const wall=b===BIOMES.badlands?0x806650:b===BIOMES.alpine?0x747b7c:b===BIOMES.marsh?0x59645e:b===BIOMES.pine?0x626a61:0x746f66;
+    localBuilding(x,z,rand(7,11),rand(6,9),wall,0x3f4445,t===0?'Town Supplies':'Remote Cache');
+  }
+}
+makeOutpost(-470,315,'alpine');makeOutpost(475,-365,'marsh');makeOutpost(640,520,'badlands');makeOutpost(190,690,'pine');makeOutpost(-640,-525,'marsh');
+
+// Natural detail spread by biome, kept efficient enough for phones.
+for(let i=0;i<120;i++){
+  const x=rand(-900,900),z=rand(390,920);if(Math.abs(x)<18)continue;makePine(x,z,rand(.55,1.15));
+}
+for(let i=0;i<55;i++){
+  const x=rand(-300,300),z=rand(-300,300);if(Math.hypot(x,z)<95)continue;makeTree(x,z,rand(.6,1.05));
+}
+for(let i=0;i<55;i++)smallBiomeRock(rand(-930,-390),rand(-900,900),0x969b9c,rand(.5,1.45));
+for(let i=0;i<60;i++)smallBiomeRock(rand(390,930),rand(-900,900),0x8f5e42,rand(.5,1.5));
+for(let i=0;i<12;i++){
+  const x=rand(-820,820),z=rand(-920,-400),s=rand(10,24);
+  const m=new THREE.Mesh(new THREE.CircleGeometry(s,22),poolMat);m.rotation.x=-Math.PI/2;m.position.set(x,groundY(x,z)+.08,z);scene.add(m);
+}
+
+// Distant hard world boundary at roughly 2km.
+const worldEdgeMat=new THREE.MeshStandardMaterial({color:0x454b45,roughness:1});
+function worldEdge(x,z,sx,sz){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,8,sz),worldEdgeMat);m.position.set(x,groundY(x,z)+2,z);m.castShadow=m.receiveShadow=true;scene.add(m);blockers.push(m);playerStructures.push(m);}
+worldEdge(0,-998,2000,4);worldEdge(0,998,2000,4);worldEdge(-998,0,4,2000);worldEdge(998,0,4,2000);
+
+// Redistribute the existing 20 NPCs across the region.
+const npcSpawns2k=[
+  [-30,-20],[35,25],[-130,90],[145,-80],[-410,255],[-445,300],[425,-305],[475,-350],
+  [600,465],[650,510],[-585,-475],[-640,-520],[155,600],[205,675],[-170,-645],[-220,-700],
+  [710,25],[760,80],[-725,75],[-780,120]
+];
+for(let i=0;i<npcs.length;i++){
+  const n=npcs[i],s=npcSpawns2k[i%npcSpawns2k.length];
+  n.group.visible=true;n.group.position.set(s[0]+rand(-8,8),0,s[1]+rand(-8,8));
+  n.group.position.y=groundY(n.group.position.x,n.group.position.z);
+  n.patrol.set(n.group.position.x+rand(-20,20),0,n.group.position.z+rand(-20,20));
+  n.npcEnemy=null;n.playerProvoked=0;n.health=100;
+}
+
+// Player travel across full map while retaining existing movement behavior.
+updatePlayer=function(dt){
+  baseUpdatePlayerCompact(dt);
+  // Desktop keyboard input is added to the same player movement system below.
+  const kf=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const kr=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const km=new THREE.Vector3();
+  if(keys.KeyW||keys.ArrowUp)km.add(kf);
+  if(keys.KeyS||keys.ArrowDown)km.sub(kf);
+  if(keys.KeyD||keys.ArrowRight)km.add(kr);
+  if(keys.KeyA||keys.ArrowLeft)km.sub(kr);
+  if(km.lengthSq()>1)km.normalize();
+  if(km.lengthSq()>.001){const sprint=(keys.ShiftLeft||keys.ShiftRight)?1.55:1;const nx=player.pos.x+km.x*player.speed*sprint*dt,nz=player.pos.z+km.z*player.speed*sprint*dt;if(!blockedPosition(nx,nz)){player.pos.x=nx;player.pos.z=nz;}}
+  player.pos.x=clamp(player.pos.x,-994,994);player.pos.z=clamp(player.pos.z,-994,994);
+  player.pos.y=groundY(player.pos.x,player.pos.z)+player.height;camera.position.copy(player.pos);
+};
+
+// NPC logic remains the same, but roaming limits expand to the 2km world.
+updateNPCs=function(dt){
+  baseUpdateNPCsCompact(dt);
+  for(const n of npcs){if(n.dead)continue;n.group.position.x=clamp(n.group.position.x,-992,992);n.group.position.z=clamp(n.group.position.z,-992,992);n.group.position.y=groundY(n.group.position.x,n.group.position.z);n.patrol.x=clamp(n.patrol.x,-980,980);n.patrol.z=clamp(n.patrol.z,-980,980);}
+};
+
+// Building placement across full map.
+placeBuild=function(){
+  if(preview&&(Math.abs(preview.position.x)>990||Math.abs(preview.position.z)>990)){message('Map edge — build inside the 2km zone');return;}
+  const t=buildTypes[buildIndex];if(!previewValid){message(hasCost(t.cost)?'Blocked placement':'Need more resources');return;}
+  payCost(t.cost);const mat=new THREE.MeshStandardMaterial({color:t.name==='Foundation'?0x70614d:0x6b5138,roughness:.9});
+  const m=new THREE.Mesh(new THREE.BoxGeometry(...t.size),mat);m.position.copy(preview.position);m.rotation.y=buildRot;m.castShadow=true;m.receiveShadow=true;scene.add(m);blockers.push(m);playerStructures.push(m);updateHUD();tone(75,.08,.035,'triangle');
+};
+if(typeof mapText!=='undefined')mapText.textContent='Map: 2000m × 2000m';
+
+// ---------- MacBook / desktop controls ----------
+const keys={};
+addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='KeyR')reload();
+  if(e.code==='KeyQ')cycleGear();
+  if(e.code==='KeyB'){if(!buildMode)enterBuild();else placeBuild();}
+  if(e.code==='KeyT'&&buildMode){buildIndex=(buildIndex+1)%buildTypes.length;createPreview();updateHUD();}
+  if(e.code==='KeyE'&&nearbyLoot)lootCrate(nearbyLoot);
+  if(e.code==='KeyF')firing=true;
+});
+addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyF')firing=false;});
+
+// Click the game to lock mouse and look around on MacBook/desktop.
+renderer.domElement.addEventListener('click',()=>{if(!('ontouchstart' in window)&&document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock?.();});
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==renderer.domElement)return;
+  player.yaw-=e.movementX*.00225;player.pitch=clamp(player.pitch-e.movementY*.00205,-1.28,1.28);
+});
+renderer.domElement.addEventListener('mousedown',e=>{if(e.button===0&&document.pointerLockElement===renderer.domElement)firing=true;});
+addEventListener('mouseup',e=>{if(e.button===0)firing=false;});
+
+// Desktop instructions replace the old mobile-only notice.
+if(hud.desktop){hud.desktop.textContent='MacBook: WASD move · mouse look · click shoot · R reload · Q gear · B build/place · T build type · E loot · Shift sprint';hud.desktop.style.display=('ontouchstart' in window||navigator.maxTouchPoints>0)?'none':'block';}
+
+message('2km world ready · phone + MacBook controls · towns · roads · realistic biomes',3.4);
