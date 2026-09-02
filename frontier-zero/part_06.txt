@@ -1,0 +1,188 @@
+// ============================================================================
+// FRONTIER ZERO COMBAT / WORLD UPGRADE 2
+// NPC-vs-NPC combat, 5 lives, 1m passive player aggro, more buildings, visuals
+// ============================================================================
+
+// ---------- Five-life system ----------
+player.lives = 5;
+const livesText=document.createElement('div');
+livesText.id='livesText';livesText.style.fontWeight='750';livesText.style.color='#ffe3a3';
+const biomeReadout=document.getElementById('biomeText');
+if(biomeReadout) biomeReadout.insertAdjacentElement('afterend',livesText); else document.getElementById('npcText').insertAdjacentElement('afterend',livesText);
+function updateLivesHUD(){livesText.textContent=`Lives: ${player.lives}`;}
+updateLivesHUD();
+
+const gameOverOverlay=document.createElement('div');
+Object.assign(gameOverOverlay.style,{position:'fixed',inset:'0',display:'none',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:'14px',zIndex:'80',background:'rgba(7,10,12,.90)',color:'#fff',fontFamily:'system-ui,-apple-system,Segoe UI,sans-serif',textAlign:'center',padding:'24px'});
+gameOverOverlay.innerHTML='<div style="font-size:34px;font-weight:900;letter-spacing:.06em">GAME OVER</div><div style="font-size:15px;opacity:.78">You used all 5 lives.</div>';
+const restartBtn=document.createElement('button');restartBtn.textContent='RESTART';
+Object.assign(restartBtn.style,{minWidth:'150px',minHeight:'52px',borderRadius:'14px',border:'1px solid rgba(255,255,255,.32)',background:'#354047',color:'#fff',fontWeight:'850',fontSize:'16px'});
+restartBtn.addEventListener('click',()=>location.reload());gameOverOverlay.appendChild(restartBtn);document.body.appendChild(gameOverOverlay);
+
+playerDeath=function(){
+  if(player.dead)return;
+  player.dead=true;firing=false;player.lives=Math.max(0,player.lives-1);updateLivesHUD();
+  if(player.lives<=0){
+    message('No lives remaining',1.4);setTimeout(()=>{gameOverOverlay.style.display='flex';},650);return;
+  }
+  message(`You were downed — ${player.lives} lives left`,1.9);
+  setTimeout(()=>{
+    player.health=100;player.pos.set(0,groundY(0,0)+player.height,0);player.dead=false;updateHUD();
+  },1700);
+};
+
+// ---------- Rival NPC factions ----------
+// 5 Wardens vs 5 Raiders; they remain hostile gameplay NPCs but can also fight each other.
+for(let i=0;i<npcs.length;i++){
+  const n=npcs[i];n.faction=(i%2===0)?'WARDEN':'RAIDER';n.npcEnemy=null;n.npcCombatCd=rand(.25,.8);n.playerProvoked=0;
+  const vest=n.group.children[2];
+  if(vest?.material){vest.material=vest.material.clone();vest.material.color.setHex(n.faction==='WARDEN'?0x384f48:0x61423d);vest.material.roughness=.78;}
+  const gun=n.group.children[3];if(gun?.material){gun.material=gun.material.clone();gun.material.metalness=.72;gun.material.roughness=.28;}
+}
+
+function npcLineClear(fromNpc,toNpc){
+  if(!fromNpc||!toNpc||fromNpc.dead||toNpc.dead)return false;
+  const from=fromNpc.group.position.clone().add(new THREE.Vector3(0,1.75,0));
+  const to=toNpc.group.position.clone().add(new THREE.Vector3(0,1.35,0));
+  const d=to.clone().sub(from),dist=d.length();if(dist>42)return false;
+  raycaster.set(from,d.normalize());raycaster.far=Math.max(.1,dist-.55);
+  const hits=raycaster.intersectObjects([terrain,...blockers],true);
+  return hits.length===0;
+}
+function nearestRival(n,maxDist=32){
+  let best=null,bestD=maxDist;
+  for(const o of npcs){
+    if(o===n||o.dead||o.faction===n.faction)continue;
+    const d=n.group.position.distanceTo(o.group.position);
+    if(d<bestD&&npcLineClear(n,o)){best=o;bestD=d;}
+  }
+  return best;
+}
+function npcShootNpc(attacker,target,dist){
+  attacker.npcCombatCd=rand(.55,1.0);
+  const hitChance=clamp(.58-dist/85,.28,.56);
+  tone(attacker.faction==='WARDEN'?92:78,.035,.012,'square');
+  if(Math.random()<hitChance){
+    target.health-=rand(8,14);target.npcEnemy=attacker;target.alert=Math.max(target.alert,3.5);
+    const pt=target.group.position.clone().add(new THREE.Vector3(rand(-.2,.2),rand(.9,1.8),rand(-.2,.2)));impact(pt,0xb75e3b);
+    if(target.health<=0)killNpc(target);
+  }
+}
+
+// Player shooting an NPC explicitly provokes that NPC for ranged retaliation.
+const originalShootGunFZ2=shootGun;
+shootGun=function(w){
+  // Capture NPC health before the original hit-scan resolves, then flag damaged NPCs as provoked.
+  const before=new Map();for(const n of npcs)if(!n.dead)before.set(n,n.health);
+  originalShootGunFZ2(w);
+  for(const n of npcs){
+    if(!n.dead&&before.has(n)&&n.health<before.get(n)){n.playerProvoked=8;n.alert=Math.max(n.alert,8);}
+  }
+};
+
+// Passive NPCs do NOT shoot the player from range. They only auto-engage at ~1 meter.
+// Once the player shoots an NPC, that NPC is provoked and may return fire from range.
+updateNPCs=function(dt){
+  for(const n of npcs){
+    if(n.dead)continue;
+    const p=n.group.position,toPlayer=player.pos.clone().sub(p);toPlayer.y=0;const playerDist=toPlayer.length();
+    n.playerProvoked=Math.max(0,(n.playerProvoked||0)-dt);
+    n.npcCombatCd=(n.npcCombatCd||0)-dt;
+
+    // Choose/refresh an opposing NPC target.
+    if(!n.npcEnemy||n.npcEnemy.dead||n.npcEnemy.faction===n.faction||n.group.position.distanceTo(n.npcEnemy.group.position)>38){n.npcEnemy=nearestRival(n,30);}
+    const rival=n.npcEnemy;
+    const rivalDist=rival?n.group.position.distanceTo(rival.group.position):Infinity;
+    const rivalVisible=rival?npcLineClear(n,rival):false;
+
+    const passivePlayerAggro=playerDist<=1.15;
+    const canRetaliate=n.playerProvoked>0;
+    const seePlayer=npcCanSee(n);
+    let move=new THREE.Vector3();
+
+    if((passivePlayerAggro||canRetaliate)&&!player.dead){
+      const dir=toPlayer.lengthSq()>.001?toPlayer.clone().normalize():new THREE.Vector3(0,0,-1);
+      n.alert=Math.max(n.alert,canRetaliate?5:1.5);
+      if(canRetaliate&&playerDist>7)move.copy(dir);
+      else if(playerDist<1.45)move.set(-dir.z,0,dir.x).multiplyScalar(n.strafe*.55);
+      else move.copy(dir);
+      n.shotCd-=dt;
+      const allowedRange=canRetaliate?34:1.35;
+      if(seePlayer&&playerDist<=allowedRange&&n.shotCd<=0){
+        n.shotCd=rand(.58,1.08);
+        const accuracy=canRetaliate?clamp(.54-playerDist/95,.27,.51):.46;
+        if(Math.random()<accuracy)damagePlayer(rand(5,9));else tone(65,.025,.008,'square');
+      }
+    } else if(rival&&rivalVisible){
+      // NPC-vs-NPC firefight.
+      const dir=rival.group.position.clone().sub(p);dir.y=0;const nd=dir.length();if(nd>.001)dir.normalize();
+      if(rivalDist>13)move.copy(dir);else if(rivalDist<7)move.addScaledVector(dir,-.45);else move.set(-dir.z,0,dir.x).multiplyScalar(n.strafe*.52);
+      if(n.npcCombatCd<=0&&rivalDist<30)npcShootNpc(n,rival,rivalDist);
+    } else {
+      n.alert=Math.max(0,n.alert-dt);
+      n.repath-=dt;
+      if(n.repath<=0||p.distanceTo(n.patrol)<4){n.repath=rand(4,8);n.patrol.set(p.x+rand(-26,26),0,p.z+rand(-26,26));}
+      move.copy(n.patrol).sub(p);move.y=0;if(move.length()>1)move.normalize();
+    }
+
+    if(move.lengthSq()>0){
+      const fighting=(passivePlayerAggro||canRetaliate||rivalVisible);
+      const speed=fighting?3.7:1.5,nx=p.x+move.x*speed*dt,nz=p.z+move.z*speed*dt;
+      if(!blockedPosition(nx,nz)){p.x=nx;p.z=nz;}else{n.strafe*=-1;n.patrol.set(p.x+rand(-12,12),0,p.z+rand(-12,12));}
+      p.y=groundY(p.x,p.z);n.group.rotation.y=Math.atan2(move.x,move.z)+Math.PI;
+    }
+  }
+};
+
+// ---------- More lootable buildings ----------
+// Reuse the established loot-building system so these are functional, not decoration.
+const extraOutposts=[
+  makeOutpost(-145,82,'meadow'),makeOutpost(142,205,'pine'),makeOutpost(-205,355,'pine'),
+  makeOutpost(410,170,'badlands'),makeOutpost(500,-205,'badlands'),makeOutpost(-420,320,'alpine'),
+  makeOutpost(-505,20,'alpine'),makeOutpost(-165,-365,'marsh'),makeOutpost(245,-420,'marsh')
+];
+
+function makeCabin(x,z,theme='wood'){
+  const y=groundY(x,z),wood=theme==='dark'?0x4b4238:0x66533f,trim=0x35383a;
+  const floor=lootWall(x,y+.12,z,8,.24,6,0x51473b);
+  lootWall(x-3.9,y+1.8,z,.28,3.5,6,wood);lootWall(x+3.9,y+1.8,z,.28,3.5,6,wood);
+  lootWall(x,y+1.8,z-2.9,8,3.5,.28,wood);lootWall(x-2.6,y+1.8,z+2.9,2.6,3.5,.28,wood);lootWall(x+2.6,y+1.8,z+2.9,2.6,3.5,.28,wood);
+  const roof1=lootRoof(x-2,y+3.85,z,4.5,6.8,trim);roof1.rotation.z=.24;
+  const roof2=lootRoof(x+2,y+3.85,z,4.5,6.8,trim);roof2.rotation.z=-.24;
+  const c=createLootCrate(x+1.3,z-.5,'Cabin Stash');c.group.position.y=y+.42;
+}
+makeCabin(-18,145);makeCabin(205,68,'dark');makeCabin(-285,-248,'dark');makeCabin(335,335);makeCabin(-92,-475,'dark');
+
+// ---------- Extra realism without crushing mobile performance ----------
+// Warm sun disc and soft procedural cloud layers.
+const sunDisc=new THREE.Mesh(new THREE.SphereGeometry(8,14,10),new THREE.MeshBasicMaterial({color:0xffe5ad}));scene.add(sunDisc);
+const cloudMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.12,depthWrite:false,side:THREE.DoubleSide});
+const clouds=[];
+for(let i=0;i<10;i++){
+  const c=new THREE.Mesh(new THREE.PlaneGeometry(rand(28,55),rand(9,18)),cloudMat.clone());c.rotation.x=-Math.PI/2;c.position.set(rand(-240,240),rand(70,110),rand(-240,240));scene.add(c);clouds.push(c);
+}
+
+// Scattered low-cost ground debris/detail.
+const debrisGeo=new THREE.DodecahedronGeometry(.15,0);const debrisMat=new THREE.MeshStandardMaterial({color:0x565247,roughness:1});
+const debris=new THREE.InstancedMesh(debrisGeo,debrisMat,240);const debrisDummy=new THREE.Object3D();
+for(let i=0;i<240;i++){
+  const x=rand(-620,620),z=rand(-620,620),s=rand(.45,1.55);debrisDummy.position.set(x,groundY(x,z)+.08,z);debrisDummy.scale.set(s,rand(.35,.8)*s,s);debrisDummy.rotation.set(rand(0,1),rand(0,Math.PI),rand(0,1));debrisDummy.updateMatrix();debris.setMatrixAt(i,debrisDummy.matrix);
+}
+debris.castShadow=false;debris.receiveShadow=true;scene.add(debris);
+
+// Better material response on world structures.
+for(const o of [...blockers,...playerStructures]){
+  o.traverse?.(m=>{if(m.isMesh&&m.material){m.material.roughness=Math.min(m.material.roughness??.9,.88);if((m.material.metalness??0)<.05)m.material.metalness=.015;}});
+}
+
+// Keep sky assets centered around the current play area and add very slow cloud motion.
+const baseUpdateBiomeVisualsFZ2=updateBiomeVisuals;
+updateBiomeVisuals=function(){
+  baseUpdateBiomeVisualsFZ2();
+  sunDisc.position.set(player.pos.x-170,player.pos.y+145,player.pos.z-230);
+  for(let i=0;i<clouds.length;i++){
+    const c=clouds[i];c.position.x+=0.006*(i%3+1);if(c.position.x-player.pos.x>260)c.position.x=player.pos.x-260;c.position.z+=(i%2?0.002:-0.0015);
+  }
+};
+updateBiomeVisuals();updateLivesHUD();
+message('Combat upgraded: rival NPCs · 5 lives · 1m passive aggro · more loot buildings',3.1);
