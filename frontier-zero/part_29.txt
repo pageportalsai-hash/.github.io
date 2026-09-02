@@ -1,0 +1,115 @@
+// ============================================================================
+// FRONTIER ZERO STYLIZED BATTLE-ROYALE GRAPHICS PASS
+// Bright, colorful, polished stylized visuals inspired by modern battle royale
+// games without copying any specific game's assets or exact art.
+// ============================================================================
+
+const fine29=matchMedia('(pointer:fine)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio,fine29?2.7:1.45));
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.28;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+sun.shadow.mapSize.set(fine29?4096:1536,fine29?4096:1536);
+sun.intensity=3.25;hemi.intensity=2.05;
+scene.background=new THREE.Color(0x78bdea);
+scene.fog.color.setHex(0xa9d5df);scene.fog.density=.00054;
+
+// Bright warm key and cool fill for the punchy stylized look.
+sun.color.setHex(0xffe1a8);
+if(typeof fill21!=='undefined'){fill21.color.setHex(0x93cfff);fill21.intensity=.55;}
+const rim29=new THREE.DirectionalLight(0xb6dcff,.42);rim29.position.set(260,140,180);scene.add(rim29);
+
+// Saturated terrain / world materials.
+if(terrain?.material){
+  terrain.material.color.setHex(0x5f8a3d);
+  terrain.material.roughness=.9;
+  terrain.material.metalness=0;
+}
+if(typeof terrain2k!=='undefined'&&terrain2k?.material){terrain2k.material.roughness=.9;}
+if(water?.material){
+  water.material.color.setHex(0x3b92c7);water.material.opacity=.78;water.material.roughness=.12;water.material.metalness=.06;
+}
+
+// Push foliage toward bright readable greens and trunks toward warmer browns.
+scene.traverse(o=>{
+  if(!o.isMesh||!o.material||!o.material.color)return;
+  const c=o.material.color;
+  const r=c.r,g=c.g,b=c.b;
+  // likely foliage
+  if(g>r*1.15&&g>b*.95){
+    o.material=o.material.clone();o.material.color.offsetHSL(0,.10,.07);o.material.roughness=Math.min(o.material.roughness??.9,.82);
+  }
+  // likely dirt/wood/building browns
+  else if(r>g*1.08&&g>b*1.05&&r>.18){
+    o.material=o.material.clone();o.material.color.offsetHSL(0,.06,.035);
+  }
+});
+
+// More stylized building palette and edge contrast.
+const stylizedWalls29=[0xc7ad78,0xb8c1aa,0xd0a06f,0x9cb0b1,0xc2b0d0,0xaac68c];
+let wallIx29=0;
+for(const b of blockers){
+  if(!b?.isMesh||!b.material?.color)continue;
+  const p=b.geometry?.parameters;if(!p)continue;
+  if((p.width||0)>=4&&(p.depth||0)>=4&&(p.height||0)>=2){
+    b.material=b.material.clone();b.material.color.setHex(stylizedWalls29[(wallIx29++)%stylizedWalls29.length]);b.material.roughness=.82;
+  }
+}
+
+// Soft contact blobs make characters/cars/props feel grounded.
+const blobMat29=new THREE.MeshBasicMaterial({color:0x18300f,transparent:true,opacity:.16,depthWrite:false});
+function addBlob29(parent,sx,sz,y=.03){
+  const s=new THREE.Mesh(new THREE.CircleGeometry(1,18),blobMat29.clone());s.rotation.x=-Math.PI/2;s.scale.set(sx,sz,1);s.position.y=y;parent.add(s);return s;
+}
+for(const n of npcs){if(!n.shadow29)addBlob29(n.group,.55,.38,.025);n.shadow29=true;}
+for(const c of cars19){if(!c.shadow29)addBlob29(c.group,2.0,.9,.025);c.shadow29=true;}
+
+// Bright stylized car paint for higher tiers, while rusty cars stay rusty.
+for(let i=0;i<cars19.length;i++){
+  const c=cars19[i],tier=c.tier24?.name||'STREET';
+  if(tier==='RUSTY')continue;
+  const palette=tier==='LAMBO'?[0xf4c729]:tier==='SUPERCAR'?[0xe8513f,0x4e74d8,0xf0a43c]:tier==='SPORT'?[0x3f75d7,0xdf4e4e,0x42a46e,0xf0a640]:[0x4c81bd,0x8b5db0,0xd65e52,0x4f9a75];
+  const col=palette[i%palette.length];
+  c.group.traverse(m=>{
+    if(!m.isMesh||!m.material||!m.material.color)return;
+    const metal=m.material.metalness??0;
+    if(metal>.35&&m.material.opacity===1){m.material=m.material.clone();m.material.color.setHex(col);if('clearcoat' in m.material)m.material.clearcoat=1;m.material.roughness=Math.min(m.material.roughness??.25,.22);}
+  });
+}
+
+// Stylized NPC clothing: stronger readable colors, slightly softer skin shading.
+const npcShirts29=[0x4779b8,0xc95b50,0x55a06f,0x8c62ae,0xc39443,0x4e9ba3];
+for(let i=0;i<npcs.length;i++){
+  const n=npcs[i];
+  let clothCount=0;
+  n.group.traverse(m=>{
+    if(!m.isMesh||!m.material?.color)return;
+    const c=m.material.color;
+    if(m.position.y>.7&&m.position.y<2.0&&clothCount<4){
+      m.material=m.material.clone();m.material.color.setHex(npcShirts29[(i+clothCount)%npcShirts29.length]);m.material.roughness=.74;clothCount++;
+    }
+  });
+}
+
+// Stylized clouds made from simple soft white blobs; safe, no custom shader.
+const cloud29=new THREE.Group();scene.add(cloud29);
+const cloudMat29=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.34,depthWrite:false});
+for(let i=0;i<(fine29?18:10);i++){
+  const g=new THREE.Group();
+  const baseX=rand(-430,430),baseZ=rand(-430,430),y=rand(65,105);
+  for(let j=0;j<4;j++){
+    const m=new THREE.Mesh(new THREE.SphereGeometry(rand(6,12),10,7),cloudMat29.clone());
+    m.scale.set(rand(1.5,2.4),rand(.45,.75),rand(.8,1.4));m.position.set(baseX+rand(-10,10),y+rand(-2,3),baseZ+rand(-5,5));g.add(m);
+  }
+  cloud29.add(g);
+}
+
+// Slightly wider, punchier FOV and camera contrast.
+camera.fov=76;camera.updateProjectionMatrix();
+
+// Keep UI readable but give the world less washed-out haze.
+if(typeof graphicsBadge21!=='undefined')graphicsBadge21.textContent='GRAPHICS: STYLIZED ULTRA · NPC RANGE: 5m';
+
+message('STYLIZED BATTLE-ROYALE GRAPHICS ENABLED',3.4);
