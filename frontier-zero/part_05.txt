@@ -1,0 +1,28 @@
+.innerHTML=`WOOD ${player.inventory.wood}<br>STONE ${player.inventory.stone}<br>METAL ${player.inventory.metal}<br>BUILD ${bt.name}`;
+  hud.fire.textContent=w.type==='gun'?'FIRE':w.type==='axe'?'CHOP':w.type==='pickaxe'?'MINE':'DIG';
+}
+updateHUD();updateBuildUI();
+
+// ---------- Animation ----------
+const clock=new THREE.Clock();
+function updatePlayer(dt){
+  if(player.dead)return;
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const move=new THREE.Vector3().addScaledVector(fwd,-joy.y).addScaledVector(right,joy.x);
+  if(move.lengthSq()>1)move.normalize();
+  if(move.lengthSq()>.001){const nx=player.pos.x+move.x*player.speed*dt,nz=player.pos.z+move.z*player.speed*dt;if(!blockedPosition(nx,nz)){player.pos.x=nx;player.pos.z=nz;}}
+  player.pos.y=groundY(player.pos.x,player.pos.z)+player.height;
+  camera.position.copy(player.pos); camera.rotation.set(player.pitch,player.yaw,0);
+}
+function animate(){
+  requestAnimationFrame(animate); const dt=Math.min(clock.getDelta(),.04);
+  if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)hud.msg.style.opacity='0';}
+  updatePlayer(dt); updateNPCs(dt); updatePreview(); if(firing)doAction();
+  renderer.render(scene,camera);
+}
+animate();
+
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+message('Move with left thumb · aim with right thumb',2.2);
