@@ -1,0 +1,103 @@
+// ============================================================================
+// FRONTIER ZERO DOUBLE GRAPHICS / RENDER QUALITY
+// Roughly doubles desktop render quality via pixel density, shadow resolution,
+// filtering, lighting/material response and draw-distance clarity. Mobile stays
+// lighter so the game remains playable.
+// ============================================================================
+
+const ultraDesktop28=matchMedia('(pointer:fine)').matches;
+
+// Roughly 2x the prior desktop pixel density target. Clamp to device capability
+// so very-high-DPI displays do not create absurd render sizes.
+const targetPixelRatio28=ultraDesktop28?Math.min(devicePixelRatio,3.0):Math.min(devicePixelRatio,1.55);
+renderer.setPixelRatio(targetPixelRatio28);
+renderer.setSize(innerWidth,innerHeight,false);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.20;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+// Much sharper sun shadows on desktop.
+const shadowSize28=ultraDesktop28?4096:1536;
+sun.shadow.mapSize.set(shadowSize28,shadowSize28);
+sun.shadow.camera.left=-235;sun.shadow.camera.right=235;sun.shadow.camera.top=235;sun.shadow.camera.bottom=-235;
+sun.shadow.camera.near=.8;sun.shadow.camera.far=760;
+sun.shadow.bias=-.0002;sun.shadow.normalBias=.012;
+sun.shadow.needsUpdate=true;
+
+// Cleaner distance rendering.
+camera.far=ultraDesktop28?1200:900;camera.updateProjectionMatrix();
+scene.fog.density=ultraDesktop28?.00052:.0007;
+scene.fog.color.setHex(0xb7cad2);
+scene.background=new THREE.Color(0x8eb9d3);
+
+// Stronger but balanced world lighting.
+hemi.intensity=1.95;
+sun.intensity=3.15;
+if(typeof fill21!=='undefined')fill21.intensity=.58;
+
+// Max texture filtering and improved PBR response.
+const maxAniso28=renderer.capabilities.getMaxAnisotropy?.()||1;
+scene.traverse(o=>{
+  if(!o.isMesh||!o.material)return;
+  o.frustumCulled=true;
+  const mats=Array.isArray(o.material)?o.material:[o.material];
+  for(const m of mats){
+    if(m.map){m.map.anisotropy=Math.min(maxAniso28,ultraDesktop28?16:6);m.map.needsUpdate=true;}
+    if(m.normalMap){m.normalMap.anisotropy=Math.min(maxAniso28,ultraDesktop28?16:6);m.normalMap.needsUpdate=true;}
+    if(m.roughnessMap){m.roughnessMap.anisotropy=Math.min(maxAniso28,ultraDesktop28?16:6);m.roughnessMap.needsUpdate=true;}
+    if('envMapIntensity' in m)m.envMapIntensity=1.25;
+    if('clearcoat' in m&&m.clearcoat>0)m.clearcoat=Math.min(1,m.clearcoat*1.08);
+  }
+});
+
+// Improve first-person gun crispness separately from world materials.
+if(typeof realisticGunRoot27!=='undefined'){
+  realisticGunRoot27.traverse?.(m=>{if(m.isMesh&&m.material){m.castShadow=true;m.receiveShadow=true;if('roughness' in m)m.material.roughness=Math.max(.12,(m.material.roughness??.35)*.88);}});
+}
+
+// Improve detailed vehicles without changing their speed/physics.
+if(typeof cars19!=='undefined'){
+  for(const c of cars19)c.group.traverse(m=>{
+    if(!m.isMesh||!m.material)return;
+    m.castShadow=true;m.receiveShadow=true;
+    if('envMapIntensity' in m.material)m.material.envMapIntensity=1.35;
+    if('clearcoat' in m.material&&m.material.clearcoat>0)m.material.clearcoat=1;
+  });
+}
+
+// Higher quality NPC mesh shading on desktop.
+if(typeof npcs!=='undefined'){
+  for(const n of npcs)n.group.traverse(m=>{
+    if(!m.isMesh||!m.material)return;
+    m.castShadow=true;m.receiveShadow=true;
+    if('roughness' in m.material)m.material.roughness=Math.max(.28,(m.material.roughness??.75)*.9);
+  });
+}
+
+// Slightly denser low-cost terrain detail on desktop only.
+if(ultraDesktop28){
+  const geo28=new THREE.IcosahedronGeometry(.075,0);
+  const mat28=new THREE.MeshStandardMaterial({color:0x5f6757,roughness:1,metalness:0});
+  const count28=900;
+  const inst28=new THREE.InstancedMesh(geo28,mat28,count28);
+  const dummy28=new THREE.Object3D();
+  for(let i=0;i<count28;i++){
+    const x=rand(-490,490),z=rand(-490,490),s=rand(.35,1.25);
+    dummy28.position.set(x,groundY(x,z)+.045,z);
+    dummy28.scale.set(s,rand(.2,.7)*s,s);
+    dummy28.rotation.set(rand(0,1),rand(0,6.28),rand(0,1));
+    dummy28.updateMatrix();inst28.setMatrixAt(i,dummy28.matrix);
+  }
+  inst28.receiveShadow=true;scene.add(inst28);
+}
+
+// Keep render size correct after browser resizing.
+addEventListener('resize',()=>{
+  renderer.setPixelRatio(ultraDesktop28?Math.min(devicePixelRatio,3.0):Math.min(devicePixelRatio,1.55));
+  renderer.setSize(innerWidth,innerHeight,false);
+});
+
+if(typeof graphicsBadge21!=='undefined')graphicsBadge21.textContent=ultraDesktop28?'GRAPHICS: ULTRA x2 · NPC RANGE: 5m':'GRAPHICS: HIGH MOBILE · NPC RANGE: 5m';
+message(ultraDesktop28?'ULTRA x2 rendering enabled':'High mobile rendering enabled',3.2);
