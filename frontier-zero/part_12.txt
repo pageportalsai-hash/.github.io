@@ -1,0 +1,169 @@
+// ============================================================================
+// FRONTIER ZERO 1000m + 50 NPC + WEAPON RARITY UPDATE
+// Common, Uncommon, Rare, Epic, Legendary, Mythic, Secret weapon loot.
+// ============================================================================
+
+const WORLD_HALF_1000=500;
+camera.far=900;camera.updateProjectionMatrix();
+scene.fog.density=.00105;
+
+// Remove the former 1500m hard boundary.
+const old1500Edges=[];
+for(const o of [...blockers,...playerStructures]){
+  if(!o?.parent)continue;
+  const p=new THREE.Vector3();o.getWorldPosition(p);
+  const b=new THREE.Box3().setFromObject(o),s=new THREE.Vector3();b.getSize(s);
+  if((Math.abs(Math.abs(p.x)-748)<7||Math.abs(Math.abs(p.z)-748)<7)&&Math.max(s.x,s.z)>1300)old1500Edges.push(o);
+}
+for(const o of old1500Edges){
+  scene.remove(o);
+  for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===o)blockers.splice(i,1);
+  for(let i=playerStructures.length-1;i>=0;i--)if(playerStructures[i]===o)playerStructures.splice(i,1);
+}
+
+// New 1000m x 1000m physical boundary.
+const edge1000Mat=new THREE.MeshStandardMaterial({color:0x414742,roughness:1});
+function edge1000(x,z,sx,sz){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(sx,8,sz),edge1000Mat);
+  m.position.set(x,groundY(x,z)+2,z);m.castShadow=m.receiveShadow=true;scene.add(m);blockers.push(m);playerStructures.push(m);
+}
+edge1000(0,-498,1000,4);edge1000(0,498,1000,4);edge1000(-498,0,4,1000);edge1000(498,0,4,1000);
+
+// Exactly 50 NPCs. Remove the extras cleanly from the scene and hit list.
+if(npcs.length>50){
+  const removed=new Set(npcs.slice(50));
+  for(const n of removed){n.dead=true;n.group.visible=false;scene.remove(n.group);}
+  for(let i=npcHitMeshes.length-1;i>=0;i--){
+    const h=npcHitMeshes[i],owner=h?.userData?.npc||h?.parent?.userData?.npc;
+    if(removed.has(owner))npcHitMeshes.splice(i,1);
+  }
+  npcs.splice(50);
+}
+
+// Redistribute the 50 people through the accessible 1000m world.
+const populationCenters=[
+  [-350,350],[0,350],[350,350],[-350,80],[0,80],[350,80],
+  [-350,-240],[0,-240],[350,-240],[0,-410]
+];
+for(let i=0;i<npcs.length;i++){
+  const n=npcs[i],c=populationCenters[i%populationCenters.length],a=rand(0,Math.PI*2),r=rand(12,58);
+  const x=clamp(c[0]+Math.cos(a)*r,-465,465),z=clamp(c[1]+Math.sin(a)*r,-465,465);
+  n.dead=false;n.health=100;n.group.visible=true;n.group.position.set(x,groundY(x,z),z);
+  n.patrol.set(clamp(x+rand(-28,28),-465,465),0,clamp(z+rand(-28,28),-465,465));
+  n.npcEnemy=null;n.playerProvoked=0;
+}
+
+// Keep player and NPC movement within the 1000m map while preserving jumping.
+const movementBefore1000=updatePlayer;
+updatePlayer=function(dt){
+  movementBefore1000(dt);
+  player.pos.x=clamp(player.pos.x,-494,494);player.pos.z=clamp(player.pos.z,-494,494);
+  player.pos.y=groundY(player.pos.x,player.pos.z)+player.height+jumpOffset;camera.position.copy(player.pos);
+};
+const npcBefore50=updateNPCs;
+updateNPCs=function(dt){
+  npcBefore50(dt);
+  for(const n of npcs){if(n.dead)continue;n.group.position.x=clamp(n.group.position.x,-490,490);n.group.position.z=clamp(n.group.position.z,-490,490);n.group.position.y=groundY(n.group.position.x,n.group.position.z);n.patrol.x=clamp(n.patrol.x,-475,475);n.patrol.z=clamp(n.patrol.z,-475,475);}
+};
+
+// Construction obeys the smaller map.
+const buildBefore1000=placeBuild;
+placeBuild=function(){
+  if(preview&&(Math.abs(preview.position.x)>490||Math.abs(preview.position.z)>490)){message('Map edge — build inside the 1000m zone');return;}
+  buildBefore1000();
+};
+
+// New random safe spawn logic for the 1000m map.
+randomSafeSpawn=function(){
+  for(let tries=0;tries<120;tries++){
+    const c=populationCenters[(Math.random()*populationCenters.length)|0];
+    let x,z;
+    if(Math.random()<.6){const a=rand(0,Math.PI*2),r=rand(65,125);x=c[0]+Math.cos(a)*r;z=c[1]+Math.sin(a)*r;}
+    else{x=rand(-455,455);z=rand(-455,455);}
+    if(Math.abs(x)>470||Math.abs(z)>470||blockedPosition(x,z))continue;
+    let close=false;for(const n of npcs){if(!n.dead&&Math.hypot(n.group.position.x-x,n.group.position.z-z)<12){close=true;break;}}
+    if(!close)return{x,z};
+  }
+  return{x:rand(-180,180),z:rand(-180,180)};
+};
+applyRandomSpawn();
+
+// ---------- Weapon rarity system ----------
+const RARITY={
+  Common:{rank:1,color:'#b8bec5',weight:48},
+  Uncommon:{rank:2,color:'#55c96a',weight:25},
+  Rare:{rank:3,color:'#4b8cff',weight:13},
+  Epic:{rank:4,color:'#a966ff',weight:7},
+  Legendary:{rank:5,color:'#ff9f32',weight:4},
+  Mythic:{rank:6,color:'#ff4f68',weight:2.2},
+  Secret:{rank:7,color:'#55f4ed',weight:.8}
+};
+
+// Existing starter weapons become Common weapons.
+for(const w of gear)if(w.type==='gun'&&!w.rarity)w.rarity='Common';
+
+const gunCatalog=[
+  {rarity:'Common',name:'Ranger AR',magSize:30,damage:20,rate:.108,spread:.015,pellets:1,reserve:120},
+  {rarity:'Common',name:'Trail Pistol',magSize:12,damage:31,rate:.29,spread:.012,pellets:1,reserve:60},
+  {rarity:'Uncommon',name:'Viper SMG',magSize:34,damage:19,rate:.075,spread:.017,pellets:1,reserve:150},
+  {rarity:'Uncommon',name:'Hunter Carbine',magSize:26,damage:27,rate:.13,spread:.010,pellets:1,reserve:110},
+  {rarity:'Rare',name:'Falcon AR',magSize:32,damage:31,rate:.098,spread:.008,pellets:1,reserve:130},
+  {rarity:'Rare',name:'Breach Shotgun',magSize:8,damage:16,rate:.64,spread:.043,pellets:9,reserve:42},
+  {rarity:'Epic',name:'Nightfall Rifle',magSize:36,damage:38,rate:.087,spread:.006,pellets:1,reserve:144},
+  {rarity:'Epic',name:'Storm SMG',magSize:42,damage:25,rate:.058,spread:.010,pellets:1,reserve:180},
+  {rarity:'Legendary',name:'Sunfire AR',magSize:40,damage:46,rate:.078,spread:.0048,pellets:1,reserve:180},
+  {rarity:'Legendary',name:'Titan Handcannon',magSize:9,damage:78,rate:.34,spread:.004,pellets:1,reserve:54},
+  {rarity:'Mythic',name:'Apex Rifle',magSize:45,damage:58,rate:.068,spread:.0032,pellets:1,reserve:210},
+  {rarity:'Mythic',name:'Dragon Shotgun',magSize:10,damage:24,rate:.50,spread:.030,pellets:10,reserve:60},
+  {rarity:'Secret',name:'ZERO-9',magSize:60,damage:72,rate:.052,spread:.0018,pellets:1,reserve:300},
+  {rarity:'Secret',name:'Phantom Cannon',magSize:7,damage:135,rate:.42,spread:.0025,pellets:1,reserve:35}
+];
+
+const ownedGunKeys=new Set();
+for(const w of gear)if(w.type==='gun')ownedGunKeys.add((w.rarity||'Common')+'|'+w.name);
+
+function rollRarity(){
+  const entries=Object.entries(RARITY),total=entries.reduce((s,[,v])=>s+v.weight,0);let r=Math.random()*total;
+  for(const [name,v] of entries){r-=v.weight;if(r<=0)return name;}return 'Common';
+}
+function grantRandomGun(){
+  const rarity=rollRarity();let candidates=gunCatalog.filter(g=>g.rarity===rarity&&!ownedGunKeys.has(g.rarity+'|'+g.name));
+  if(!candidates.length)candidates=gunCatalog.filter(g=>!ownedGunKeys.has(g.rarity+'|'+g.name));
+  if(!candidates.length)return null;
+  const src=candidates[(Math.random()*candidates.length)|0];
+  const w={name:src.name,type:'gun',rarity:src.rarity,magSize:src.magSize,mag:src.magSize,reserve:src.reserve,damage:src.damage,rate:src.rate,spread:src.spread,pellets:src.pellets};
+  gear.push(w);ownedGunKeys.add(src.rarity+'|'+src.name);return w;
+}
+
+// Loot crates can now contain weapons. About 42% of crates award a gun until the catalog is collected.
+const baseLootCrateRarity=lootCrate;
+lootCrate=function(c){
+  if(!c||c.looted)return;
+  baseLootCrateRarity(c);
+  if(Math.random()<.42){
+    const w=grantRandomGun();
+    if(w){const rc=RARITY[w.rarity];message(`${w.rarity.toUpperCase()} GUN FOUND: ${w.name}`,2.7);tone(190+rc.rank*55,.16,.055,'triangle');}
+  }
+  updateHUD();
+};
+
+// Show weapon rarity directly in HUD with matching rarity color.
+const baseUpdateHUDRarity=updateHUD;
+updateHUD=function(){
+  baseUpdateHUDRarity();
+  const w=currentGear(),el=document.getElementById('weaponText');
+  if(el&&w?.type==='gun'){
+    const rarity=w.rarity||'Common';el.textContent=`${rarity} ${w.name} · ${w.mag} / ${w.reserve}`;el.style.color=RARITY[rarity]?.color||'#fff';
+  }else if(el)el.style.color='#fff';
+};
+updateHUD();
+
+// Add a small rarity legend to the HUD.
+const rarityLegend=document.createElement('div');
+rarityLegend.id='rarityLegend';rarityLegend.style.cssText='margin-top:4px;font-size:9px;line-height:1.25;opacity:.95';
+rarityLegend.innerHTML='<span style="color:#b8bec5">COMMON</span> · <span style="color:#55c96a">UNCOMMON</span> · <span style="color:#4b8cff">RARE</span> · <span style="color:#a966ff">EPIC</span><br><span style="color:#ff9f32">LEGENDARY</span> · <span style="color:#ff4f68">MYTHIC</span> · <span style="color:#55f4ed">SECRET</span>';
+document.getElementById('stats')?.appendChild(rarityLegend);
+
+if(typeof mapText!=='undefined')mapText.textContent='Map: 1000m × 1000m';
+const npcText50=document.getElementById('npcText');if(npcText50)npcText50.textContent='Hostiles: 50';
+message('1000m map · 50 NPCs · 7 gun rarities now available in loot',4);
