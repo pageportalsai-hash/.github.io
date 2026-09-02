@@ -17,9 +17,16 @@ updateNPCs=function(dt){
     for(const n of npcs){
       if(!n||n.dead)continue;
       const p=n.group.position,dx=player.pos.x-p.x,dz=player.pos.z-p.z,d=Math.hypot(dx,dz);
-      if(d>5&&d<=QA_AWARENESS31){
-        // Close enemies prioritize the player over faction fights.
+      const rivalBusy=!!(n.npcEnemy&&!n.npcEnemy.dead);
+      const lootBusy=!!(n.lootTarget14&&!n.lootTarget14.looted);
+      const shouldChase=d>5&&d<=QA_AWARENESS31&&(!rivalBusy||d<18)&&(!lootBusy||d<12);
+      if(shouldChase){
+        // Close enemies prioritize the player over faction fights or crate runs.
         if(d<18)n.npcEnemy=null;
+        if(d<12&&n.lootTarget14){
+          if(n.lootTarget14.npcReserved14===n)n.lootTarget14.npcReserved14=null;
+          n.lootTarget14=null;
+        }
         const inv=d>0?1/d:0,dirX=dx*inv,dirZ=dz*inv;
         // A small extra chase step makes enemies actually close distance instead
         // of wandering for most of the match. Collision checks remain active.
@@ -44,10 +51,18 @@ playerDeath=function(){
 };
 
 // Make car collision use the car footprint instead of only its center point.
-// This greatly reduces cars clipping their corners through buildings/rocks.
+// Scope the wider collision probes only to the player/car movement update so
+// NPC pathing is never accidentally tested with a car-sized footprint.
+let qaCarMovement31=false;
+const updatePlayerBeforeCarCollisionQA31=updatePlayer;
+updatePlayer=function(dt){
+  qaCarMovement31=!!activeCar19;
+  try{return updatePlayerBeforeCarCollisionQA31(dt);}
+  finally{qaCarMovement31=false;}
+};
 const blockedPositionBeforeCarQA31=blockedPosition;
 blockedPosition=function(x,z){
-  if(!activeCar19)return blockedPositionBeforeCarQA31(x,z);
+  if(!qaCarMovement31||!activeCar19)return blockedPositionBeforeCarQA31(x,z);
   if(blockedPositionBeforeCarQA31(x,z))return true;
   const a=activeCar19.group.rotation.y;
   const forwardX=-Math.sin(a),forwardZ=-Math.cos(a),rightX=Math.cos(a),rightZ=-Math.sin(a);
@@ -145,7 +160,8 @@ let qaRenderTier31=0; // 0 Ultra, 1 High, 2 Performance
 function applyRenderTier31(tier){
   if(!qaDesktop31)return;qaRenderTier31=clamp(tier,0,2);
   const ratios=[Math.min(devicePixelRatio,2.7),Math.min(devicePixelRatio,2.15),Math.min(devicePixelRatio,1.7)];
-  const shadows=[4096,2048,1024];
+  const maxTex=Math.max(1024,renderer.capabilities.maxTextureSize||4096);
+  const shadows=[Math.min(4096,maxTex),Math.min(2048,maxTex),Math.min(1024,maxTex)];
   renderer.setPixelRatio(ratios[qaRenderTier31]);renderer.setSize(innerWidth,innerHeight,false);
   sun.shadow.mapSize.set(shadows[qaRenderTier31],shadows[qaRenderTier31]);
   if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
@@ -172,6 +188,7 @@ addEventListener('resize',()=>{if(qaDesktop31)applyRenderTier31(qaRenderTier31);
 
 // Correct the lobby summary so shop-bought Rare/Epic/etc guns are not labelled
 // COMMON, and keep a visible 2-slot summary.
+let readyBtn31=null;
 if(typeof refreshLoadout18==='function'){
   const refreshLoadoutBeforeQA31=refreshLoadout18;
   refreshLoadout18=function(){
@@ -181,7 +198,7 @@ if(typeof refreshLoadout18==='function'){
       chosenGun17.textContent=labels.length?`Selected ${labels.length}/2: ${labels.join(' + ')}`:'Selected 0/2 — CHOOSE TWO WEAPONS';
       chosenGun17.style.color=selectedLoadout18.length===2?'#ffe27a':'#fff';
     }
-    if(typeof readyBtn31!=='undefined')readyBtn31.disabled=selectedLoadout18.length!==2;
+    if(readyBtn31){readyBtn31.disabled=selectedLoadout18.length!==2;readyBtn31.style.opacity=readyBtn31.disabled?'.45':'1';}
   };
 }
 
@@ -195,14 +212,11 @@ if(typeof shopPanel19!=='undefined'&&shopPanel19&&shopPanel19.parentElement){
 }
 
 // Allow players who have chosen both slots to deploy before the 30s timer ends.
-let readyBtn31=null;
 if(typeof lobby17!=='undefined'&&lobby17?.firstElementChild){
   readyBtn31=document.createElement('button');readyBtn31.type='button';readyBtn31.disabled=selectedLoadout18.length!==2;readyBtn31.textContent='READY · DEPLOY';
   readyBtn31.style.cssText='width:100%;margin-top:12px;min-height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.32);background:#d4b34e;color:#111417;font:950 14px system-ui;cursor:pointer;opacity:1';
   readyBtn31.addEventListener('click',e=>{e.stopPropagation();if(selectedLoadout18.length===2)finishLobby17();});
   lobby17.firstElementChild.appendChild(readyBtn31);
-  const syncReady31=()=>{readyBtn31.disabled=selectedLoadout18.length!==2;readyBtn31.style.opacity=readyBtn31.disabled?'.45':'1';};
-  const obs31=new MutationObserver(syncReady31);if(chosenGun17)obs31.observe(chosenGun17,{childList:true,characterData:true,subtree:true});syncReady31();
 }
 if(typeof refreshLoadout18==='function')refreshLoadout18();
 
