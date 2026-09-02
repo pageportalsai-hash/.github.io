@@ -1,0 +1,144 @@
+// ============================================================================
+// FRONTIER ZERO GAMEPLAY LOGIC UPGRADE
+// Improves the actual match flow: better 5m enemy behavior, smarter respawns,
+// scaling difficulty, hit feedback, streak rewards and milestone progression.
+// ============================================================================
+
+// ---------- Gameplay feedback HUD ----------
+const flowHud30=document.createElement('div');
+flowHud30.style.cssText='position:fixed;left:50%;top:48px;transform:translateX(-50%);z-index:36;background:rgba(8,13,16,.72);border:1px solid rgba(255,255,255,.16);border-radius:9px;padding:5px 9px;color:#eef5f8;font:800 10px system-ui;pointer-events:none;letter-spacing:.03em';
+document.body.appendChild(flowHud30);
+let streak30=0,lastKillTime30=0;
+function updateFlowHud30(){
+  const phase=playerKills24<15?'EARLY':playerKills24<35?'MID':playerKills24<50?'LATE':'FINAL PUSH';
+  flowHud30.textContent=`${phase} · STREAK ${streak30} · ${Math.max(0,WIN_KILLS24-playerKills24)} TO WIN`;
+}
+updateFlowHud30();
+
+const hitMarker30=document.createElement('div');
+hitMarker30.style.cssText='position:fixed;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%);z-index:37;pointer-events:none;opacity:0;transition:opacity .08s';
+hitMarker30.innerHTML='<span style="position:absolute;left:3px;top:13px;width:8px;height:2px;background:#fff;transform:rotate(45deg)"></span><span style="position:absolute;right:3px;top:13px;width:8px;height:2px;background:#fff;transform:rotate(-45deg)"></span><span style="position:absolute;left:3px;bottom:5px;width:8px;height:2px;background:#fff;transform:rotate(-45deg)"></span><span style="position:absolute;right:3px;bottom:5px;width:8px;height:2px;background:#fff;transform:rotate(45deg)"></span>';
+document.body.appendChild(hitMarker30);
+let hitTimer30=null;
+function showHit30(kill=false){
+  hitMarker30.style.opacity='1';hitMarker30.style.filter=kill?'drop-shadow(0 0 5px #ffd35f)':'none';
+  clearTimeout(hitTimer30);hitTimer30=setTimeout(()=>hitMarker30.style.opacity='0',kill?170:90);
+}
+
+// ---------- Make the 5m NPC rule actually feel intentional ----------
+// Existing range code prevents long-distance attacks. This layer makes NPCs
+// decisively engage once the player enters the allowed 5m combat bubble.
+const updateNPCsBeforeLogic30=updateNPCs;
+updateNPCs=function(dt){
+  if(!matchWon24){
+    for(const n of npcs){
+      if(!n||n.dead)continue;
+      const dx=player.pos.x-n.group.position.x,dz=player.pos.z-n.group.position.z,d=Math.hypot(dx,dz);
+      if(d<=5){
+        n.playerProvoked=Math.max(n.playerProvoked||0,1.1);
+        n.alert=Math.max(n.alert||0,1.2);
+        // Make close enemies react faster as the match progresses, but never
+        // extend their allowed player attack range beyond 5m.
+        const pressure=1+Math.min(playerKills24/67,.45);
+        n.shotCd=Math.min(n.shotCd??.7,.62/pressure);
+      }
+    }
+  }
+  updateNPCsBeforeLogic30(dt);
+};
+
+// ---------- Smarter enemy respawns + difficulty curve ----------
+// Replace the old generic respawn placement with ring spawning around the
+// player: far enough not to pop in beside you, close enough to keep action going.
+const respawnNpcBeforeLogic30=respawnNpc24;
+respawnNpc24=function(n){
+  if(!n||matchWon24)return;
+  let x=0,z=0,ok=false;
+  const minR=playerKills24<25?65:55,maxR=playerKills24<50?145:120;
+  for(let tries=0;tries<120;tries++){
+    const a=rand(0,Math.PI*2),r=rand(minR,maxR);
+    x=clamp(player.pos.x+Math.cos(a)*r,-465,465);z=clamp(player.pos.z+Math.sin(a)*r,-465,465);
+    if(groundY(x,z)<=water.position.y+1.1||blockedPosition(x,z))continue;
+    if(npcs.some(o=>o!==n&&!o.dead&&Math.hypot(o.group.position.x-x,o.group.position.z-z)<7))continue;
+    ok=true;break;
+  }
+  if(!ok){respawnNpcBeforeLogic30(n);return;}
+  if(!n.group.parent)scene.add(n.group);
+  n.group.visible=true;n.group.rotation.z=0;n.group.position.set(x,groundY(x,z),z);
+  const hp=100+(playerKills24>=20?10:0)+(playerKills24>=40?15:0)+(playerKills24>=55?15:0);
+  n.health=hp;n.maxHealth30=hp;n.dead=false;n.alert=0;n.playerProvoked=0;n.npcEnemy=null;n.repath=0;
+  n.shotCd=rand(.45,.95);n.rewarded19=false;n.patrol.set(x+rand(-18,18),0,z+rand(-18,18));
+  for(const m of n.hitMeshes||[])if(!npcHitMeshes.includes(m))npcHitMeshes.push(m);
+};
+
+// ---------- Better hit / kill feedback ----------
+const shootGunBeforeFeedback30=shootGun;
+shootGun=function(w){
+  const before=new Map();for(const n of npcs)if(!n.dead)before.set(n,n.health);
+  const result=shootGunBeforeFeedback30(w);
+  let hit=false,killed=false;
+  for(const [n,hp] of before){
+    if(n.health<hp){hit=true;if(n.dead)killed=true;}
+  }
+  if(hit){showHit30(killed);tone(killed?260:210,.025,killed?.018:.012,'square');}
+  return result;
+};
+
+// ---------- Kill streaks, sustain rewards and milestones ----------
+const milestoneText30={
+  5:'RUSTY CARS UNLOCKED · 35 MPH',
+  10:'STREAK BONUS READY',
+  15:'STREET CARS UNLOCKED · 45 MPH',
+  20:'ENEMIES GET TOUGHER',
+  30:'SPORT CARS UNLOCKED · 58 MPH',
+  40:'SUPERCARS UNLOCKED · 64 MPH',
+  50:'LAMBO UNLOCKED · 70 MPH',
+  60:'FINAL PUSH · 7 KILLS LEFT'
+};
+const killNpcBeforeLogic30=killNpc;
+killNpc=function(n){
+  const beforeKills=playerKills24,wasAlive=!!(n&&!n.dead);
+  killNpcBeforeLogic30(n);
+  if(!wasAlive||playerKills24<=beforeKills)return;
+
+  const now=performance.now();
+  streak30=(now-lastKillTime30<9000)?streak30+1:1;lastKillTime30=now;
+
+  // Small sustain reward keeps momentum without making the player invincible.
+  player.health=Math.min(100,player.health+6);
+  for(const g of gear)if(g.type==='gun')g.reserve+=4;
+
+  // Extra coin rewards for meaningful streaks.
+  if(streak30===3){addCoins19(10);message('3 KILL STREAK · +10 COINS',1.7);}
+  if(streak30===5){addCoins19(20);message('5 KILL STREAK · +20 COINS',1.9);}
+  if(streak30===10){addCoins19(50);message('10 KILL STREAK · +50 COINS',2.2);}
+
+  const m=milestoneText30[playerKills24];if(m)message(m,2.8);
+  updateFlowHud30();updateHUD();
+};
+
+// Streak expires if the player goes too long without another kill.
+setInterval(()=>{
+  if(streak30>0&&performance.now()-lastKillTime30>10000){streak30=0;updateFlowHud30();}
+},1000);
+
+// ---------- Better car unlock interaction ----------
+const enterCarBeforeLogic30=enterCar19;
+enterCar19=function(c){
+  if(c&&playerKills24<(c.unlockKills24||0)){
+    const need=(c.unlockKills24||0)-playerKills24;
+    message(`${c.tier24?.name||'CAR'} LOCKED · ${need} MORE KILL${need===1?'':'S'}`,1.8);
+    tone(58,.05,.02,'square');return;
+  }
+  enterCarBeforeLogic30(c);
+};
+
+// ---------- Match pacing ----------
+// Give a clear cue every 10 kills and during the final 7-kill push.
+const pacingTimer30=setInterval(()=>{
+  if(matchWon24){clearInterval(pacingTimer30);return;}
+  updateFlowHud30();
+  if(playerKills24>=60)flowHud30.style.color='#ffe47a';else flowHud30.style.color='#eef5f8';
+},750);
+
+message('GAMEPLAY UPGRADED · smarter enemies · streaks · better pacing',3.5);
