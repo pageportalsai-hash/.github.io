@@ -1,0 +1,51 @@
+function toolHit(type){
+  raycaster.set(camera.position,cameraBasis(0)); raycaster.far=5.2; const hits=raycaster.intersectObjects(blockers,true); if(!hits.length){tone(80,.03,.02);return;}
+  const hit=hits[0], res=findResource(hit.object); if(!res||res.dead){tone(90,.025,.02);return;}
+  let valid=false, dmg=0;
+  if(type==='axe' && res.kind==='tree'){valid=true;dmg=28;}
+  if(type==='pickaxe' && (res.kind==='rock'||res.kind==='metal'||res.kind==='voxel')){valid=true;dmg=25;}
+  if(type==='dig' && res.kind==='voxel'){valid=true;dmg=45;}
+  if(!valid){ message(type==='axe'?'Use the axe on trees':'Use the pick/dig tool on rock'); return; }
+  res.hp-=dmg; tone(type==='axe'?120:165,.055,.04,'triangle'); impact(hit.point,type==='axe'?0x8a5b3e:0x8e9696);
+  if(res.hp<=0) harvest(res);
+}
+function harvest(res){
+  res.dead=true; Object.entries(res.yield).forEach(([k,v])=>{if(v)player.inventory[k]=(player.inventory[k]||0)+v;});
+  const p=new THREE.Vector3(); res.group.getWorldPosition(p);
+  if(res.kind==='tree'){
+    const spawn=res.spawn; res.group.rotation.z=1.25; setTimeout(()=>{scene.remove(res.group);removeReferences(res.group);},650); setTimeout(()=>makeTree(spawn.x+rand(-1.2,1.2),spawn.z+rand(-1.2,1.2),spawn.scale),45000); message(`+${res.yield.wood} wood`);
+  } else {
+    scene.remove(res.group); removeReferences(res.group); const t=Object.entries(res.yield).filter(([,v])=>v).map(([k,v])=>`+${v} ${k}`).join('  '); message(t);
+  }
+  updateHUD();
+}
+function removeReferences(obj){
+  const bi=blockers.indexOf(obj); if(bi>=0)blockers.splice(bi,1);
+  for(let i=colliders.length-1;i>=0;i--) if(colliders[i].obj===obj) colliders.splice(i,1);
+}
+function impact(point,color){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.06,5,5),new THREE.MeshBasicMaterial({color}));m.position.copy(point);scene.add(m);setTimeout(()=>scene.remove(m),150);
+}
+
+// ---------- Building ----------
+const buildTypes=[
+  {name:'Wall',cost:{wood:8},size:[4,3,.28]},
+  {name:'Foundation',cost:{wood:6,stone:2},size:[4,.28,4]},
+  {name:'Roof',cost:{wood:7},size:[4,.25,4]}
+];
+let buildMode=false, buildIndex=0, buildRot=0, preview=null, previewValid=false;
+function updateBuildUI(){
+  hud.rotate.style.display=buildMode?'flex':'none'; hud.type.style.display=buildMode?'flex':'none'; hud.build.textContent=buildMode?'PLACE':'BUILD';
+  if(!buildMode && preview){scene.remove(preview);preview=null;}
+}
+function enterBuild(){ buildMode=true; firing=false; createPreview();updateBuildUI();updateHUD();message('Build mode — aim where you want it'); }
+function createPreview(){ if(preview)scene.remove(preview); const t=buildTypes[buildIndex]; preview=new THREE.Mesh(new THREE.BoxGeometry(...t.size),new THREE.MeshStandardMaterial({color:0x58c96d,transparent:true,opacity:.43,depthWrite:false})); scene.add(preview); }
+function hasCost(cost){return Object.entries(cost).every(([k,v])=>(player.inventory[k]||0)>=v);}
+function payCost(cost){Object.entries(cost).forEach(([k,v])=>player.inventory[k]-=v);}
+function updatePreview(){ if(!buildMode||!preview)return; const dir=cameraBasis(0); const p=camera.position.clone().addScaledVector(dir,5.8); const t=buildTypes[buildIndex]; p.y=groundY(p.x,p.z)+t.size[1]/2; if(t.name==='Wall')p.y=groundY(p.x,p.z)+1.5; preview.position.copy(p); preview.rotation.y=buildRot; previewValid=hasCost(t.cost)&&!blockedPosition(p.x,p.z); preview.material.color.setHex(previewValid?0x58c96d:0xd14a4a); }
+function placeBuild(){
+  const t=buildTypes[buildIndex]; if(!previewValid){message(hasCost(t.cost)?'Blocked placement':'Need more resources');return;}
+  payCost(t.cost); const mat=new THREE.MeshStandardMaterial({color:t.name==='Foundation'?0x70614d:0x6b5138,roughness:.9}); const m=new THREE.Mesh(new THREE.BoxGeometry(...t.size),mat);m.position.copy(preview.position);m.rotation.y=buildRot;m.castShadow=true;m.receiveShadow=true;scene.add(m);blockers.push(m);playerStructures.push(m); updateHUD(); tone(75,.08,.035,'triangle');
+}
+hud.build.addEventListener('pointerdown',e=>{e.stopPropagation(); if(!buildMode)enterBuild();else placeBuild();});
+hud.rotate.addEventListener('pointerdown',e=>{e.stopPropagation();buildRot+=Math.PI/2;});
