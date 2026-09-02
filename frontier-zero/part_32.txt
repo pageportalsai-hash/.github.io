@@ -1,0 +1,230 @@
+// ============================================================================
+// FRONTIER ZERO CINEMATIC GRAPHICS + WORLD PHYSICS PASS
+// High-end browser-safe visual upgrade inspired by modern Unreal-style shooters.
+// No custom sky shader: avoids the previous black-screen failure mode.
+// ============================================================================
+
+const ueDesktop32=matchMedia('(pointer:fine)').matches;
+
+// ---------- Safe cinematic rendering ----------
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.17;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+scene.background=new THREE.Color(0x87b9d8);
+scene.fog.color.setHex(0xb5ced8);
+scene.fog.density=ueDesktop32?.00052:.00072;
+hemi.intensity=1.92;
+sun.intensity=3.18;
+sun.color.setHex(0xffe2b2);
+sun.shadow.bias=-.00018;
+sun.shadow.normalBias=.018;
+if(typeof fill21!=='undefined'){fill21.intensity=.48;fill21.color.setHex(0x91c8f3);}
+const bounce32=new THREE.DirectionalLight(0x91b9df,.24);bounce32.position.set(180,90,210);scene.add(bounce32);
+
+// ---------- Procedural high-frequency ground detail ----------
+function groundTexture32(){
+  const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');
+  x.fillStyle='#8b9676';x.fillRect(0,0,256,256);
+  for(let i=0;i<9500;i++){
+    const a=Math.random(),r=(82+a*52)|0,g=(92+a*62)|0,b=(68+a*40)|0;
+    x.fillStyle=`rgba(${r},${g},${b},${rand(.025,.11)})`;x.fillRect(rand(0,256),rand(0,256),Math.random()<.93?1:2,Math.random()<.96?1:2);
+  }
+  for(let i=0;i<170;i++){
+    x.strokeStyle=`rgba(57,48,36,${rand(.025,.085)})`;x.lineWidth=rand(.4,1.2);x.beginPath();
+    const sx=rand(0,256),sy=rand(0,256);x.moveTo(sx,sy);x.lineTo(sx+rand(-20,20),sy+rand(-12,12));x.stroke();
+  }
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(34,34);t.colorSpace=THREE.SRGBColorSpace;
+  t.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy?.()||1,ueDesktop32?12:5);return t;
+}
+if(terrain?.material){
+  terrain.material=terrain.material.clone();terrain.material.map=groundTexture32();terrain.material.vertexColors=true;
+  terrain.material.color.setHex(0xffffff);terrain.material.roughness=.96;terrain.material.metalness=0;terrain.material.needsUpdate=true;
+}
+
+// Improve road surface clarity while preserving terrain-conforming road geometry.
+function roadTexture32(dirt=false){
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+  x.fillStyle=dirt?'#796047':'#44484b';x.fillRect(0,0,128,128);
+  for(let i=0;i<2600;i++){
+    const v=dirt?rand(70,135):rand(55,100);x.fillStyle=`rgba(${v|0},${(v*(dirt?0.82:0.96))|0},${(v*(dirt?0.62:0.98))|0},${rand(.03,.12)})`;x.fillRect(rand(0,128),rand(0,128),1,1);
+  }
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(1,2);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy?.()||1,8);return t;
+}
+if(typeof roadGroundMat!=='undefined'){roadGroundMat.map=roadTexture32(false);roadGroundMat.color.setHex(0xffffff);roadGroundMat.roughness=.89;roadGroundMat.needsUpdate=true;}
+if(typeof roadDirtGroundMat!=='undefined'){roadDirtGroundMat.map=roadTexture32(true);roadDirtGroundMat.color.setHex(0xffffff);roadDirtGroundMat.roughness=.98;roadDirtGroundMat.needsUpdate=true;}
+
+// Ground micro-detail. Instancing keeps this much cheaper than hundreds of meshes.
+const micro32=new THREE.Group();scene.add(micro32);
+const grassBladeGeo32=new THREE.PlaneGeometry(.22,.72);grassBladeGeo32.translate(0,.36,0);
+const grassBladeMat32=new THREE.MeshStandardMaterial({color:0x567743,roughness:1,side:THREE.DoubleSide});
+const grassCount32=ueDesktop32?360:130;
+const grass32=new THREE.InstancedMesh(grassBladeGeo32,grassBladeMat32,grassCount32);const gd32=new THREE.Object3D();
+for(let i=0;i<grassCount32;i++){
+  let x=rand(-485,485),z=rand(-485,485);const b=typeof biomeAt==='function'?biomeAt(x,z):null;
+  if(typeof BIOMES!=='undefined'&&(b===BIOMES.badlands||b===BIOMES.alpine)){i--;continue;}
+  gd32.position.set(x,groundY(x,z)+.025,z);gd32.rotation.set(0,rand(0,Math.PI),rand(-.08,.08));const s=rand(.7,1.45);gd32.scale.set(s,s,s);gd32.updateMatrix();grass32.setMatrixAt(i,gd32.matrix);
+}
+grass32.receiveShadow=true;micro32.add(grass32);
+const stoneCount32=ueDesktop32?150:55,stoneGeo32=new THREE.IcosahedronGeometry(.13,0),stoneMat32=new THREE.MeshStandardMaterial({color:0x797a70,roughness:.96});
+const stones32=new THREE.InstancedMesh(stoneGeo32,stoneMat32,stoneCount32);
+for(let i=0;i<stoneCount32;i++){const x=rand(-485,485),z=rand(-485,485),s=rand(.55,1.65);gd32.position.set(x,groundY(x,z)+.05,z);gd32.rotation.set(rand(0,1),rand(0,6.28),rand(0,1));gd32.scale.set(s,rand(.35,.75)*s,s);gd32.updateMatrix();stones32.setMatrixAt(i,gd32.matrix);}micro32.add(stones32);
+
+// ---------- Collision / loading cleanup ----------
+// Earlier visual cleanup hid some trees without removing them from collision arrays.
+// Remove invisible/dead/out-of-map blockers so the player cannot hit invisible geometry.
+function worldVisible32(o){
+  let p=o;while(p){if(p.visible===false)return false;p=p.parent;}return true;
+}
+for(let i=blockers.length-1;i>=0;i--){
+  const o=blockers[i];if(!o||!o.parent||!worldVisible32(o)){blockers.splice(i,1);continue;}
+  const p=o.getWorldPosition(new THREE.Vector3());if(Math.abs(p.x)>510||Math.abs(p.z)>510){blockers.splice(i,1);if(o.isMesh||o.isGroup)o.visible=false;}
+}
+if(typeof colliders!=='undefined')for(let i=colliders.length-1;i>=0;i--){
+  const o=colliders[i]?.obj;if(!o||!o.parent||!worldVisible32(o)){colliders.splice(i,1);continue;}
+  const p=o.getWorldPosition(new THREE.Vector3());if(Math.abs(p.x)>510||Math.abs(p.z)>510)colliders.splice(i,1);
+}
+if(typeof playerStructures!=='undefined')for(let i=playerStructures.length-1;i>=0;i--){const o=playerStructures[i];if(!o||!o.parent||!worldVisible32(o))playerStructures.splice(i,1);}
+
+// Hide settlement content outside the actual current 1000m playable world.
+for(const o of [...scene.children]){
+  if(!o?.position)continue;
+  if(Math.abs(o.position.x)>515||Math.abs(o.position.z)>515){
+    // Keep sky/large terrain/water, but unload ordinary local props/buildings.
+    const params=o.geometry?.parameters;
+    if((o.isMesh||o.isGroup)&&o!==terrain&&o!==water&&!(params?.width>900||params?.height>900))o.visible=false;
+  }
+}
+
+// ---------- High-detail building pass ----------
+const facade32=new THREE.MeshStandardMaterial({color:0xb6aa96,roughness:.86,metalness:.02});
+const darkTrim32=new THREE.MeshStandardMaterial({color:0x33383b,roughness:.54,metalness:.42});
+const concrete32=new THREE.MeshStandardMaterial({color:0x77766e,roughness:.96,metalness:0});
+const roof32=new THREE.MeshStandardMaterial({color:0x43494d,roughness:.64,metalness:.28});
+const glass32=new THREE.MeshPhysicalMaterial({color:0x294b5c,roughness:.08,metalness:.05,transparent:true,opacity:.68,clearcoat:.9,clearcoatRoughness:.08});
+const buildingDetails32=[];
+function bm32(g,geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;g.add(m);return m;}
+let detailedBuildings32=0;
+for(const b of blockers){
+  if(detailedBuildings32>=32||!b?.isMesh||b.userData.ue32)continue;
+  const p=b.geometry?.parameters;if(!p)continue;const w=p.width||0,h=p.height||0,d=p.depth||0;
+  if(w<5||d<5||h<2.5||w>38||d>38)continue;
+  const wp=b.getWorldPosition(new THREE.Vector3());if(Math.abs(wp.x)>485||Math.abs(wp.z)>485)continue;
+  b.userData.ue32=true;detailedBuildings32++;
+  // Refine the visible base material without changing collision dimensions.
+  if(b.material?.color){b.material=b.material.clone();b.material.roughness=.86;b.material.metalness=.015;b.material.color.lerp(new THREE.Color(0xb0a793),.34);}
+  const g=new THREE.Group();g.position.copy(wp);g.quaternion.copy(b.getWorldQuaternion(new THREE.Quaternion()));g.userData.detailBuilding32=true;scene.add(g);
+  // Ground-hiding foundation skirt fixes the common floating-corner look on uneven terrain.
+  const centerGround=groundY(wp.x,wp.z);const bottom=wp.y-h/2;const skirtH=Math.max(.35,Math.min(2.2,Math.abs(bottom-centerGround)+.65));
+  bm32(g,new THREE.BoxGeometry(w+.22,skirtH,d+.22),concrete32,0,-h/2-skirtH/2+.08,0);
+  // layered roof + parapet
+  bm32(g,new THREE.BoxGeometry(w+.46,.18,d+.46),roof32,0,h/2+.10,0);
+  for(const z of [-d/2-.16,d/2+.16])bm32(g,new THREE.BoxGeometry(w+.5,.22,.13),darkTrim32,0,h/2+.29,z);
+  for(const x of [-w/2-.16,w/2+.16])bm32(g,new THREE.BoxGeometry(.13,.22,d+.5),darkTrim32,x,h/2+.29,0);
+  // recessed door with canopy
+  const doorH=Math.min(2.3,h*.67),doorW=Math.min(1.35,w*.19);
+  bm32(g,new THREE.BoxGeometry(doorW+.22,doorH+.18,.12),darkTrim32,0,-h/2+doorH/2+.12,-d/2-.10);
+  bm32(g,new THREE.BoxGeometry(doorW,doorH,.05),new THREE.MeshStandardMaterial({color:0x64533f,roughness:.76}),0,-h/2+doorH/2+.12,-d/2-.18);
+  bm32(g,new THREE.BoxGeometry(doorW+1,.10,.72),roof32,0,-h/2+doorH+.38,-d/2-.45);
+  // glass windows with inset frames
+  const winW=Math.min(1.65,w*.18),winH=Math.min(1.2,h*.28),wy=Math.min(.42,h*.08);
+  for(const x of [-w*.28,w*.28]){
+    bm32(g,new THREE.BoxGeometry(winW+.16,winH+.16,.09),darkTrim32,x,wy,-d/2-.08);
+    bm32(g,new THREE.BoxGeometry(winW,winH,.04),glass32,x,wy,-d/2-.15);
+    bm32(g,new THREE.BoxGeometry(winW+.30,.07,.22),concrete32,x,wy-winH/2-.12,-d/2-.17);
+  }
+  // side windows and facade ribs create depth from multiple angles.
+  for(const side of [-1,1]){
+    bm32(g,new THREE.BoxGeometry(.07,winH+.15,Math.min(1.7,d*.22)),darkTrim32,side*(w/2+.09),wy,0);
+    bm32(g,new THREE.BoxGeometry(.035,winH,Math.min(1.55,d*.20)),glass32,side*(w/2+.16),wy,0);
+  }
+  for(const x of [-w/2+.12,w/2-.12])for(const z of [-d/2+.12,d/2-.12])bm32(g,new THREE.BoxGeometry(.12,h,.12),darkTrim32,x,0,z);
+  // rooftop utility box + vent gives rooftops something to read at distance.
+  bm32(g,new THREE.BoxGeometry(Math.min(2.1,w*.24),.62,Math.min(1.6,d*.22)),darkTrim32,w*.20,h/2+.50,d*.13);
+  const vent=bm32(g,new THREE.CylinderGeometry(.16,.20,.58,10),new THREE.MeshStandardMaterial({color:0x687076,roughness:.42,metalness:.67}),-w*.20,h/2+.48,-d*.12);vent.rotation.x=0;
+  buildingDetails32.push({group:g,x:wp.x,z:wp.z});
+}
+
+// Fine building detail uses distance LOD to prevent pop/slowdown across the whole map.
+let lodFrame32=0;
+function updateBuildingLOD32(){
+  if((lodFrame32++%15)!==0)return;
+  for(const d of buildingDetails32){const dist=Math.hypot(d.x-player.pos.x,d.z-player.pos.z);d.group.visible=dist<(ueDesktop32?260:150);}
+}
+
+// ---------- Remove duplicate legacy NPC cosmetics + animate current models ----------
+const npcAnim32=[];
+for(let i=0;i<npcs.length;i++){
+  const n=npcs[i],g=n.group;if(!g)continue;
+  // Locate the first part-25 torso; everything between the original 4 children and
+  // that torso belongs to the older cosmetics layer and caused duplicate hair/packs.
+  let start25=-1;
+  for(let c=4;c<g.children.length;c++){
+    const o=g.children[c],p=o?.geometry?.parameters;
+    if(o?.isMesh&&o.geometry?.type==='BoxGeometry'&&Math.abs((p?.width||0)-.78)<.08&&Math.abs((p?.height||0)-.90)<.10){start25=c;break;}
+  }
+  if(start25>4)for(let c=4;c<start25;c++)g.children[c].visible=false;
+  const arms=[],legs=[],torso=[];
+  for(let c=Math.max(4,start25);c<g.children.length;c++){
+    const o=g.children[c];if(!o?.isMesh)continue;const p=o.geometry?.parameters;
+    if(o.geometry?.type==='CapsuleGeometry'&&o.position.y>1.15&&Math.abs(o.position.x)>.35)arms.push(o);
+    else if(o.geometry?.type==='CapsuleGeometry'&&o.position.y<.8&&Math.abs(o.position.x)<.35)legs.push(o);
+    else if(o.geometry?.type==='BoxGeometry'&&o.position.y>1.2&&o.position.y<1.8&&(p?.height||0)>.45)torso.push(o);
+  }
+  const rec={n,arms,legs,torso,prev:g.position.clone(),phase:i*.73};
+  for(const o of [...arms,...legs,...torso])o.userData.base32={px:o.position.x,py:o.position.y,pz:o.position.z,rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z};
+  npcAnim32.push(rec);
+}
+
+// Rebuild the third-person player as a cleaner original survivor while preserving the same group/camera logic.
+if(typeof playerAvatar16!=='undefined'){
+  while(playerAvatar16.children.length)playerAvatar16.remove(playerAvatar16.children[0]);
+  const pSkin=new THREE.MeshStandardMaterial({color:0xe1b28d,roughness:.88}),pTop=new THREE.MeshStandardMaterial({color:0xb69b4a,roughness:.78}),pJacket=new THREE.MeshStandardMaterial({color:0xbeb198,roughness:.84}),pPants=new THREE.MeshStandardMaterial({color:0x385168,roughness:.82}),pBoot=new THREE.MeshStandardMaterial({color:0x292a2b,roughness:.78}),pHair=new THREE.MeshStandardMaterial({color:0x4a3122,roughness:.9});
+  const pp=(geo,mat,x,y,z,rx=0,ry=0,rz=0)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=true;m.receiveShadow=true;playerAvatar16.add(m);return m;};
+  pp(new THREE.BoxGeometry(.68,.82,.36),pTop,0,1.38,0);pp(new THREE.BoxGeometry(.72,.18,.39),pJacket,0,1.62,0);
+  pp(new THREE.CapsuleGeometry(.10,.58,4,8),pJacket,-.43,1.38,0,0,0,.06);pp(new THREE.CapsuleGeometry(.10,.58,4,8),pJacket,.43,1.38,0,0,0,-.06);
+  pp(new THREE.CapsuleGeometry(.12,.74,4,8),pPants,-.18,.52,0);pp(new THREE.CapsuleGeometry(.12,.74,4,8),pPants,.18,.52,0);
+  pp(new THREE.BoxGeometry(.27,.16,.46),pBoot,-.18,.09,-.06);pp(new THREE.BoxGeometry(.27,.16,.46),pBoot,.18,.09,-.06);
+  pp(new THREE.CylinderGeometry(.13,.14,.18,10),pSkin,0,1.94,0);pp(new THREE.SphereGeometry(.30,16,12),pSkin,0,2.19,0);
+  const hair=pp(new THREE.SphereGeometry(.31,14,10,0,Math.PI*2,0,Math.PI*.58),pHair,0,2.36,0);hair.scale.set(1.02,.72,1.01);
+  const eyeM=new THREE.MeshBasicMaterial({color:0x202020});pp(new THREE.SphereGeometry(.022,6,5),eyeM,-.09,2.20,-.278);pp(new THREE.SphereGeometry(.022,6,5),eyeM,.09,2.20,-.278);
+  pp(new THREE.BoxGeometry(.11,.014,.01),new THREE.MeshBasicMaterial({color:0x784b45}),0,2.08,-.29);
+  // small backpack
+  pp(new THREE.BoxGeometry(.48,.58,.20),new THREE.MeshStandardMaterial({color:0x40443e,roughness:.86}),0,1.38,.27);
+}
+
+// Animation wrapper: procedural movement sells the character quality much more than static extra polygons.
+const updateNPCsBeforeVisual32=updateNPCs;
+updateNPCs=function(dt){
+  updateNPCsBeforeVisual32(dt);
+  const t=performance.now()*.008;
+  for(const r of npcAnim32){
+    const n=r.n;if(!n||n.dead)continue;const g=n.group,dx=g.position.x-r.prev.x,dz=g.position.z-r.prev.z;const moving=clamp(Math.hypot(dx,dz)/(Math.max(dt,.001)*3.2),0,1);r.prev.copy(g.position);
+    const swing=Math.sin(t+r.phase)*.48*moving;
+    for(let i=0;i<r.arms.length;i++){const o=r.arms[i],b=o.userData.base32;o.rotation.x=b.rx+(i%2===0?swing:-swing);}
+    for(let i=0;i<r.legs.length;i++){const o=r.legs[i],b=o.userData.base32;o.rotation.x=b.rx+(i%2===0?-swing:swing)*.72;}
+    for(const o of r.torso){const b=o.userData.base32;o.position.y=b.py+Math.abs(Math.sin(t*1.1+r.phase))*.025*moving;}
+    if(n.visualGun25){
+      const d=Math.hypot(player.pos.x-g.position.x,player.pos.z-g.position.z);
+      n.visualGun25.rotation.x=-.06+(d<30?clamp((player.pos.y-(g.position.y+1.45))/Math.max(d,1),-.18,.18):0);
+    }
+  }
+  updateBuildingLOD32();
+};
+
+// ---------- Material polish for vehicles and current NPC meshes ----------
+for(const c of cars19||[]){
+  c.group.traverse(m=>{
+    if(!m.isMesh||!m.material)return;const mats=Array.isArray(m.material)?m.material:[m.material];
+    for(const mat of mats){
+      if('envMapIntensity' in mat)mat.envMapIntensity=1.35;
+      if('clearcoat' in mat&&mat.clearcoat>0){mat.clearcoat=1;mat.clearcoatRoughness=Math.min(mat.clearcoatRoughness??.12,.12);}
+    }
+  });
+}
+for(const n of npcs){n.group.traverse(m=>{if(m.isMesh&&m.material){m.castShadow=true;m.receiveShadow=true;if('roughness' in m.material)m.material.roughness=Math.max(.34,(m.material.roughness??.75)*.92);}});}
+
+// Keep the adaptive QA renderer in charge of resolution; this layer only improves art/render inputs.
+if(typeof graphicsBadge21!=='undefined')graphicsBadge21.textContent='GRAPHICS: CINEMATIC · ADAPTIVE RENDERING · NPC DAMAGE 5m';
+message('CINEMATIC WORLD PASS · terrain, buildings, characters + physics upgraded',4.2);
