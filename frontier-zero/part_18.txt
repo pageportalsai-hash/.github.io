@@ -1,75 +1,127 @@
 // ============================================================================
-// FRONTIER ZERO FLOATING SKY LOBBY UPDATE
-// Player waits inside a floating sky box during the 30-second lobby, then
-// teleports to a random safe dry location when the countdown ends.
+// FRONTIER ZERO SKY LOBBY + TWO-WEAPON COMMON LOADOUT UPDATE
+// Floating sky lobby, 30-second countdown, 8 Common starter choices,
+// choose exactly two weapons, then random dry deployment into the map.
 // ============================================================================
 
+// ---------- Floating sky lobby ----------
 const skyLobby18=new THREE.Group();scene.add(skyLobby18);
 const skyLobbyY18=120;
 const skyFloorMat18=new THREE.MeshStandardMaterial({color:0x56616a,roughness:.82,metalness:.12});
-const skyWallMat18=new THREE.MeshStandardMaterial({color:0x7b8b96,roughness:.72,metalness:.08,transparent:true,opacity:.86});
+const skyWallMat18=new THREE.MeshStandardMaterial({color:0x7b8b96,roughness:.72,metalness:.08,transparent:true,opacity:.72});
 const skyTrimMat18=new THREE.MeshStandardMaterial({color:0xd5b84a,roughness:.48,metalness:.32});
 function skyBoxPart18(sx,sy,sz,x,y,z,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;skyLobby18.add(m);return m;}
-// 14m square floating room with waist-to-head height walls and open ceiling.
-skyBoxPart18(14,.5,14,0,skyLobbyY18,0,skyFloorMat18);
-skyBoxPart18(14,4,.35,0,skyLobbyY18+2,-6.8,skyWallMat18);
-skyBoxPart18(14,4,.35,0,skyLobbyY18+2,6.8,skyWallMat18);
-skyBoxPart18(.35,4,14,-6.8,skyLobbyY18+2,0,skyWallMat18);
-skyBoxPart18(.35,4,14,6.8,skyLobbyY18+2,0,skyWallMat18);
-// bright corner trims make it feel like a proper pre-match platform.
-for(const [x,z] of [[-6.55,-6.55],[6.55,-6.55],[-6.55,6.55],[6.55,6.55]])skyBoxPart18(.18,4.4,.18,x,skyLobbyY18+2.15,z,skyTrimMat18);
+skyBoxPart18(16,.5,16,0,skyLobbyY18,0,skyFloorMat18);
+skyBoxPart18(16,4,.35,0,skyLobbyY18+2,-7.8,skyWallMat18);
+skyBoxPart18(16,4,.35,0,skyLobbyY18+2,7.8,skyWallMat18);
+skyBoxPart18(.35,4,16,-7.8,skyLobbyY18+2,0,skyWallMat18);
+skyBoxPart18(.35,4,16,7.8,skyLobbyY18+2,0,skyWallMat18);
+for(const [x,z] of [[-7.55,-7.55],[7.55,-7.55],[-7.55,7.55],[7.55,7.55]])skyBoxPart18(.18,4.4,.18,x,skyLobbyY18+2.15,z,skyTrimMat18);
 
 function putPlayerInSkyLobby18(){
-  player.pos.set(0,skyLobbyY18+player.height+.32,0);
-  player.yaw=0;player.pitch=-.08;
-  camera.position.copy(player.pos);
-  if(typeof playerAvatar16!=='undefined'){
-    playerAvatar16.position.set(0,skyLobbyY18+.28,0);
-    playerAvatar16.rotation.y=0;
-  }
+  player.pos.set(0,skyLobbyY18+player.height+.32,0);player.yaw=0;player.pitch=-.08;camera.position.copy(player.pos);
+  if(typeof playerAvatar16!=='undefined'){playerAvatar16.position.set(0,skyLobbyY18+.28,0);playerAvatar16.rotation.y=0;}
 }
 putPlayerInSkyLobby18();
 
-// While the lobby countdown is active, hold the player inside the floating box.
 const updatePlayerBeforeSkyLobby18=updatePlayer;
 updatePlayer=function(dt){
   if(typeof lobbyActive17!=='undefined'&&lobbyActive17){
-    player.pos.x=clamp(player.pos.x,-5.9,5.9);
-    player.pos.z=clamp(player.pos.z,-5.9,5.9);
-    player.pos.y=skyLobbyY18+player.height+.32;
+    player.pos.x=clamp(player.pos.x,-6.8,6.8);player.pos.z=clamp(player.pos.z,-6.8,6.8);player.pos.y=skyLobbyY18+player.height+.32;
     camera.position.copy(player.pos);
-    if(typeof playerAvatar16!=='undefined'){
-      playerAvatar16.position.set(player.pos.x,skyLobbyY18+.28,player.pos.z);
-      playerAvatar16.rotation.y=player.yaw;
-    }
+    if(typeof playerAvatar16!=='undefined'){playerAvatar16.position.set(player.pos.x,skyLobbyY18+.28,player.pos.z);playerAvatar16.rotation.y=player.yaw;}
     return;
   }
   updatePlayerBeforeSkyLobby18(dt);
 };
 
-// Override the lobby finish so the player leaves the sky room and drops into
-// a fresh random dry/safe location at exactly the end of the countdown.
-const finishLobbyBeforeSky18=finishLobby17;
-finishLobby17=function(){
-  if(!lobbyActive17)return;
-  // Let the existing function handle gun selection and general match setup.
-  finishLobbyBeforeSky18();
-  // Ensure the final position is randomized again after the lobby is removed.
-  const spawn=randomSafeSpawn();
-  player.pos.set(spawn.x,groundY(spawn.x,spawn.z)+player.height,spawn.z);
-  camera.position.copy(player.pos);
-  if(typeof playerAvatar16!=='undefined')playerAvatar16.position.set(spawn.x,groundY(spawn.x,spawn.z),spawn.z);
-  skyLobby18.visible=false;
-  scene.remove(skyLobby18);
-  message('DROPPED INTO THE MAP · random safe spawn',2.6);
-};
+// Make the old full-screen lobby slightly transparent so the sky room is visible.
+if(typeof lobby17!=='undefined')lobby17.style.background='linear-gradient(180deg,rgba(8,13,17,.72),rgba(12,19,24,.78))';
 
-// Make lobby text explain that the player is waiting in the sky box.
-if(typeof lobbyCountdown17!=='undefined'){
-  const skyHint18=document.createElement('div');
-  skyHint18.style.cssText='margin-top:10px;font-size:12px;opacity:.68';
-  skyHint18.textContent='You are waiting inside the floating sky lobby. When the timer reaches 0 you will spawn randomly into the map.';
-  lobbyCountdown17.insertAdjacentElement('afterend',skyHint18);
+// ---------- Expanded Common starter pool ----------
+const commonLoadoutDefs18=[
+  {name:'Rifle',label:'Rifle',magSize:30,damage:20,rate:.105,spread:.014,pellets:1,reserve:120,desc:'Balanced automatic rifle'},
+  {name:'Pistol',label:'Pistol',magSize:12,damage:34,rate:.28,spread:.010,pellets:1,reserve:60,desc:'Strong accurate sidearm'},
+  {name:'Shotgun',label:'Shotgun',magSize:6,damage:13,rate:.75,spread:.055,pellets:8,reserve:30,desc:'Heavy close-range blast'},
+  {name:'Scout SMG',label:'Scout SMG',magSize:32,damage:16,rate:.078,spread:.019,pellets:1,reserve:144,desc:'Fast fire and quick handling'},
+  {name:'Frontier Carbine',label:'Carbine',magSize:24,damage:25,rate:.14,spread:.009,pellets:1,reserve:96,desc:'Accurate medium-range rifle'},
+  {name:'Ranger DMR',label:'DMR',magSize:15,damage:39,rate:.24,spread:.0055,pellets:1,reserve:75,desc:'Precision rifle with heavy shots'},
+  {name:'Compact Auto',label:'Compact Auto',magSize:26,damage:18,rate:.09,spread:.016,pellets:1,reserve:130,desc:'Small automatic backup gun'},
+  {name:'Trail Revolver',label:'Revolver',magSize:6,damage:48,rate:.38,spread:.007,pellets:1,reserve:42,desc:'Six high-damage rounds'}
+];
+
+function makeCommonLoadoutGun18(def){
+  return {name:def.name,type:'gun',rarity:'Common',magSize:def.magSize,mag:def.magSize,reserve:def.reserve,damage:def.damage,rate:def.rate,spread:def.spread,pellets:def.pellets,skin:typeof randomGunSkin==='function'?randomGunSkin('Common'):undefined};
 }
 
-message('Floating sky lobby ready · random spawn when countdown ends',3.2);
+let selectedLoadout18=['Rifle','Shotgun'];
+
+// Replace the original 3 single-choice buttons with 8 choose-two buttons.
+if(typeof commonChoices17!=='undefined'){
+  commonChoices17.innerHTML='';commonChoices17.style.gridTemplateColumns='repeat(4,minmax(0,1fr))';
+}
+
+function refreshLoadout18(){
+  if(typeof commonChoices17==='undefined')return;
+  for(const b of commonChoices17.querySelectorAll('button')){
+    const ix=selectedLoadout18.indexOf(b.dataset.gun),active=ix>=0;
+    b.style.borderColor=active?'#f4d36a':'rgba(255,255,255,.22)';
+    b.style.background=active?'rgba(116,92,35,.78)':'rgba(255,255,255,.07)';
+    const badge=b.querySelector('.slot18');if(badge)badge.textContent=active?`SLOT ${ix+1}`:'SELECT';
+  }
+  if(typeof chosenGun17!=='undefined')chosenGun17.textContent=`Selected ${selectedLoadout18.length}/2: ${selectedLoadout18.map(n=>'COMMON '+n.toUpperCase()).join(' + ')}`;
+}
+
+if(typeof commonChoices17!=='undefined'){
+  for(const def of commonLoadoutDefs18){
+    const b=document.createElement('button');b.type='button';b.dataset.gun=def.name;
+    b.style.cssText='min-height:108px;border-radius:14px;border:2px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#fff;padding:10px 8px;font:inherit;cursor:pointer;transition:.15s;position:relative;';
+    b.innerHTML=`<div class="slot18" style="position:absolute;right:7px;top:7px;font-size:8px;font-weight:900;opacity:.75">SELECT</div><div style="font-size:13px;font-weight:900;margin-top:8px">COMMON ${def.label.toUpperCase()}</div><div style="font-size:10px;opacity:.70;margin-top:7px">${def.desc}</div><div style="font-size:9px;opacity:.5;margin-top:5px">DMG ${def.damage} · MAG ${def.magSize}</div>`;
+    b.addEventListener('click',()=>{
+      const ix=selectedLoadout18.indexOf(def.name);
+      if(ix>=0)selectedLoadout18.splice(ix,1);
+      else if(selectedLoadout18.length<2)selectedLoadout18.push(def.name);
+      else {selectedLoadout18.shift();selectedLoadout18.push(def.name);}
+      refreshLoadout18();
+    });
+    commonChoices17.appendChild(b);
+  }
+  refreshLoadout18();
+}
+
+if(typeof lobby17!=='undefined'){
+  const info=[...lobby17.querySelectorAll('div')].find(d=>d.textContent?.includes('Choose your starting gun'));
+  if(info)info.innerHTML='Choose <b>2 starting weapons</b>. Only <b>COMMON</b> guns are available in the lobby.';
+}
+if(typeof lobbyCountdown17!=='undefined'){
+  const hint=document.createElement('div');hint.style.cssText='margin-top:10px;font-size:12px;opacity:.68';
+  hint.textContent='Wait in the floating sky lobby. At 0 seconds you will deploy randomly into a dry safe part of the map with both selected guns.';
+  lobbyCountdown17.insertAdjacentElement('afterend',hint);
+}
+
+// Override the original one-gun finish function. The existing timer calls this by name.
+finishLobby17=function(){
+  if(!lobbyActive17)return;
+  const fallback=commonLoadoutDefs18.map(d=>d.name).filter(n=>!selectedLoadout18.includes(n));
+  while(selectedLoadout18.length<2&&fallback.length)selectedLoadout18.push(fallback.shift());
+  lobbyActive17=false;clearInterval(lobbyTimer17);
+
+  const tools=gear.filter(w=>w.type!=='gun');
+  const guns=selectedLoadout18.slice(0,2).map(name=>makeCommonLoadoutGun18(commonLoadoutDefs18.find(d=>d.name===name)));
+  gear.splice(0,gear.length,...guns,...tools);gearIndex=0;
+
+  const spawn=randomSafeSpawn();
+  player.pos.set(spawn.x,groundY(spawn.x,spawn.z)+player.height,spawn.z);camera.position.copy(player.pos);
+  player.health=100;player.dead=false;firing=false;
+  if(typeof playerAvatar16!=='undefined')playerAvatar16.position.set(spawn.x,groundY(spawn.x,spawn.z),spawn.z);
+
+  skyLobby18.visible=false;scene.remove(skyLobby18);
+  if(typeof lobby17!=='undefined'&&lobby17.isConnected)lobby17.remove();
+  updateHUD();
+  message(`DEPLOYED · ${guns[0].name} + ${guns[1].name}`,3);
+};
+
+const lobbyGridStyle18=document.createElement('style');
+lobbyGridStyle18.textContent='@media(max-width:760px){#commonChoices17{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:390px){#commonChoices17{grid-template-columns:1fr!important}}';document.head.appendChild(lobbyGridStyle18);
+
+message('Sky lobby upgraded · choose 2 Common weapons · 8 starter options',3.5);
