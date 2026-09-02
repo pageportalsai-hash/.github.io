@@ -1,6 +1,6 @@
 // ============================================================================
 // FRONTIER ZERO SKY LOBBY + TWO-WEAPON COMMON LOADOUT UPDATE
-// Floating sky lobby, 30-second countdown, 8 Common starter choices,
+// Floating sky lobby, 30-second countdown, 16 Common starter choices,
 // choose exactly two weapons, then random dry deployment into the map.
 // ============================================================================
 
@@ -35,7 +35,6 @@ updatePlayer=function(dt){
   updatePlayerBeforeSkyLobby18(dt);
 };
 
-// Make the old full-screen lobby slightly transparent so the sky room is visible.
 if(typeof lobby17!=='undefined')lobby17.style.background='linear-gradient(180deg,rgba(8,13,17,.72),rgba(12,19,24,.78))';
 
 // ---------- Expanded Common starter pool ----------
@@ -47,7 +46,15 @@ const commonLoadoutDefs18=[
   {name:'Frontier Carbine',label:'Carbine',magSize:24,damage:25,rate:.14,spread:.009,pellets:1,reserve:96,desc:'Accurate medium-range rifle'},
   {name:'Ranger DMR',label:'DMR',magSize:15,damage:39,rate:.24,spread:.0055,pellets:1,reserve:75,desc:'Precision rifle with heavy shots'},
   {name:'Compact Auto',label:'Compact Auto',magSize:26,damage:18,rate:.09,spread:.016,pellets:1,reserve:130,desc:'Small automatic backup gun'},
-  {name:'Trail Revolver',label:'Revolver',magSize:6,damage:48,rate:.38,spread:.007,pellets:1,reserve:42,desc:'Six high-damage rounds'}
+  {name:'Trail Revolver',label:'Revolver',magSize:6,damage:48,rate:.38,spread:.007,pellets:1,reserve:42,desc:'Six high-damage rounds'},
+  {name:'Burst Rifle',label:'Burst Rifle',magSize:27,damage:23,rate:.12,spread:.010,pellets:1,reserve:108,desc:'Controlled accurate bursts'},
+  {name:'Drum SMG',label:'Drum SMG',magSize:45,damage:14,rate:.07,spread:.021,pellets:1,reserve:180,desc:'Huge magazine, lower damage'},
+  {name:'Pump Shotgun',label:'Pump Shotgun',magSize:5,damage:16,rate:.88,spread:.049,pellets:8,reserve:30,desc:'Slower but harder hitting'},
+  {name:'Auto Shotgun',label:'Auto Shotgun',magSize:8,damage:10,rate:.52,spread:.061,pellets:7,reserve:40,desc:'Faster follow-up shotgun'},
+  {name:'Marksman Rifle',label:'Marksman',magSize:12,damage:44,rate:.27,spread:.0045,pellets:1,reserve:60,desc:'Long-range precision weapon'},
+  {name:'Machine Pistol',label:'Machine Pistol',magSize:20,damage:15,rate:.085,spread:.020,pellets:1,reserve:100,desc:'Very fast close-range sidearm'},
+  {name:'Heavy Rifle',label:'Heavy Rifle',magSize:25,damage:29,rate:.16,spread:.011,pellets:1,reserve:100,desc:'Slower rifle with stronger rounds'},
+  {name:'Light Carbine',label:'Light Carbine',magSize:28,damage:21,rate:.11,spread:.0085,pellets:1,reserve:112,desc:'Quick and accurate all-rounder'}
 ];
 
 function makeCommonLoadoutGun18(def){
@@ -56,7 +63,6 @@ function makeCommonLoadoutGun18(def){
 
 let selectedLoadout18=['Rifle','Shotgun'];
 
-// Replace the original 3 single-choice buttons with 8 choose-two buttons.
 if(typeof commonChoices17!=='undefined'){
   commonChoices17.innerHTML='';commonChoices17.style.gridTemplateColumns='repeat(4,minmax(0,1fr))';
 }
@@ -91,15 +97,14 @@ if(typeof commonChoices17!=='undefined'){
 
 if(typeof lobby17!=='undefined'){
   const info=[...lobby17.querySelectorAll('div')].find(d=>d.textContent?.includes('Choose your starting gun'));
-  if(info)info.innerHTML='Choose <b>2 starting weapons</b>. Only <b>COMMON</b> guns are available in the lobby.';
+  if(info)info.innerHTML='Choose <b>exactly 2 starting weapons</b> from the larger Common weapon pool.';
 }
 if(typeof lobbyCountdown17!=='undefined'){
   const hint=document.createElement('div');hint.style.cssText='margin-top:10px;font-size:12px;opacity:.68';
-  hint.textContent='Wait in the floating sky lobby. At 0 seconds you will deploy randomly into a dry safe part of the map with both selected guns.';
+  hint.textContent='Pick any 2 Common weapons. At 0 seconds you will deploy randomly into a dry safe part of the map with both selected guns.';
   lobbyCountdown17.insertAdjacentElement('afterend',hint);
 }
 
-// Override the original one-gun finish function. The existing timer calls this by name.
 finishLobby17=function(){
   if(!lobbyActive17)return;
   const fallback=commonLoadoutDefs18.map(d=>d.name).filter(n=>!selectedLoadout18.includes(n));
@@ -124,4 +129,4 @@ finishLobby17=function(){
 const lobbyGridStyle18=document.createElement('style');
 lobbyGridStyle18.textContent='@media(max-width:760px){#commonChoices17{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:390px){#commonChoices17{grid-template-columns:1fr!important}}';document.head.appendChild(lobbyGridStyle18);
 
-message('Sky lobby upgraded · choose 2 Common weapons · 8 starter options',3.5);
+message('Sky lobby upgraded · choose exactly 2 Common weapons · 16 starter options',3.5);
