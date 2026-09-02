@@ -1,0 +1,139 @@
+// ============================================================================
+// FRONTIER ZERO POPULATION + WORLD LAYOUT UPDATE
+// 100 NPCs, terrain-following roads, evenly distributed towns/cities,
+// random safe spawning while preserving 1500m map + jumping + controls.
+// ============================================================================
+
+// ---------- Replace floating roads with roads that conform to terrain ----------
+// Hide every old flat asphalt/dirt road mesh from earlier updates.
+scene.traverse(o=>{
+  if(!o?.isMesh)return;
+  if((typeof asphaltMat!=='undefined'&&o.material===asphaltMat)||(typeof dirtRoadMat!=='undefined'&&o.material===dirtRoadMat))o.visible=false;
+});
+
+const roadGroundMat=new THREE.MeshStandardMaterial({color:0x343638,roughness:.93,metalness:.015});
+const roadDirtGroundMat=new THREE.MeshStandardMaterial({color:0x705c45,roughness:1,metalness:0});
+
+function terrainRoad(ax,az,bx,bz,width=7,material=roadGroundMat){
+  const dx=bx-ax,dz=bz-az,len=Math.hypot(dx,dz),steps=Math.max(6,Math.ceil(len/9));
+  const nx=-dz/len*(width/2),nz=dx/len*(width/2),verts=[],inds=[],uv=[];
+  for(let i=0;i<=steps;i++){
+    const t=i/steps,x=ax+dx*t,z=az+dz*t;
+    const x1=x+nx,z1=z+nz,x2=x-nx,z2=z-nz;
+    verts.push(x1,groundY(x1,z1)+.055,z1,x2,groundY(x2,z2)+.055,z2);
+    uv.push(0,t*len/12,1,t*len/12);
+    if(i<steps){const a=i*2,b=a+1,c=a+2,d=a+3;inds.push(a,c,b,c,d,b);}
+  }
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(inds);g.computeVertexNormals();
+  const m=new THREE.Mesh(g,material);m.receiveShadow=true;scene.add(m);return m;
+}
+
+// ---------- Evenly spread settlements ----------
+const settlementLayout=[
+  {name:'Northgate City',x:-430,z:500,type:'city'},
+  {name:'Pinecrest Town',x:0,z:520,type:'town'},
+  {name:'Redstone City',x:430,z:500,type:'city'},
+  {name:'Westhaven Town',x:-520,z:170,type:'town'},
+  {name:'Central City',x:0,z:120,type:'city'},
+  {name:'Dustfall Town',x:520,z:170,type:'town'},
+  {name:'Alpine City',x:-500,z:-230,type:'city'},
+  {name:'Riverbend Town',x:0,z:-220,type:'town'},
+  {name:'Badlands City',x:500,z:-230,type:'city'},
+  {name:'Southwest Town',x:-430,z:-555,type:'town'},
+  {name:'Marshgate City',x:0,z:-555,type:'city'},
+  {name:'Southeast Town',x:430,z:-555,type:'town'}
+];
+
+function settlementColors(x,z){
+  const b=biomeAt(x,z);
+  if(b===BIOMES.badlands)return [0x826955,0x4b4037];
+  if(b===BIOMES.alpine)return [0x737a7b,0x414749];
+  if(b===BIOMES.marsh)return [0x5a655f,0x394443];
+  if(b===BIOMES.pine)return [0x626a61,0x3b423d];
+  return [0x756f65,0x414546];
+}
+
+for(const s of settlementLayout){
+  const count=s.type==='city'?9:5,[wall,roof]=settlementColors(s.x,s.z);
+  for(let i=0;i<count;i++){
+    const rows=s.type==='city'?3:2,cols=Math.ceil(count/rows),row=Math.floor(i/cols),col=i%cols;
+    const spacing=s.type==='city'?18:20;
+    const ox=(col-(cols-1)/2)*spacing+rand(-2,2),oz=(row-(rows-1)/2)*spacing+rand(-2,2);
+    localBuilding(s.x+ox,s.z+oz,rand(7.2,11.5),rand(6.3,9.5),wall,roof,s.name+' Loot');
+  }
+  // small outpost on city/town edge adds more variation and loot.
+  if(s.type==='city')makeOutpost(s.x+45,s.z-38,biomeAt(s.x,s.z)===BIOMES.badlands?'badlands':biomeAt(s.x,s.z)===BIOMES.alpine?'alpine':biomeAt(s.x,s.z)===BIOMES.marsh?'marsh':'pine');
+}
+
+// Connect the world using terrain-following roads. Main grid first.
+const roadRows=[500,170,-230,-555];
+for(const z of roadRows)terrainRoad(-690,z,690,z,8.5,roadGroundMat);
+const roadCols=[-500,0,500];
+for(const x of roadCols)terrainRoad(x,-690,x,690,8.5,roadGroundMat);
+// Diagonal and rural connectors.
+terrainRoad(-430,500,0,120,5.2,roadDirtGroundMat);
+terrainRoad(430,500,0,120,5.2,roadDirtGroundMat);
+terrainRoad(-500,-230,0,-555,5.2,roadDirtGroundMat);
+terrainRoad(500,-230,0,-555,5.2,roadDirtGroundMat);
+terrainRoad(-520,170,-430,-555,4.5,roadDirtGroundMat);
+terrainRoad(520,170,430,-555,4.5,roadDirtGroundMat);
+
+// ---------- Grow population from 30 to exactly 100 NPCs ----------
+for(let i=npcs.length;i<100;i++)makeNPC(i);
+
+// Spawn NPCs around every settlement so all areas feel populated.
+for(let i=0;i<npcs.length;i++){
+  const n=npcs[i],s=settlementLayout[i%settlementLayout.length];
+  n.faction=(i%2===0)?'WARDEN':'RAIDER';n.npcEnemy=null;n.npcCombatCd=rand(.25,1);n.playerProvoked=0;n.health=100;n.dead=false;
+  const a=rand(0,Math.PI*2),r=rand(s.type==='city'?18:12,s.type==='city'?75:52);
+  let x=s.x+Math.cos(a)*r,z=s.z+Math.sin(a)*r;x=clamp(x,-710,710);z=clamp(z,-710,710);
+  n.group.visible=true;n.group.position.set(x,groundY(x,z),z);n.patrol.set(clamp(x+rand(-30,30),-710,710),0,clamp(z+rand(-30,30),-710,710));
+  const vest=n.group.children[2];if(vest?.material){vest.material=vest.material.clone();vest.material.color.setHex(n.faction==='WARDEN'?0x354f48:0x654139);vest.material.roughness=.78;}
+  // Keep 100 people usable on phones: distant NPCs don't cast expensive shadows.
+  if(i>=30)n.group.traverse(o=>{if(o.isMesh)o.castShadow=false;});
+}
+
+// ---------- Random safe player spawning ----------
+function randomSafeSpawn(){
+  // Prefer a mixture of wilderness and settlement outskirts, never the exact same point.
+  for(let tries=0;tries<120;tries++){
+    let x,z;
+    if(Math.random()<.62){
+      const s=settlementLayout[(Math.random()*settlementLayout.length)|0],a=rand(0,Math.PI*2),r=rand(45,95);
+      x=s.x+Math.cos(a)*r;z=s.z+Math.sin(a)*r;
+    }else{x=rand(-690,690);z=rand(-690,690);}
+    if(Math.abs(x)>710||Math.abs(z)>710)continue;
+    if(blockedPosition(x,z))continue;
+    let tooClose=false;
+    for(const n of npcs){if(!n.dead&&Math.hypot(n.group.position.x-x,n.group.position.z-z)<10){tooClose=true;break;}}
+    if(tooClose)continue;
+    return {x,z};
+  }
+  return {x:rand(-300,300),z:rand(-300,300)};
+}
+function applyRandomSpawn(){
+  const s=randomSafeSpawn();player.pos.x=s.x;player.pos.z=s.z;jumpOffset=0;jumpVelocity=0;onGround=true;
+  player.pos.y=groundY(s.x,s.z)+player.height;camera.position.copy(player.pos);
+}
+
+// Randomize the initial spawn as soon as this upgrade loads.
+applyRandomSpawn();
+
+// Override death/respawn so each remaining life can respawn somewhere different.
+playerDeath=function(){
+  if(player.dead)return;player.dead=true;firing=false;player.lives=Math.max(0,(player.lives??5)-1);updateLivesHUD();
+  if(player.lives<=0){message('No lives remaining',2);setTimeout(()=>{if(gameOverOverlay)gameOverOverlay.style.display='flex';},650);return;}
+  message(`You died · ${player.lives} lives left · relocating…`,1.5);
+  setTimeout(()=>{player.health=100;player.dead=false;applyRandomSpawn();updateHUD();message(`Respawned somewhere new · ${player.lives} lives left`,1.8);},1700);
+};
+
+// Keep every NPC inside the current 1500m map after the population increase.
+const npcBefore100=updateNPCs;
+updateNPCs=function(dt){
+  npcBefore100(dt);
+  for(const n of npcs){if(n.dead)continue;n.group.position.x=clamp(n.group.position.x,-720,720);n.group.position.z=clamp(n.group.position.z,-720,720);n.group.position.y=groundY(n.group.position.x,n.group.position.z);n.patrol.x=clamp(n.patrol.x,-710,710);n.patrol.z=clamp(n.patrol.z,-710,710);}
+};
+
+const npcText100=document.getElementById('npcText');if(npcText100)npcText100.textContent='Hostiles: 100';
+if(hud.desktop&&!coarsePointer)hud.desktop.textContent='MacBook: WASD move · mouse look · SPACE jump · click shoot · R reload · Q gear · B build/place · T type · E loot · Shift sprint';
+message('100 NPCs · terrain roads fixed · towns + cities · random safe spawning',4);
