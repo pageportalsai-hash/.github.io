@@ -1,0 +1,133 @@
+// ============================================================================
+// FRONTIER ZERO CHARACTER SKINS + THIRD PERSON UPDATE
+// 50 varied NPC appearances and L-key first/third person toggle.
+// Player appearance is inspired by Cory from Total Roblox Drama.
+// ============================================================================
+
+// ---------- Give all 50 NPCs visibly different appearances ----------
+const npcSkinTones16=[0xf0c9a5,0xd9aa7d,0xc58d63,0xa86f4e,0x86543c,0x603b2d,0xe5b98f,0xb77955];
+const npcShirts16=[0x334e68,0x8a3f3f,0x4e6944,0x76558a,0xb47b35,0x3f6867,0x595d67,0x8c6a52,0x315a80,0x7a445c];
+const npcPants16=[0x263746,0x303236,0x4c443d,0x273f58,0x4b4d50,0x384132,0x49383b];
+const npcHair16=[0x241a16,0x493226,0x171513,0x6b4a2d,0x8a6a44,0x3a2520,0xb68b55];
+const npcHat16=[0x3c4650,0x714035,0x465b42,0x896833,0x51476b,0x313438];
+
+function addNpcStyle16(n,i){
+  if(!n?.group||n.dead)return;
+  const g=n.group,body=g.children[0],head=g.children[1],vest=g.children[2];
+  const skin=npcSkinTones16[i%npcSkinTones16.length];
+  const shirt=npcShirts16[(i*3+1)%npcShirts16.length];
+  const pants=npcPants16[(i*5+2)%npcPants16.length];
+  const hair=npcHair16[(i*7+3)%npcHair16.length];
+  if(body?.material){body.material=body.material.clone();body.material.color.setHex(pants);}
+  if(head?.material){head.material=head.material.clone();head.material.color.setHex(skin);}
+  if(vest?.material){vest.material=vest.material.clone();vest.material.color.setHex(shirt);}
+
+  // Hair styles vary by index, while keeping existing child indexes untouched.
+  const hairMat=new THREE.MeshStandardMaterial({color:hair,roughness:.93});
+  let hairMesh;
+  switch(i%5){
+    case 0: hairMesh=new THREE.Mesh(new THREE.SphereGeometry(.335,9,6,0,Math.PI*2,0,Math.PI*.52),hairMat);hairMesh.scale.set(1.04,.68,1.02);hairMesh.position.set(0,2.47,0);break;
+    case 1: hairMesh=new THREE.Mesh(new THREE.BoxGeometry(.58,.18,.48),hairMat);hairMesh.position.set(0,2.51,-.01);hairMesh.rotation.z=.08;break;
+    case 2: hairMesh=new THREE.Mesh(new THREE.ConeGeometry(.30,.38,8),hairMat);hairMesh.position.set(.03,2.61,.01);hairMesh.rotation.z=-.10;break;
+    case 3: hairMesh=new THREE.Mesh(new THREE.SphereGeometry(.34,8,6),hairMat);hairMesh.scale.set(1,.52,1);hairMesh.position.set(0,2.49,0);break;
+    default: hairMesh=new THREE.Mesh(new THREE.BoxGeometry(.62,.12,.50),hairMat);hairMesh.position.set(0,2.48,0);break;
+  }
+  hairMesh.castShadow=true;g.add(hairMesh);
+
+  // Some get caps, headbands or backpack blocks for extra variation.
+  if(i%6===0){
+    const capMat=new THREE.MeshStandardMaterial({color:npcHat16[i%npcHat16.length],roughness:.8});
+    const cap=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.10,10),capMat);cap.position.set(0,2.58,0);cap.castShadow=true;g.add(cap);
+    const brim=new THREE.Mesh(new THREE.BoxGeometry(.30,.035,.18),capMat);brim.position.set(0,2.55,-.30);g.add(brim);
+  } else if(i%6===1){
+    const band=new THREE.Mesh(new THREE.TorusGeometry(.315,.025,6,16),new THREE.MeshStandardMaterial({color:npcHat16[(i+2)%npcHat16.length]}));band.rotation.x=Math.PI/2;band.position.set(0,2.38,0);g.add(band);
+  }
+  if(i%4===0){
+    const pack=new THREE.Mesh(new THREE.BoxGeometry(.62,.75,.24),new THREE.MeshStandardMaterial({color:0x3a342e,roughness:.95}));pack.position.set(0,1.38,.33);pack.castShadow=true;g.add(pack);
+  }
+
+  // Small chest stripe/panel so clothing palettes are not only one flat color.
+  const trim=new THREE.Mesh(new THREE.BoxGeometry(.69,.10,.435),new THREE.MeshStandardMaterial({color:0xd1c6a5,roughness:.88}));
+  trim.position.set(0,1.46,-.06);g.add(trim);
+  n.skinName16=`Survivor ${String(i+1).padStart(2,'0')}`;
+}
+for(let i=0;i<Math.min(50,npcs.length);i++)addNpcStyle16(npcs[i],i);
+
+// ---------- Cory-inspired third-person player model ----------
+const playerAvatar16=new THREE.Group();scene.add(playerAvatar16);playerAvatar16.visible=false;
+const pSkin16=new THREE.MeshStandardMaterial({color:0xe7bd98,roughness:.94});
+const pHair16=new THREE.MeshStandardMaterial({color:0x523724,roughness:.93});
+const pYellow16=new THREE.MeshStandardMaterial({color:0xd5b93f,roughness:.9});
+const pBeige16=new THREE.MeshStandardMaterial({color:0xc8b99c,roughness:.94});
+const pJeans16=new THREE.MeshStandardMaterial({color:0x35536c,roughness:.9});
+const pShoe16=new THREE.MeshStandardMaterial({color:0xd9b83f,roughness:.72});
+const pRed16=new THREE.MeshStandardMaterial({color:0xa94838,roughness:.9});
+const pGreen16=new THREE.MeshStandardMaterial({color:0x587542,roughness:.9});
+function pPart16(geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;playerAvatar16.add(m);return m;}
+// torso + beige long sleeves
+pPart16(new THREE.BoxGeometry(.72,.82,.38),pYellow16,0,1.43,0);
+pPart16(new THREE.CylinderGeometry(.095,.105,.78,8),pBeige16,-.47,1.42,0).rotation.z=-.05;
+pPart16(new THREE.CylinderGeometry(.095,.105,.78,8),pBeige16,.47,1.42,0).rotation.z=.05;
+// red + green shirt stripes
+pPart16(new THREE.BoxGeometry(.735,.09,.395),pRed16,0,1.52,-.01);
+pPart16(new THREE.BoxGeometry(.735,.09,.395),pGreen16,0,1.36,-.01);
+// jeans legs
+pPart16(new THREE.BoxGeometry(.27,.78,.30),pJeans16,-.19,.62,0);
+pPart16(new THREE.BoxGeometry(.27,.78,.30),pJeans16,.19,.62,0);
+// yellow shoes
+pPart16(new THREE.BoxGeometry(.30,.18,.45),pShoe16,-.19,.16,-.06);
+pPart16(new THREE.BoxGeometry(.30,.18,.45),pShoe16,.19,.16,-.06);
+// head
+pPart16(new THREE.SphereGeometry(.31,12,9),pSkin16,0,2.16,0);
+// short brown centre-parted hair: cap plus two swept front sections
+const hairCap16=pPart16(new THREE.SphereGeometry(.325,12,8,0,Math.PI*2,0,Math.PI*.52),pHair16,0,2.34,0);hairCap16.scale.set(1.03,.68,1.02);
+const hairL16=pPart16(new THREE.BoxGeometry(.27,.12,.30),pHair16,-.14,2.39,-.18);hairL16.rotation.z=-.18;
+const hairR16=pPart16(new THREE.BoxGeometry(.27,.12,.30),pHair16,.14,2.39,-.18);hairR16.rotation.z=.18;
+// simple face
+const eyeMat16=new THREE.MeshBasicMaterial({color:0x24201d});
+pPart16(new THREE.SphereGeometry(.025,6,5),eyeMat16,-.10,2.19,-.295);
+pPart16(new THREE.SphereGeometry(.025,6,5),eyeMat16,.10,2.19,-.295);
+
+// ---------- First/third person toggle ----------
+let thirdPerson16=false;
+function setViewMode16(on){
+  thirdPerson16=on;playerAvatar16.visible=on;
+  if(on){gunHolder.visible=false;if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;message('THIRD PERSON · press L for first person',1.8);}
+  else {message('FIRST PERSON · press L for third person',1.8);if(typeof updateToolVisual15==='function')updateToolVisual15();else gunHolder.visible=true;}
+  const notice=document.getElementById('desktopNotice');
+  if(notice)notice.textContent='MacBook: WASD move · mouse look · L first/third person · SPACE jump · click shoot · R reload · Q gear · B build · Shift sprint';
+}
+addEventListener('keydown',e=>{if(e.code==='KeyL'&&!e.repeat){e.preventDefault();setViewMode16(!thirdPerson16);}});
+
+// Run after every existing movement wrapper so the final camera position really is third-person.
+const updatePlayerBeforeThird16=updatePlayer;
+updatePlayer=function(dt){
+  updatePlayerBeforeThird16(dt);
+  const ground=groundY(player.pos.x,player.pos.z);
+  playerAvatar16.position.set(player.pos.x,ground,player.pos.z);
+  playerAvatar16.rotation.y=player.yaw;
+  if(!thirdPerson16)return;
+
+  // Hide first-person equipment while the character body is visible.
+  gunHolder.visible=false;if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;
+  const target=new THREE.Vector3(player.pos.x,ground+1.55,player.pos.z);
+  const forward=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  let desired=target.clone().addScaledVector(forward,-4.6).add(new THREE.Vector3(0,1.55,0));
+  // Camera collision: move closer if a wall/tree/building is behind the player.
+  const camDir=desired.clone().sub(target),camDist=camDir.length();
+  raycaster.set(target,camDir.normalize());raycaster.far=camDist;
+  const camHits=raycaster.intersectObjects([terrain,...blockers].filter(o=>o===terrain||o.parent),true);
+  if(camHits.length)desired=target.clone().addScaledVector(camDir,Math.max(.65,camHits[0].distance-.28));
+  camera.position.copy(desired);
+  const aimHeight=1.55+Math.sin(player.pitch)*2.1;
+  camera.lookAt(new THREE.Vector3(player.pos.x,ground+aimHeight,player.pos.z).addScaledVector(forward,2.2));
+};
+
+// Keep equipment visibility correct after changing gear while in third person.
+const updateHUDBeforeThird16=updateHUD;
+updateHUD=function(){
+  updateHUDBeforeThird16();
+  if(thirdPerson16){gunHolder.visible=false;if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;}
+};
+
+message('50 unique NPC looks · press L for third person · Cory-inspired player skin added',4.2);
