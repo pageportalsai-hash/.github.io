@@ -1,0 +1,83 @@
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const clamp = THREE.MathUtils.clamp;
+const rand = (a,b) => a + Math.random()*(b-a);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fb5be);
+scene.fog = new THREE.FogExp2(0xb4c1c4, 0.00155);
+
+const camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.08, 900);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.45));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+
+// ---------- HUD ----------
+const hud = {
+  health: document.getElementById('healthInner'), weapon: document.getElementById('weaponText'),
+  npc: document.getElementById('npcText'), inventory: document.getElementById('inventory'),
+  msg: document.getElementById('message'), flash: document.getElementById('damageFlash'),
+  fire: document.getElementById('fireBtn'), reload: document.getElementById('reloadBtn'),
+  gear: document.getElementById('gearBtn'), build: document.getElementById('buildBtn'),
+  rotate: document.getElementById('rotateBtn'), type: document.getElementById('buildTypeBtn'),
+  joyBase: document.getElementById('joystickBase'), joyKnob: document.getElementById('joystickKnob'),
+  look: document.getElementById('lookZone'), desktop: document.getElementById('desktopNotice')
+};
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) hud.desktop.style.display='none';
+let msgTimer = 0;
+function message(t, secs=1.25){ hud.msg.textContent=t; hud.msg.style.opacity='1'; msgTimer=secs; }
+
+// ---------- World ----------
+const hemi = new THREE.HemisphereLight(0xd9edf3, 0x48513f, 1.6); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff1d6, 2.7);
+sun.position.set(-180,260,90); sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left=-180; sun.shadow.camera.right=180; sun.shadow.camera.top=180; sun.shadow.camera.bottom=-180;
+scene.add(sun);
+
+function groundY(x,z){
+  const broad = Math.sin(x*0.009)*2.7 + Math.cos(z*0.008)*2.1 + Math.sin((x+z)*0.004)*2.8;
+  const detail = Math.sin(x*0.035)*0.55 + Math.cos(z*0.031)*0.45;
+  const mountain = Math.max(0, 20 - Math.hypot(x+260,z-250)*0.055);
+  return broad + detail + mountain - 1.2;
+}
+const terrainGeo = new THREE.PlaneGeometry(1600,1600,128,128);
+terrainGeo.rotateX(-Math.PI/2);
+const tp = terrainGeo.attributes.position;
+for(let i=0;i<tp.count;i++){ const x=tp.getX(i), z=tp.getZ(i); tp.setY(i,groundY(x,z)); }
+terrainGeo.computeVertexNormals();
+const terrainMat = new THREE.MeshStandardMaterial({color:0x56684a, roughness:1, metalness:0});
+const terrain = new THREE.Mesh(terrainGeo,terrainMat); terrain.receiveShadow=true; scene.add(terrain);
+
+const water = new THREE.Mesh(new THREE.PlaneGeometry(1500,1500), new THREE.MeshPhysicalMaterial({color:0x416d78, roughness:.2, metalness:.05, transparent:true, opacity:.74}));
+water.rotation.x=-Math.PI/2; water.position.y=-4.7; scene.add(water);
+
+// dirt paths
+for (let i=0;i<10;i++){
+  const p = new THREE.Mesh(new THREE.BoxGeometry(rand(30,80),.12,rand(4,8)), new THREE.MeshStandardMaterial({color:0x79644a,roughness:1}));
+  p.position.set(rand(-500,500),0,rand(-500,500)); p.position.y=groundY(p.position.x,p.position.z)+.03; p.rotation.y=rand(0,Math.PI); p.receiveShadow=true; scene.add(p);
+}
+
+const blockers=[];
+const colliders=[];
+const resources=[];
+const npcHitMeshes=[];
+const playerStructures=[];
+
+function registerBlocker(obj, radius=0){ blockers.push(obj); if(radius>0) colliders.push({obj,radius}); }
+
+function makeTree(x,z,scale=1){
+  const g=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.45*scale,.68*scale,7*scale,7),new THREE.MeshStandardMaterial({color:0x5e4632,roughness:1}));
+  trunk.position.y=3.5*scale; trunk.castShadow=true; trunk.receiveShadow=true;
+  const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(3.2*scale,1),new THREE.MeshStandardMaterial({color:0x274f34,roughness:1}));
+  crown.position.y=8.2*scale; crown.scale.y=1.35; crown.castShadow=true;
+  g.add(trunk,crown); g.position.set(x,groundY(x,z),z); scene.add(g);
+  const r={kind:'tree',group:g,hp:80,maxHp:80,yield:{wood:rand(8,15)|0},dead:false,spawn:{x,z,scale}};
+  trunk.userData.resource=r; crown.userData.re
