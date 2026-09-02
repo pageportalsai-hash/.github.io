@@ -1,0 +1,61 @@
+// ============================================================================
+// FRONTIER ZERO TOOL VISUAL UPDATE
+// Distinct first-person models/skins for Axe, Pickaxe and Dig Tool.
+// ============================================================================
+
+const toolHolder15=new THREE.Group();toolHolder15.position.set(.34,-.34,-.70);camera.add(toolHolder15);
+const toolWood15=new THREE.MeshStandardMaterial({color:0x6d472d,roughness:.82});
+const toolGrip15=new THREE.MeshStandardMaterial({color:0x25292b,roughness:.72});
+const toolSteel15=new THREE.MeshStandardMaterial({color:0x9aa2a5,metalness:.72,roughness:.28});
+const toolDarkSteel15=new THREE.MeshStandardMaterial({color:0x555e63,metalness:.78,roughness:.25});
+const toolOrange15=new THREE.MeshStandardMaterial({color:0xc56d2d,metalness:.22,roughness:.48});
+function toolPart15(parent,geo,mat,x,y,z,rx=0,ry=0,rz=0){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=true;parent.add(m);return m;}
+
+// Axe: wooden handle, wrapped grip and broad silver chopping head.
+const axeModel15=new THREE.Group();
+toolPart15(axeModel15,new THREE.CylinderGeometry(.035,.045,.82,8),toolWood15,0,-.05,-.22,.22,0,-.20);
+toolPart15(axeModel15,new THREE.CylinderGeometry(.047,.047,.25,8),toolGrip15,.075,-.38,-.15,.22,0,-.20);
+toolPart15(axeModel15,new THREE.BoxGeometry(.34,.22,.07),toolSteel15,-.08,.27,-.32,0,0,-.16);
+const axeBlade15=toolPart15(axeModel15,new THREE.ConeGeometry(.17,.28,4),toolSteel15,-.25,.25,-.32,0,0,-Math.PI/2);axeBlade15.scale.set(1,.8,.35);
+toolHolder15.add(axeModel15);
+
+// Pickaxe: dark reinforced shaft with two-sided pointed mining head.
+const pickModel15=new THREE.Group();
+toolPart15(pickModel15,new THREE.CylinderGeometry(.034,.045,.88,8),toolDarkSteel15,0,-.06,-.22,.20,0,-.16);
+toolPart15(pickModel15,new THREE.CylinderGeometry(.05,.05,.27,8),toolGrip15,.065,-.42,-.15,.20,0,-.16);
+toolPart15(pickModel15,new THREE.BoxGeometry(.52,.075,.075),toolSteel15,0,.30,-.34,0,0,-.10);
+toolPart15(pickModel15,new THREE.ConeGeometry(.055,.31,7),toolSteel15,-.39,.34,-.34,0,0,-Math.PI/2);
+toolPart15(pickModel15,new THREE.ConeGeometry(.07,.24,7),toolSteel15,.35,.27,-.34,0,0,Math.PI/2);
+toolHolder15.add(pickModel15);
+
+// Dig Tool: compact orange survival shovel with D-grip and broad spade blade.
+const digModel15=new THREE.Group();
+toolPart15(digModel15,new THREE.CylinderGeometry(.032,.038,.74,8),toolDarkSteel15,0,-.04,-.20,.18,0,-.13);
+toolPart15(digModel15,new THREE.TorusGeometry(.105,.025,7,12,Math.PI),toolOrange15,.065,-.40,-.13,0,0,Math.PI/2);
+const spade15=toolPart15(digModel15,new THREE.ConeGeometry(.17,.34,4),toolOrange15,-.06,.29,-.31,0,0,Math.PI);spade15.scale.set(1.05,1,.32);
+toolPart15(digModel15,new THREE.BoxGeometry(.25,.08,.055),toolDarkSteel15,-.06,.13,-.30,0,0,-.10);
+toolHolder15.add(digModel15);
+
+function updateToolVisual15(){
+  const w=currentGear();
+  const isTool=w&&(w.type==='axe'||w.type==='pickaxe'||w.type==='dig');
+  toolHolder15.visible=!!isTool;gunHolder.visible=!isTool;
+  axeModel15.visible=w?.type==='axe';pickModel15.visible=w?.type==='pickaxe';digModel15.visible=w?.type==='dig';
+  if(isTool){
+    toolHolder15.rotation.set(.02,0,-.05);
+    toolHolder15.position.set(.34,-.34,-.70);
+  }
+}
+const hudBeforeTools15=updateHUD;
+updateHUD=function(){hudBeforeTools15();updateToolVisual15();};
+updateToolVisual15();
+
+// Small swing animation whenever a hand tool is used.
+const toolHitBeforeVisual15=toolHit;
+toolHit=function(type){
+  toolHolder15.rotation.z=-.48;toolHolder15.rotation.x=-.18;
+  setTimeout(()=>{toolHolder15.rotation.z=-.05;toolHolder15.rotation.x=.02;},125);
+  toolHitBeforeVisual15(type);
+};
+
+message('Tools upgraded: new Axe · Pickaxe · Dig Tool models',3.2);
