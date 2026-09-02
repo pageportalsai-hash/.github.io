@@ -61,7 +61,7 @@
     <div id="rotateBtn" class="button">ROTATE</div><div id="buildTypeBtn" class="button">TYPE</div>
   </div>
   <script type="module">
-    const parts=['part_00.txt','part_01.txt','part_02c.txt','part_03.txt','part_04.txt','part_05.txt','part_06.txt','part_07.txt'];
+    const parts=['part_00.txt','part_01.txt','part_02c.txt','part_03.txt','part_04.txt','part_05.txt','part_06.txt','part_07.txt','part_08.txt'];
     try {
       const code=(await Promise.all(parts.map(p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r.text();})))).join('');
       const blob=new Blob([code],{type:'text/javascript'});
