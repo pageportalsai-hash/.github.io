@@ -1,0 +1,169 @@
+// ============================================================================
+// FRONTIER ZERO CARS + NPC LOOT + COINS + LOBBY SHOP UPDATE
+// Drivable ~50 mph cars, persistent coins, NPC kill rewards, and lobby shop
+// for armor and upgraded weapons while keeping free Common starter choices.
+// ============================================================================
+
+// ---------- Persistent coins + armor ----------
+let coins19=0;
+try{coins19=Math.max(0,parseInt(localStorage.getItem('fz_coins19')||'0',10)||0);}catch(e){}
+let armor19={name:'No Armor',max:0,value:0,reduction:0};
+function saveCoins19(){try{localStorage.setItem('fz_coins19',String(coins19));}catch(e){}}
+function addCoins19(n){coins19+=Math.max(0,n|0);saveCoins19();updateCoinHud19();}
+
+const coinHud19=document.createElement('div');
+coinHud19.style.cssText='position:fixed;top:154px;right:12px;z-index:35;background:rgba(12,17,20,.78);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:7px 10px;color:#ffe17a;font:800 12px system-ui;pointer-events:none;text-shadow:0 1px 2px #000';
+document.body.appendChild(coinHud19);
+function updateCoinHud19(){coinHud19.textContent=`COINS ${coins19} · ARMOR ${Math.ceil(armor19.value)}/${armor19.max}`;}
+updateCoinHud19();
+
+const damagePlayerBeforeArmor19=damagePlayer;
+damagePlayer=function(amount){
+  if(armor19.value>0&&amount>0){
+    const absorbed=Math.min(armor19.value,amount*armor19.reduction);
+    armor19.value-=absorbed;amount-=absorbed;updateCoinHud19();
+  }
+  damagePlayerBeforeArmor19(amount);
+};
+
+// ---------- NPC kill rewards ----------
+function cloneNpcGun19(w){
+  if(!w)return null;
+  const catalog=typeof gunCatalog!=='undefined'?gunCatalog.find(g=>g.name===w.name):null;
+  if(catalog){
+    return {...catalog,type:'gun',mag:catalog.magSize,reserve:catalog.reserve,skin:w.skin||randomGunSkin(catalog.rarity||'Common')};
+  }
+  return {name:w.name,type:'gun',rarity:w.rarity||'Common',magSize:30,mag:30,reserve:90,damage:w.damage||20,rate:w.rate||.12,spread:w.spread||.014,pellets:w.pellets||1,skin:w.skin||randomGunSkin(w.rarity||'Common')};
+}
+function rewardNpcKill19(n){
+  if(!n||n.rewarded19)return;n.rewarded19=true;
+  const gainedCoins=8+((Math.random()*23)|0);
+  addCoins19(gainedCoins);
+  player.inventory.wood+=(Math.random()*6)|0;player.inventory.stone+=(Math.random()*5)|0;player.inventory.metal+=(Math.random()*4)|0;
+  for(const w of gear)if(w.type==='gun')w.reserve+=(Math.random()*10)|0;
+  let lootText=`+${gainedCoins} COINS`;
+  if(n.weapon14){
+    const already=gear.some(g=>g.type==='gun'&&g.name===n.weapon14.name&&g.rarity===n.weapon14.rarity);
+    if(!already){const dropped=cloneNpcGun19(n.weapon14);if(dropped){gear.push(dropped);lootText+=` · LOOTED ${dropped.rarity} ${dropped.name}`;}}
+    else lootText+=` · ${n.weapon14.rarity} ${n.weapon14.name} ammo`;
+  }
+  updateHUD();message(`NPC LOOT: ${lootText}`,3.2);
+}
+const killNpcBeforeRewards19=killNpc;
+killNpc=function(n){if(n&&!n.dead)rewardNpcKill19(n);killNpcBeforeRewards19(n);};
+
+// ---------- Drivable cars ----------
+const cars19=[];
+const carColors19=[0x315d76,0x7e4036,0x4f623d,0x5d536e,0x8a6b32,0x404449,0x6c6f73,0x734f36];
+function makeCar19(x,z,rot=0,i=0){
+  const g=new THREE.Group();
+  const bodyMat=new THREE.MeshStandardMaterial({color:carColors19[i%carColors19.length],roughness:.52,metalness:.28});
+  const dark=new THREE.MeshStandardMaterial({color:0x171a1c,roughness:.72});
+  const glass=new THREE.MeshStandardMaterial({color:0x263c49,roughness:.22,metalness:.12,transparent:true,opacity:.78});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(3.3,.72,5.5),bodyMat);body.position.y=.72;body.castShadow=true;g.add(body);
+  const cabin=new THREE.Mesh(new THREE.BoxGeometry(2.65,.92,2.55),glass);cabin.position.set(0,1.45,.15);cabin.castShadow=true;g.add(cabin);
+  for(const sx of [-1.62,1.62])for(const sz of [-1.75,1.75]){
+    const w=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,.34,12),dark);w.rotation.z=Math.PI/2;w.position.set(sx,.48,sz);w.castShadow=true;g.add(w);
+  }
+  g.position.set(x,groundY(x,z)+.08,z);g.rotation.y=rot;scene.add(g);
+  const car={group:g,speed:0,maxSpeed:22.35,driver:false};g.userData.car19=car;cars19.push(car);return car;
+}
+const carSpawns19=[[-420,350,.1],[-300,80,1.57],[-160,350,0],[0,350,0],[160,350,0],[330,350,-.1],[-350,80,1.57],[0,80,1.57],[350,80,1.57],[-350,-240,1.57],[0,-240,1.57],[350,-240,1.57],[-300,-410,0],[0,-410,0],[300,-410,0],[420,120,.2],[-430,-80,-.2],[125,210,.5]];
+for(let i=0;i<carSpawns19.length;i++)makeCar19(...carSpawns19[i],i);
+
+let activeCar19=null;
+function nearestCar19(max=5){let best=null,bd=max;for(const c of cars19){const d=Math.hypot(c.group.position.x-player.pos.x,c.group.position.z-player.pos.z);if(d<bd){best=c;bd=d;}}return best;}
+function enterCar19(c){
+  if(!c||activeCar19)return;activeCar19=c;c.driver=true;c.speed=0;
+  if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=false;gunHolder.visible=false;if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;
+  message('DRIVING · W/S accelerate · A/D steer · E exit · max 50 mph',2.6);
+}
+function exitCar19(){
+  if(!activeCar19)return;const c=activeCar19;c.driver=false;activeCar19=null;
+  const side=new THREE.Vector3(Math.cos(c.group.rotation.y),0,-Math.sin(c.group.rotation.y));
+  player.pos.set(c.group.position.x+side.x*2.6,groundY(c.group.position.x+side.x*2.6,c.group.position.z+side.z*2.6)+player.height,c.group.position.z+side.z*2.6);
+  if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=!!thirdPerson16;if(typeof updateToolVisual15==='function')updateToolVisual15();
+  message('EXITED CAR',1.3);
+}
+function toggleCar19(){if(typeof lobbyActive17!=='undefined'&&lobbyActive17)return;if(activeCar19){exitCar19();return;}const c=nearestCar19();if(c)enterCar19(c);else message('Move closer to a car',1.2);}
+addEventListener('keydown',e=>{if(e.code==='KeyE'&&!e.repeat){const c=activeCar19||nearestCar19(4.4);if(c){e.preventDefault();toggleCar19();}}});
+
+const carBtn19=document.createElement('div');carBtn19.textContent='CAR';carBtn19.style.cssText='position:fixed;right:326px;bottom:35px;width:62px;height:62px;border-radius:50%;z-index:45;display:flex;align-items:center;justify-content:center;background:rgba(30,36,42,.78);border:2px solid rgba(255,255,255,.3);color:#fff;font:800 10px system-ui;pointer-events:auto;touch-action:manipulation';
+carBtn19.addEventListener('pointerdown',e=>{e.stopPropagation();toggleCar19();});document.body.appendChild(carBtn19);
+if(matchMedia('(pointer:fine)').matches)carBtn19.style.display='none';
+
+const updatePlayerBeforeCars19=updatePlayer;
+updatePlayer=function(dt){
+  if(!activeCar19){updatePlayerBeforeCars19(dt);return;}
+  const c=activeCar19,g=c.group;
+  let throttle=0,steer=0;
+  if(keys.KeyW||keys.ArrowUp)throttle+=1;if(keys.KeyS||keys.ArrowDown)throttle-=1;if(keys.KeyA||keys.ArrowLeft)steer+=1;if(keys.KeyD||keys.ArrowRight)steer-=1;
+  if(typeof joy!=='undefined'){throttle+=clamp(-joy.y,-1,1);steer+=clamp(-joy.x,-1,1);}
+  const accel=throttle>=0?14:18;c.speed+=throttle*accel*dt;
+  if(Math.abs(throttle)<.05)c.speed*=Math.max(0,1-2.2*dt);
+  c.speed=clamp(c.speed,-8.5,c.maxSpeed);
+  const steerStrength=(.85-Math.min(Math.abs(c.speed)/c.maxSpeed,.65));g.rotation.y+=steer*steerStrength*dt*(c.speed>=0?1:-1);
+  const fwd=new THREE.Vector3(-Math.sin(g.rotation.y),0,-Math.cos(g.rotation.y));
+  const nx=g.position.x+fwd.x*c.speed*dt,nz=g.position.z+fwd.z*c.speed*dt;
+  if(Math.abs(nx)<488&&Math.abs(nz)<488&&!blockedPosition(nx,nz)){g.position.x=nx;g.position.z=nz;}else c.speed*=-.18;
+  g.position.y=groundY(g.position.x,g.position.z)+.08;
+  player.pos.set(g.position.x,g.position.y+1.85,g.position.z);player.yaw=g.rotation.y;
+  const back=fwd.clone().multiplyScalar(-7.2);camera.position.set(g.position.x+back.x,g.position.y+4.2,g.position.z+back.z);camera.lookAt(g.position.x,g.position.y+1.1,g.position.z);
+  gunHolder.visible=false;if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=false;
+};
+
+// ---------- Lobby coin shop ----------
+const shopWeapons19=[
+  {name:'Falcon AR',rarity:'Rare',price:120},{name:'Breach Shotgun',rarity:'Rare',price:130},
+  {name:'Nightfall Rifle',rarity:'Epic',price:260},{name:'Storm SMG',rarity:'Epic',price:250},
+  {name:'Sunfire AR',rarity:'Legendary',price:520},{name:'Titan Handcannon',rarity:'Legendary',price:500},
+  {name:'Apex Rifle',rarity:'Mythic',price:900},{name:'Dragon Shotgun',rarity:'Mythic',price:880},
+  {name:'ZERO-9',rarity:'Secret',price:1800},{name:'Phantom Cannon',rarity:'Secret',price:2000}
+];
+const armorShop19=[
+  {name:'Scout Armor',price:70,max:35,reduction:.55},{name:'Combat Armor',price:180,max:70,reduction:.65},
+  {name:'Titan Armor',price:420,max:120,reduction:.72},{name:'Void Armor',price:850,max:180,reduction:.80}
+];
+let boughtLobbyGuns19=[];
+function buyLobbyGun19(item){
+  if(coins19<item.price){message(`Need ${item.price-coins19} more coins`,1.5);return;}
+  if(boughtLobbyGuns19.includes(item.name)){message('Already bought for this match',1.2);return;}
+  const src=gunCatalog.find(g=>g.name===item.name);if(!src)return;
+  coins19-=item.price;saveCoins19();boughtLobbyGuns19.push(item.name);selectedLoadout18.push(item.name);while(selectedLoadout18.length>2)selectedLoadout18.shift();updateCoinHud19();refreshLoadout18();renderShop19();message(`BOUGHT ${item.rarity} ${item.name}`,1.8);
+}
+function buyArmor19(item){
+  if(coins19<item.price){message(`Need ${item.price-coins19} more coins`,1.5);return;}
+  coins19-=item.price;saveCoins19();armor19={name:item.name,max:item.max,value:item.max,reduction:item.reduction};updateCoinHud19();renderShop19();message(`EQUIPPED ${item.name}`,1.8);
+}
+let shopPanel19=null;
+function renderShop19(){
+  if(!shopPanel19)return;
+  shopPanel19.innerHTML=`<div style="font-weight:950;font-size:16px">COIN SHOP · ${coins19} COINS</div><div style="font-size:10px;opacity:.68;margin:4px 0 9px">Buy stronger weapons or armor before deployment. Bought guns count toward your 2 weapon slots.</div>`;
+  const wg=document.createElement('div');wg.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
+  for(const item of shopWeapons19){const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.rarity} ${item.name} · ${item.price}c`;b.disabled=boughtLobbyGuns19.includes(item.name);b.addEventListener('click',e=>{e.stopPropagation();buyLobbyGun19(item);});wg.appendChild(b);}shopPanel19.appendChild(wg);
+  const ah=document.createElement('div');ah.style.cssText='font-weight:900;font-size:12px;margin:10px 0 5px';ah.textContent='ARMOR';shopPanel19.appendChild(ah);
+  const ag=document.createElement('div');ag.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
+  for(const item of armorShop19){const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.name} ${item.max} armor · ${item.price}c`;b.addEventListener('click',e=>{e.stopPropagation();buyArmor19(item);});ag.appendChild(b);}shopPanel19.appendChild(ag);
+}
+if(typeof lobby17!=='undefined'&&lobby17.firstElementChild){shopPanel19=document.createElement('div');shopPanel19.style.cssText='margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.18);text-align:left';lobby17.firstElementChild.appendChild(shopPanel19);renderShop19();}
+
+// Allow shop-bought guns to become the actual 2-slot deployment loadout.
+const finishLobbyBeforeShop19=finishLobby17;
+finishLobby17=function(){
+  if(!lobbyActive17)return;
+  // Build temporary Common defs for any bought catalog guns so the previous lobby function can deploy them.
+  for(const name of boughtLobbyGuns19){
+    if(commonLoadoutDefs18.some(d=>d.name===name))continue;
+    const src=gunCatalog.find(g=>g.name===name);if(src)commonLoadoutDefs18.push({name:src.name,label:src.name,magSize:src.magSize,damage:src.damage,rate:src.rate,spread:src.spread,pellets:src.pellets,reserve:src.reserve,desc:`Purchased ${src.rarity} weapon`,rarity:src.rarity,skin:src.skin});
+  }
+  const originalMaker=makeCommonLoadoutGun18;
+  makeCommonLoadoutGun18=function(def){
+    const src=gunCatalog.find(g=>g.name===def.name);
+    if(src&&src.rarity!=='Common')return {...src,type:'gun',mag:src.magSize,reserve:src.reserve,skin:randomGunSkin(src.rarity)};
+    return originalMaker(def);
+  };
+  finishLobbyBeforeShop19();
+};
+
+if(hud.desktop)hud.desktop.textContent='MacBook: WASD move · mouse look · click shoot · E enter/exit car/loot · L view · R reload · Q gear · SPACE jump';
+message('Cars added · NPCs drop coins + loot · lobby coin shop + armor ready',4.2);
