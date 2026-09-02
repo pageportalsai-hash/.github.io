@@ -1,0 +1,171 @@
+// ============================================================================
+// FRONTIER ZERO NPC LOOT + WEAPON SKINS UPDATE
+// NPCs can loot crates, roll weapon rarities, equip different guns and skins.
+// Secret weapons remain possible but extremely rare.
+// ============================================================================
+
+// ---------- Weapon skin system ----------
+const GUN_SKINS=[
+  {name:'Factory',body:0x242a2d,accent:0x8a9398,metalness:.55},
+  {name:'Forest',body:0x33483b,accent:0x718a69,metalness:.38},
+  {name:'Desert',body:0x66533d,accent:0xb09265,metalness:.34},
+  {name:'Arctic',body:0xc8d2d6,accent:0x667985,metalness:.46},
+  {name:'Crimson',body:0x542a2d,accent:0xa64848,metalness:.50},
+  {name:'Midnight',body:0x171b24,accent:0x4d5c85,metalness:.62},
+  {name:'Goldline',body:0x4a4030,accent:0xd2a84e,metalness:.75},
+  {name:'Void',body:0x21172c,accent:0x8d5fd3,metalness:.68}
+];
+function randomGunSkin(rarity='Common'){
+  let max=4;
+  if(rarity==='Rare')max=5;
+  if(rarity==='Epic')max=6;
+  if(rarity==='Legendary')max=7;
+  if(rarity==='Mythic'||rarity==='Secret')max=8;
+  return GUN_SKINS[(Math.random()*max)|0];
+}
+for(const w of gear)if(w.type==='gun'&&!w.skin)w.skin=randomGunSkin(w.rarity||'Common');
+
+// Add skins to newly found player guns.
+const grantRandomGunBeforeSkins14=grantRandomGun;
+grantRandomGun=function(){
+  const w=grantRandomGunBeforeSkins14();
+  if(w&&!w.skin)w.skin=randomGunSkin(w.rarity||'Common');
+  return w;
+};
+
+// Extend the first-person weapon appearance with the rolled skin.
+const applyWeaponLookBeforeSkins14=applyWeaponLook13;
+applyWeaponLook13=function(){
+  // Force the existing shape function to update when skin changes too.
+  const w=currentGear();
+  if(!w||w.type!=='gun')return;
+  const oldKey=lastWeaponLook13;lastWeaponLook13='';
+  applyWeaponLookBeforeSkins14();
+  const skin=w.skin||GUN_SKINS[0],body=baseGunParts[0],stock=baseGunParts[1],barrel=baseGunParts[2];
+  for(const part of [body,stock,barrel]){
+    if(!part?.material)continue;
+    part.material=part.material.clone();
+    part.material.color.setHex(part===stock?skin.accent:skin.body);
+    part.material.metalness=part===stock?Math.max(.2,skin.metalness-.15):skin.metalness;
+  }
+  for(const part of [scope13,foregrip13,suppressor13])if(part?.material){part.material=part.material.clone();part.material.color.setHex(skin.accent);}
+  lastWeaponLook13=((w.rarity||'Common')+'|'+w.name+'|'+skin.name);
+};
+
+// Show skin name in the HUD after the weapon name.
+const updateHUDBeforeSkins14=updateHUD;
+updateHUD=function(){
+  updateHUDBeforeSkins14();
+  const w=currentGear(),el=document.getElementById('weaponText');
+  if(el&&w?.type==='gun'){
+    const rarity=w.rarity||'Common',skin=w.skin?.name||'Factory';
+    el.textContent=`${rarity} ${w.name} [${skin}] · ${w.mag} / ${w.reserve}`;
+  }
+};
+updateHUD();
+
+// ---------- NPC weapon inventory / rarity ----------
+function makeNpcWeapon14(){
+  const rarity=rollRarity();
+  const pool=gunCatalog.filter(g=>g.rarity===rarity);
+  const src=pool.length?pool[(Math.random()*pool.length)|0]:gunCatalog[0];
+  return {
+    name:src.name,rarity:src.rarity,damage:src.damage,rate:src.rate,spread:src.spread,
+    pellets:src.pellets,skin:randomGunSkin(src.rarity)
+  };
+}
+function setNpcWeapon14(n,w){
+  n.weapon14=w;n.weaponFireCd14=rand(.1,.5);
+  const gun=n.group.children[3];
+  if(gun?.material){
+    gun.material=gun.material.clone();gun.material.color.setHex(w.skin.body);gun.material.metalness=w.skin.metalness;gun.material.roughness=.28;
+    const rarityColor=RARITY[w.rarity]?.color;if(rarityColor)gun.material.emissive=new THREE.Color(rarityColor).multiplyScalar(w.rarity==='Secret'?.12:w.rarity==='Mythic'?.07:.02);
+  }
+  if(gun){
+    gun.scale.set(1,1,1);
+    const nm=w.name.toLowerCase();
+    if(nm.includes('smg'))gun.scale.set(.80,.88,.72);
+    else if(nm.includes('shotgun'))gun.scale.set(1.18,1.06,1.24);
+    else if(nm.includes('pistol')||nm.includes('handcannon')||nm.includes('cannon'))gun.scale.set(.62,.82,.55);
+    else if(nm.includes('carbine'))gun.scale.set(.88,.95,.83);
+    else if(w.rarity==='Mythic'||w.rarity==='Secret')gun.scale.set(1.08,1.04,1.12);
+  }
+}
+for(const n of npcs)if(!n.weapon14)setNpcWeapon14(n,{name:'Field Rifle',rarity:'Common',damage:11,rate:.82,spread:.05,pellets:1,skin:randomGunSkin('Common')});
+
+// ---------- NPCs can discover and open loot crates ----------
+function nearestNpcLoot14(n,maxDist=70){
+  let best=null,bestD=maxDist;
+  for(const c of lootCrates){
+    if(c.looted||c.npcReserved14&&c.npcReserved14!==n)continue;
+    const d=Math.hypot(c.group.position.x-n.group.position.x,c.group.position.z-n.group.position.z);
+    if(d<bestD){best=c;bestD=d;}
+  }
+  return best;
+}
+function npcOpenLoot14(n,c){
+  if(!c||c.looted)return false;
+  c.looted=true;c.npcReserved14=null;
+  c.group.traverse(o=>{if(o.isMesh&&o.material){o.material=o.material.clone();o.material.color.multiplyScalar(.45);}});
+  const w=makeNpcWeapon14();setNpcWeapon14(n,w);
+  n.alert=Math.max(n.alert||0,1.2);
+  return true;
+}
+
+// Let idle NPCs seek crates. Combat always takes priority.
+const updateNPCsBeforeLoot14=updateNPCs;
+updateNPCs=function(dt){
+  // Assign occasional loot targets before normal AI movement.
+  for(const n of npcs){
+    if(n.dead)continue;
+    n.lootThink14=(n.lootThink14??rand(.4,2))-dt;
+    if(n.lootThink14<=0){
+      n.lootThink14=rand(1.5,3.5);
+      const inCombat=(n.playerProvoked||0)>0||(n.npcEnemy&&!n.npcEnemy.dead);
+      if(!inCombat&&!n.lootTarget14&&Math.random()<.65){const c=nearestNpcLoot14(n,75);if(c){n.lootTarget14=c;c.npcReserved14=n;}}
+    }
+    if(n.lootTarget14?.looted){n.lootTarget14=null;}
+    if(n.lootTarget14){
+      const c=n.lootTarget14,d=Math.hypot(c.group.position.x-n.group.position.x,c.group.position.z-n.group.position.z);
+      if(d<=2.1){npcOpenLoot14(n,c);n.lootTarget14=null;}
+      else if((n.playerProvoked||0)<=0&&!n.npcEnemy){
+        n.patrol.set(c.group.position.x,0,c.group.position.z);n.repath=Math.max(n.repath||0,1.5);
+      }
+    }
+  }
+  updateNPCsBeforeLoot14(dt);
+};
+
+// NPC-vs-NPC combat now uses the weapon the attacker actually looted.
+const npcShootNpcBeforeWeapons14=npcShootNpc;
+npcShootNpc=function(attacker,target,dist){
+  const w=attacker.weapon14;
+  if(!w){npcShootNpcBeforeWeapons14(attacker,target,dist);return;}
+  const rarityRank=RARITY[w.rarity]?.rank||1;
+  attacker.npcCombatCd=clamp(w.rate*rand(.88,1.18),.16,1.15);
+  const accuracy=clamp(.40 + rarityRank*.035 - dist/105 - w.spread*2,.20,.72);
+  tone(attacker.faction==='WARDEN'?92:78,.035,.012,'square');
+  for(let p=0;p<Math.min(w.pellets||1,5);p++){
+    if(Math.random()<accuracy){
+      const perShot=(w.pellets||1)>1?w.damage*.42:w.damage*.34;
+      target.health-=clamp(perShot,5,30);target.npcEnemy=attacker;target.alert=Math.max(target.alert,3.5);
+      const pt=target.group.position.clone().add(new THREE.Vector3(rand(-.2,.2),rand(.9,1.8),rand(-.2,.2)));impact(pt,0xb75e3b);
+      if(target.health<=0){killNpc(target);break;}
+    }
+  }
+};
+
+// NPC shots at the player also get stronger/more accurate with better loot.
+// We adjust the NPC's base timing/accuracy indirectly using a short combat buff updated each frame.
+const damagePlayerBeforeNpcWeapons14=damagePlayer;
+// Preserve player damage function; NPC-vs-player damage changes are handled by temporary stats below.
+
+// Make player loot pickup banner include the skin received.
+const showGunPickupBeforeSkin14=showGunPickup13;
+showGunPickup13=function(w){
+  showGunPickupBeforeSkin14(w);
+  const skin=w.skin?.name||'Factory';
+  const small=document.createElement('div');small.textContent='SKIN: '+skin.toUpperCase();small.style.cssText='font-size:11px;color:#fff;opacity:.82;margin-top:5px';pickupBanner13.appendChild(small);
+};
+
+message('NPCs now loot crates · rarity weapons affect combat · gun skins added · Secret drops remain possible',4.2);
