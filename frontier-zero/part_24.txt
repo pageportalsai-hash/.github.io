@@ -1,0 +1,197 @@
+// ============================================================================
+// FRONTIER ZERO HIGH-QUALITY MATCH PROGRESSION UPDATE
+// 67 player kills wins the match, enemies respawn so the goal is reachable,
+// cars unlock by kills with tiered speeds, visible bullet tracers, and safer
+// high-quality graphics that do not use the broken sky shader.
+// ============================================================================
+
+// ---------- Match kill progression ----------
+let playerKills24=0;
+let matchWon24=false;
+const WIN_KILLS24=67;
+
+const killHud24=document.createElement('div');
+killHud24.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:36;background:rgba(8,13,16,.82);border:1px solid rgba(255,255,255,.24);border-radius:12px;padding:8px 13px;color:#fff;font:900 13px system-ui;letter-spacing:.04em;pointer-events:none;text-shadow:0 1px 2px #000';
+document.body.appendChild(killHud24);
+function updateKillHud24(){
+  killHud24.innerHTML=`KILLS <span style="color:#ffd86d">${playerKills24}</span> / ${WIN_KILLS24}`;
+}
+updateKillHud24();
+
+const victory24=document.createElement('div');
+victory24.style.cssText='position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(circle at 50% 38%,rgba(50,77,91,.72),rgba(3,7,10,.96) 70%);color:#fff;font-family:system-ui;text-align:center;padding:24px';
+victory24.innerHTML='<div style="font-size:clamp(38px,8vw,90px);font-weight:1000;letter-spacing:.05em;color:#ffe177;text-shadow:0 4px 30px rgba(255,198,55,.35)">VICTORY ROYALE</div><div style="font-size:18px;font-weight:800;margin-top:8px">67 KILLS · MATCH WON</div><div style="font-size:12px;opacity:.72;margin-top:6px">You cleared the Frontier.</div>';
+const replay24=document.createElement('button');replay24.type='button';replay24.textContent='PLAY AGAIN';replay24.style.cssText='margin-top:20px;min-width:160px;min-height:50px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:#d9b34d;color:#121415;font:900 15px system-ui;cursor:pointer';replay24.addEventListener('click',()=>location.reload());victory24.appendChild(replay24);document.body.appendChild(victory24);
+
+function winMatch24(){
+  if(matchWon24)return;matchWon24=true;firing=false;
+  if(activeCar19)activeCar19.speed=0;
+  setTimeout(()=>{victory24.style.display='flex';},450);
+  tone(520,.18,.055,'triangle');setTimeout(()=>tone(660,.18,.055,'triangle'),160);setTimeout(()=>tone(820,.3,.06,'triangle'),320);
+}
+
+// Count only player-gun credited kills. The playerGunKillWindow20 flag comes
+// from the earlier reward attribution fix.
+const killNpcBeforeProgress24=killNpc;
+killNpc=function(n){
+  const aliveBefore=!!(n&&!n.dead);
+  const credited=typeof playerGunKillWindow20!=='undefined'&&playerGunKillWindow20;
+  killNpcBeforeProgress24(n);
+  if(aliveBefore&&credited&&n?.dead){
+    playerKills24++;updateKillHud24();updateCarUnlockHud24();
+    if(playerKills24>=WIN_KILLS24)winMatch24();
+  }
+};
+
+// Keep 50 enemies available during a match by respawning defeated NPCs after
+// the old death-removal animation completes. This makes 67 kills achievable.
+function respawnNpc24(n){
+  if(!n||matchWon24)return;
+  let x=0,z=0;
+  for(let tries=0;tries<80;tries++){
+    x=rand(-460,460);z=rand(-460,460);
+    if(Math.hypot(x-player.pos.x,z-player.pos.z)>70&&groundY(x,z)>water.position.y+1.1&&!blockedPosition(x,z))break;
+  }
+  if(!n.group.parent)scene.add(n.group);
+  n.group.visible=true;n.group.rotation.z=0;n.group.position.set(x,groundY(x,z),z);
+  n.health=100;n.dead=false;n.alert=0;n.playerProvoked=0;n.npcEnemy=null;n.repath=0;n.shotCd=rand(.5,1.1);n.rewarded19=false;
+  n.patrol.set(x+rand(-20,20),0,z+rand(-20,20));
+  for(const m of n.hitMeshes||[])if(!npcHitMeshes.includes(m))npcHitMeshes.push(m);
+}
+const killNpcBeforeRespawn24=killNpc;
+killNpc=function(n){
+  const wasAlive=!!(n&&!n.dead);killNpcBeforeRespawn24(n);
+  if(wasAlive)setTimeout(()=>respawnNpc24(n),4200);
+};
+
+// ---------- Car tiers / unlocks / speed progression ----------
+const CAR_TIERS24=[
+  {name:'RUSTY',minKills:5,mph:35,ms:15.65},
+  {name:'STREET',minKills:15,mph:45,ms:20.12},
+  {name:'SPORT',minKills:30,mph:58,ms:25.93},
+  {name:'SUPERCAR',minKills:40,mph:64,ms:28.61},
+  {name:'LAMBO',minKills:50,mph:70,ms:31.29}
+];
+function tierForCar24(i){
+  if(i<5)return CAR_TIERS24[0];
+  if(i<10)return CAR_TIERS24[1];
+  if(i<14)return CAR_TIERS24[2];
+  if(i<17)return CAR_TIERS24[3];
+  return CAR_TIERS24[4];
+}
+
+const carUnlockHud24=document.createElement('div');
+carUnlockHud24.style.cssText='position:fixed;right:12px;top:205px;z-index:35;background:rgba(9,14,17,.78);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:7px 9px;color:#e8eef1;font:800 10px system-ui;pointer-events:none;line-height:1.35';document.body.appendChild(carUnlockHud24);
+function updateCarUnlockHud24(){
+  const next=CAR_TIERS24.find(t=>playerKills24<t.minKills);
+  carUnlockHud24.textContent=next?`NEXT CAR: ${next.name} · ${next.minKills} KILLS`:'ALL CARS UNLOCKED · LAMBO 70 MPH';
+}
+updateCarUnlockHud24();
+
+const rustMat24=new THREE.MeshStandardMaterial({color:0x6b3d29,roughness:.95,metalness:.28});
+const rustDark24=new THREE.MeshStandardMaterial({color:0x35271f,roughness:1,metalness:.12});
+const sportAccent24=new THREE.MeshStandardMaterial({color:0x111416,roughness:.3,metalness:.72});
+const lamboAccent24=new THREE.MeshPhysicalMaterial({color:0xf0c62a,roughness:.18,metalness:.72,clearcoat:1,clearcoatRoughness:.1});
+
+for(let i=0;i<cars19.length;i++){
+  const c=cars19[i],tier=tierForCar24(i);c.tier24=tier;c.maxSpeed=tier.ms;c.unlockKills24=tier.minKills;c.mph24=tier.mph;
+  const g=c.group;
+  // Visual identity per tier.
+  if(tier.name==='RUSTY'){
+    for(let p=0;p<7;p++){
+      const patch=new THREE.Mesh(new THREE.BoxGeometry(rand(.18,.55),rand(.025,.05),rand(.22,.68)),Math.random()<.65?rustMat24:rustDark24);
+      patch.position.set(rand(-1.45,1.45),1.25+rand(-.18,.22),rand(-2.1,2.1));patch.rotation.set(rand(-.12,.12),rand(0,Math.PI),rand(-.08,.08));g.add(patch);
+    }
+    g.scale.set(.98,.98,.98);
+  } else if(tier.name==='SPORT'||tier.name==='SUPERCAR'||tier.name==='LAMBO'){
+    // Lower/wider sports-car silhouette and spoiler.
+    g.scale.set(tier.name==='LAMBO'?1.08:1.03,tier.name==='LAMBO'?.82:.9,1.02);
+    const spoiler=new THREE.Mesh(new THREE.BoxGeometry(2.35,.10,.34),tier.name==='LAMBO'?lamboAccent24:sportAccent24);spoiler.position.set(0,1.64,2.35);g.add(spoiler);
+    const s1=new THREE.Mesh(new THREE.BoxGeometry(.10,.42,.12),sportAccent24);s1.position.set(-.78,1.43,2.28);g.add(s1);const s2=s1.clone();s2.position.x=.78;g.add(s2);
+    if(tier.name==='LAMBO'){
+      g.traverse(m=>{if(m.isMesh&&m.material&&m.material.color&&m.material!==sportAccent24){if((m.material.metalness??0)>.4){m.material=m.material.clone();m.material.color.setHex(0xf0c62a);if('clearcoat' in m.material)m.material.clearcoat=1;}}});
+    }
+  }
+}
+
+const enterCarBeforeLocks24=enterCar19;
+enterCar19=function(c){
+  if(!c)return;
+  if(playerKills24<(c.unlockKills24||0)){
+    message(`${c.tier24?.name||'CAR'} LOCKED · NEED ${c.unlockKills24} KILLS`,2);tone(60,.06,.025,'square');return;
+  }
+  enterCarBeforeLocks24(c);
+  if(activeCar19===c)message(`${c.tier24.name} CAR · ${c.mph24} MPH MAX · E TO EXIT`,2.4);
+};
+
+// ---------- Visible high-speed bullet tracers ----------
+function spawnTracer24(start,end,hitNpc=false){
+  const dir=end.clone().sub(start),dist=dir.length();if(dist<.2)return;
+  const mat=new THREE.LineBasicMaterial({color:hitNpc?0xffd36a:0xfff0ba,transparent:true,opacity:.88});
+  const geom=new THREE.BufferGeometry().setFromPoints([start,end]);
+  const line=new THREE.Line(geom,mat);scene.add(line);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(.045,6,5),new THREE.MeshBasicMaterial({color:0xffe38a}));scene.add(tip);
+  const began=performance.now(),duration=55;
+  function anim(t){
+    const a=Math.min(1,(t-began)/duration);tip.position.lerpVectors(start,end,a);
+    mat.opacity=.9*(1-a*.55);
+    if(a<1)requestAnimationFrame(anim);else{scene.remove(line,tip);geom.dispose();mat.dispose();tip.geometry.dispose();tip.material.dispose();}
+  }
+  requestAnimationFrame(anim);
+}
+let tracerShotActive24=false;
+const nearestHitBeforeTracer24=nearestHit;
+nearestHit=function(dir,maxDist=130){
+  const start=camera.position.clone();
+  const hit=nearestHitBeforeTracer24(dir,maxDist);
+  if(tracerShotActive24){
+    const end=hit?hit.point.clone():start.clone().addScaledVector(dir,maxDist);
+    let npc=null;if(hit){npc=hit.object?.userData?.npc||hit.object?.parent?.userData?.npc;}
+    spawnTracer24(start,end,!!npc);
+  }
+  return hit;
+};
+const shootGunBeforeTracer24=shootGun;
+shootGun=function(w){
+  tracerShotActive24=true;
+  try{return shootGunBeforeTracer24(w);}finally{tracerShotActive24=false;}
+};
+
+// ---------- Safer very-high-quality graphics ----------
+// No custom sky shader here: keep the bright background from the black-screen
+// hotfix and improve quality through resolution, shadows, materials and detail.
+const desktopHQ24=matchMedia('(pointer:fine)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio,desktopHQ24?2.15:1.45));
+renderer.toneMappingExposure=1.16;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+sun.shadow.mapSize.set(desktopHQ24?3072:1536,desktopHQ24?3072:1536);
+sun.shadow.bias=-.00028;sun.shadow.normalBias=.018;
+scene.background=new THREE.Color(0x87b2cf);scene.fog.color.setHex(0xb7cbd2);scene.fog.density=.00072;
+hemi.intensity=1.82;sun.intensity=3.05;
+
+// Improve physically based response on detailed cars and nearby world meshes.
+scene.traverse(o=>{
+  if(!o.isMesh||!o.material)return;
+  const mats=Array.isArray(o.material)?o.material:[o.material];
+  for(const m of mats){
+    if(m.map){m.map.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy?.()||1,desktopHQ24?12:5);m.map.needsUpdate=true;}
+    if('envMapIntensity' in m)m.envMapIntensity=1.1;
+  }
+});
+
+// Extra small ground detail around the playable map; instanced for speed.
+const detailGeo24=new THREE.TetrahedronGeometry(.11,0);
+const detailMat24=new THREE.MeshStandardMaterial({color:0x596052,roughness:1,metalness:0});
+const detailCount24=desktopHQ24?520:230;
+const detail24=new THREE.InstancedMesh(detailGeo24,detailMat24,detailCount24);const d24=new THREE.Object3D();
+for(let i=0;i<detailCount24;i++){
+  const x=rand(-485,485),z=rand(-485,485),s=rand(.35,1.35);d24.position.set(x,groundY(x,z)+.04,z);d24.scale.set(s,rand(.25,.65)*s,s);d24.rotation.set(rand(0,1),rand(0,6.28),rand(0,1));d24.updateMatrix();detail24.setMatrixAt(i,d24.matrix);
+}
+detail24.receiveShadow=true;scene.add(detail24);
+
+// Freeze hostile AI after victory while leaving the scene visible.
+const updateNPCsBeforeVictory24=updateNPCs;
+updateNPCs=function(dt){if(matchWon24)return;updateNPCsBeforeVictory24(dt);};
+
+if(typeof graphicsBadge21!=='undefined')graphicsBadge21.textContent='GRAPHICS: VERY HIGH · NPC RANGE: 5m';
+message('VERY HIGH graphics · car progression · bullet tracers · 67 kills to win',4);
