@@ -1,0 +1,117 @@
+// ============================================================================
+// FRONTIER ZERO 5M NPC RANGE + GRAPHICS UPGRADE
+// NPCs only aggro/retaliate against the player inside 5 meters. NPC-vs-NPC
+// combat stays unchanged. Visuals get upgraded while keeping phone performance.
+// ============================================================================
+
+// ---------- Hard 5 meter player combat range ----------
+const PLAYER_NPC_RANGE21=5;
+const updateNPCsBeforeRange21=updateNPCs;
+updateNPCs=function(dt){
+  // Remove player aggro/provocation outside 5m BEFORE the existing AI runs.
+  // Rival NPC targeting is untouched.
+  for(const n of npcs){
+    if(!n||n.dead)continue;
+    const d=Math.hypot(n.group.position.x-player.pos.x,n.group.position.z-player.pos.z);
+    if(d>PLAYER_NPC_RANGE21){
+      n.playerProvoked=0;
+      if(!n.npcEnemy||n.npcEnemy.dead)n.alert=0;
+    }
+  }
+  updateNPCsBeforeRange21(dt);
+};
+
+// Also make player line-of-sight checks fail outside 5m, so even a provoked NPC
+// cannot land a ranged shot from farther away in the same frame.
+const npcCanSeeBeforeRange21=npcCanSee;
+npcCanSee=function(n){
+  if(!n||n.dead)return false;
+  const d=Math.hypot(n.group.position.x-player.pos.x,n.group.position.z-player.pos.z);
+  if(d>PLAYER_NPC_RANGE21)return false;
+  return npcCanSeeBeforeRange21(n);
+};
+
+// ---------- Graphics quality upgrade ----------
+const finePointer21=matchMedia('(pointer:fine)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio,finePointer21?1.85:1.35));
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.06;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+// Sharper, softer sun shadows on desktop while keeping phones lighter.
+sun.shadow.mapSize.set(finePointer21?2048:1024,finePointer21?2048:1024);
+sun.shadow.camera.left=-260;sun.shadow.camera.right=260;sun.shadow.camera.top=260;sun.shadow.camera.bottom=-260;
+sun.shadow.camera.near=1;sun.shadow.camera.far=850;
+sun.shadow.bias=-0.00035;sun.shadow.normalBias=.025;
+sun.intensity=2.9;
+hemi.intensity=1.35;
+
+// Soft cool fill keeps shaded faces/buildings readable.
+const fill21=new THREE.DirectionalLight(0x9fc8df,.32);
+fill21.position.set(220,180,-260);scene.add(fill21);
+
+// Procedural gradient sky dome: richer horizon + deeper blue overhead.
+const skyDome21=new THREE.Mesh(
+  new THREE.SphereGeometry(780,24,16),
+  new THREE.ShaderMaterial({
+    side:THREE.BackSide,depthWrite:false,
+    uniforms:{top:{value:new THREE.Color(0x5d89ac)},horizon:{value:new THREE.Color(0xc4d3d7)},bottom:{value:new THREE.Color(0x9aaea8)}},
+    vertexShader:'varying vec3 vWorld; void main(){vec4 w=modelMatrix*vec4(position,1.0);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}',
+    fragmentShader:'uniform vec3 top;uniform vec3 horizon;uniform vec3 bottom;varying vec3 vWorld;void main(){float h=normalize(vWorld-cameraPosition).y;vec3 c=h>0.0?mix(horizon,top,smoothstep(0.0,.72,h)):mix(horizon,bottom,smoothstep(0.0,-.35,h));gl_FragColor=vec4(c,1.0);}'
+  })
+);
+skyDome21.frustumCulled=false;scene.add(skyDome21);
+scene.background=null;
+scene.fog.color.setHex(0xaebfc4);
+scene.fog.density=.0009;
+
+// Keep sky centered so it always surrounds the player.
+function updateSky21(){skyDome21.position.copy(player.pos);}
+updateSky21();
+
+// Improve texture filtering wherever maps exist.
+const maxAniso21=renderer.capabilities.getMaxAnisotropy?.()||1;
+scene.traverse(o=>{
+  if(!o.isMesh||!o.material)return;
+  const mats=Array.isArray(o.material)?o.material:[o.material];
+  for(const m of mats){
+    if(m.map){m.map.anisotropy=Math.min(maxAniso21,finePointer21?8:4);m.map.needsUpdate=true;}
+    if('roughness' in m&&m.roughness>0.96)m.roughness=.93;
+  }
+});
+
+// More convincing water response without expensive reflections.
+if(water?.material){
+  water.material.transparent=true;
+  water.material.opacity=.72;
+  water.material.roughness=.16;
+  water.material.metalness=.08;
+  if('clearcoat' in water.material){water.material.clearcoat=.55;water.material.clearcoatRoughness=.18;}
+  if('ior' in water.material)water.material.ior=1.33;
+}
+
+// Low-cost car contact shadows stop vehicles looking like they float.
+if(typeof cars19!=='undefined'){
+  const shadowMat21=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.22,depthWrite:false});
+  for(const c of cars19){
+    const s=new THREE.Mesh(new THREE.CircleGeometry(2.45,20),shadowMat21.clone());
+    s.rotation.x=-Math.PI/2;s.scale.set(1,.66,1);s.position.y=.035;c.group.add(s);c.shadow21=s;
+  }
+}
+
+// Subtle cinematic vignette/contrast overlay.
+const visualFx21=document.createElement('div');
+visualFx21.style.cssText='position:fixed;inset:0;z-index:12;pointer-events:none;background:radial-gradient(circle at 50% 45%,transparent 48%,rgba(5,9,12,.10) 78%,rgba(5,9,12,.22) 100%);mix-blend-mode:multiply';
+document.body.appendChild(visualFx21);
+
+// Wrap the final player update so the sky follows whether walking or driving.
+const updatePlayerBeforeSkyFollow21=updatePlayer;
+updatePlayer=function(dt){updatePlayerBeforeSkyFollow21(dt);updateSky21();};
+
+const graphicsBadge21=document.createElement('div');
+graphicsBadge21.style.cssText='position:fixed;left:12px;bottom:10px;z-index:34;background:rgba(10,15,18,.68);border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:5px 7px;color:#dcebf2;font:700 9px system-ui;pointer-events:none';
+graphicsBadge21.textContent='GRAPHICS: ENHANCED · NPC RANGE: 5m';document.body.appendChild(graphicsBadge21);
+
+message('Graphics upgraded · NPC player range capped at 5 meters',3.2);
