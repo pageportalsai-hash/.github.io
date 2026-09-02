@@ -1,0 +1,93 @@
+// ============================================================================
+// FRONTIER ZERO VISUAL CLEANUP
+// Fixes the obvious issues visible in play: giant trees clipping through roofs,
+// overly plain box buildings, floating/awkward props and flat-looking crates.
+// ============================================================================
+
+// Remove or hide vegetation that intersects buildings badly. This keeps trees
+// in the world, but prevents giant crowns/trunks growing through rooftops.
+for(const o of scene.children){
+  if(!o?.isGroup)continue;
+  // Existing tree groups generally contain trunk + crown meshes and are tall.
+  const meshes=o.children?.filter?.(c=>c.isMesh)||[];
+  if(meshes.length<2||meshes.length>8)continue;
+  let tall=false,green=false;
+  for(const m of meshes){
+    const h=m.geometry?.boundingBox;
+    const col=m.material?.color?.getHex?.();
+    if(m.position?.y>3)tall=true;
+    if(col!==undefined){const cc=new THREE.Color(col);if(cc.g>cc.r*1.08&&cc.g>cc.b*.9)green=true;}
+  }
+  if(!tall||!green)continue;
+  const p=o.position;
+  // If the tree center sits inside/very close to a blocker footprint, hide it.
+  for(const b of blockers){
+    if(!b?.position||!b?.geometry)continue;
+    const bp=b.getWorldPosition(new THREE.Vector3());
+    if(Math.abs(p.x-bp.x)<3.2&&Math.abs(p.z-bp.z)<3.2){o.visible=false;break;}
+  }
+}
+
+// Upgrade loot crates so they read as actual supply crates rather than a plain box.
+const crateWood26=new THREE.MeshStandardMaterial({color:0x72502e,roughness:.82,metalness:.04});
+const crateEdge26=new THREE.MeshStandardMaterial({color:0x24282a,roughness:.45,metalness:.62});
+const crateMark26=new THREE.MeshStandardMaterial({color:0xd6b65d,roughness:.45,metalness:.18,emissive:0x241800,emissiveIntensity:.16});
+for(const c of lootCrates){
+  const g=c?.group;if(!g||g.userData.visual26)continue;g.userData.visual26=true;
+  // Existing crate stays as collision/loot object; add visible framing and feet.
+  const top=new THREE.Mesh(new THREE.BoxGeometry(1.72,.13,1.18),crateWood26);top.position.y=.63;top.castShadow=true;g.add(top);
+  const bottom=new THREE.Mesh(new THREE.BoxGeometry(1.66,.12,1.12),crateWood26);bottom.position.y=-.48;bottom.castShadow=true;g.add(bottom);
+  for(const x of [-.78,.78]){
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(.09,1.05,1.18),crateEdge26);rail.position.set(x,.05,0);rail.castShadow=true;g.add(rail);
+  }
+  for(const z of [-.52,.52]){
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(1.62,1.05,.07),crateEdge26);rail.position.set(0,.05,z);rail.castShadow=true;g.add(rail);
+  }
+  const latch=new THREE.Mesh(new THREE.BoxGeometry(.30,.22,.08),crateMark26);latch.position.set(0,.12,-.61);g.add(latch);
+  for(const x of [-.55,.55]){const foot=new THREE.Mesh(new THREE.BoxGeometry(.34,.12,.75),crateEdge26);foot.position.set(x,-.61,0);g.add(foot);}
+}
+
+// Give plain settlement buildings architectural depth: foundations, door frames,
+// window glass, roof fascia and subtle corner trim. This masks the flat box look.
+const wallTrim26=new THREE.MeshStandardMaterial({color:0x49463d,roughness:.82,metalness:.03});
+const concrete26=new THREE.MeshStandardMaterial({color:0x77746b,roughness:.94,metalness:0});
+const window26=new THREE.MeshPhysicalMaterial({color:0x203640,roughness:.08,metalness:.04,transparent:true,opacity:.78,clearcoat:.7});
+const frame26=new THREE.MeshStandardMaterial({color:0x25292a,roughness:.55,metalness:.32});
+
+// Detect large box-like blocker meshes and add detail without touching roads/edges.
+for(const b of blockers){
+  if(!b?.isMesh||b.userData.detail26)continue;
+  const params=b.geometry?.parameters;if(!params)continue;
+  const w=params.width||0,h=params.height||0,d=params.depth||0;
+  if(w<4||d<4||h<2.4||w>45||d>45)continue;
+  b.userData.detail26=true;
+  const detail=new THREE.Group();detail.position.copy(b.position);detail.rotation.copy(b.rotation);scene.add(detail);
+  // foundation band
+  const foundation=new THREE.Mesh(new THREE.BoxGeometry(w+.10,.22,d+.10),concrete26);foundation.position.y=-h/2+.12;foundation.castShadow=true;foundation.receiveShadow=true;detail.add(foundation);
+  // roof cap with a small overhang
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(w+.32,.16,d+.32),frame26);roof.position.y=h/2+.08;roof.castShadow=true;detail.add(roof);
+  // front door frame + inset dark door
+  const doorW=Math.min(1.25,w*.18),doorH=Math.min(2.15,h*.72);
+  const door=new THREE.Mesh(new THREE.BoxGeometry(doorW,doorH,.07),frame26);door.position.set(0,-h/2+doorH/2+.12,-d/2-.045);detail.add(door);
+  const innerDoor=new THREE.Mesh(new THREE.BoxGeometry(doorW-.16,doorH-.14,.025),new THREE.MeshStandardMaterial({color:0x554533,roughness:.8}));innerDoor.position.set(0,0,-.045);door.add(innerDoor);
+  // windows on front and sides
+  const winY=Math.min(.45,h*.10);
+  for(const x of [-w*.28,w*.28]){
+    const win=new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.45,w*.18),1.05,.045),window26);win.position.set(x,winY,-d/2-.055);detail.add(win);
+    const sill=new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.58,w*.2),.08,.16),frame26);sill.position.set(x,winY-.57,-d/2-.10);detail.add(sill);
+  }
+  for(const side of [-1,1]){
+    const win=new THREE.Mesh(new THREE.BoxGeometry(.045,1.02,Math.min(1.45,d*.22)),window26);win.position.set(side*(w/2+.055),winY,0);detail.add(win);
+  }
+  // vertical corner trim makes walls less like untextured blocks.
+  for(const x of [-w/2,w/2])for(const z of [-d/2,d/2]){
+    const trim=new THREE.Mesh(new THREE.BoxGeometry(.10,h,.10),wallTrim26);trim.position.set(x,0,z);detail.add(trim);
+  }
+}
+
+// Add a little tonal variation to terrain without using the broken custom sky.
+if(terrain?.material){terrain.material.roughness=.93;terrain.material.metalness=0;terrain.material.needsUpdate=true;}
+scene.fog.density=.00066;
+renderer.toneMappingExposure=1.22;
+
+message('WORLD CLEANUP · buildings, crates and clipping fixed',3.2);
