@@ -1,0 +1,165 @@
+// ============================================================================
+// FRONTIER ZERO 500m REALISM EXPANSION
+// 500m x 500m playable world while preserving all current gameplay systems
+// ============================================================================
+
+const WORLD_HALF_500=250;
+camera.far=620;camera.updateProjectionMatrix();
+scene.fog.density=0.00155;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.0;
+
+// The old 50m terrain becomes the central settlement footprint, not the world boundary.
+if(typeof localGround!=='undefined')localGround.visible=false;
+
+// Remove the four hard 50m perimeter wall panels so the player can leave the old compound.
+const oldPerimeterObjects=new Set();
+for(const o of [...blockers,...playerStructures]){
+  if(!o?.parent)continue;
+  const p=new THREE.Vector3();o.getWorldPosition(p);
+  const box=new THREE.Box3().setFromObject(o),size=new THREE.Vector3();box.getSize(size);
+  const atOldEdge=(Math.abs(Math.abs(p.x)-24.7)<.8&&Math.abs(p.z)<1.2)||(Math.abs(Math.abs(p.z)-24.7)<.8&&Math.abs(p.x)<1.2);
+  if(atOldEdge&&Math.max(size.x,size.z)>38)oldPerimeterObjects.add(o);
+}
+for(const o of oldPerimeterObjects){scene.remove(o);for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===o)blockers.splice(i,1);for(let i=playerStructures.length-1;i>=0;i--)if(playerStructures[i]===o)playerStructures.splice(i,1);}
+scene.traverse(o=>{
+  if(!o.isMesh||!o.geometry?.parameters)return;
+  const p=o.position;
+  const edge=(Math.abs(Math.abs(p.x)-24.65)<.3&&Math.abs(p.z)<=25)||(Math.abs(Math.abs(p.z)-24.65)<.3&&Math.abs(p.x)<=25);
+  if(edge&&o.geometry.type==='CylinderGeometry'&&Math.abs((o.geometry.parameters.height||0)-2.9)<.2)o.visible=false;
+});
+
+// Five large natural biome regions across the 500m world.
+biomeAt=function(x,z){
+  if(x>95)return BIOMES.badlands;
+  if(x<-95)return BIOMES.alpine;
+  if(z<-95)return BIOMES.marsh;
+  if(z>95)return BIOMES.pine;
+  return BIOMES.meadow;
+};
+
+// High-resolution 500m terrain layer with procedural micro-texture.
+function makeGroundTexture(){
+  const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');
+  ctx.fillStyle='#a4a59a';ctx.fillRect(0,0,256,256);
+  for(let i=0;i<7000;i++){
+    const v=(105+Math.random()*75)|0;ctx.fillStyle=`rgba(${v},${v},${v},${rand(.025,.11)})`;
+    const s=Math.random()<.95?1:2;ctx.fillRect(Math.random()*256,Math.random()*256,s,s);
+  }
+  for(let i=0;i<55;i++){
+    ctx.strokeStyle=`rgba(70,65,54,${rand(.025,.07)})`;ctx.lineWidth=rand(.3,1.1);ctx.beginPath();
+    const x=rand(0,256),y=rand(0,256);ctx.moveTo(x,y);ctx.lineTo(x+rand(-18,18),y+rand(-18,18));ctx.stroke();
+  }
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(36,36);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const worldGeo500=new THREE.PlaneGeometry(500,500,100,100);worldGeo500.rotateX(-Math.PI/2);
+const wp500=worldGeo500.attributes.position,wc500=[];
+for(let i=0;i<wp500.count;i++){
+  const x=wp500.getX(i),z=wp500.getZ(i),b=biomeAt(x,z);wp500.setY(i,groundY(x,z)+.055);
+  const c=new THREE.Color(b.ground);
+  const n=(Math.sin(x*.071)+Math.cos(z*.063)+Math.sin((x+z)*.031))*.022;c.offsetHSL(0,0,n);wc500.push(c.r,c.g,c.b);
+}
+worldGeo500.setAttribute('color',new THREE.Float32BufferAttribute(wc500,3));worldGeo500.computeVertexNormals();
+const worldMat500=new THREE.MeshStandardMaterial({map:makeGroundTexture(),vertexColors:true,roughness:.98,metalness:.002});
+const worldGround500=new THREE.Mesh(worldGeo500,worldMat500);worldGround500.receiveShadow=true;scene.add(worldGround500);
+
+// Re-enable useful original world resources inside the new map.
+for(const r of resources){
+  if(!r.group)continue;const p=r.group.position;
+  if(Math.abs(p.x)<245&&Math.abs(p.z)<245&&!r.dead)r.group.visible=true;
+}
+for(const o of playerStructures){
+  if(!o?.parent)continue;const p=new THREE.Vector3();o.getWorldPosition(p);if(Math.abs(p.x)<245&&Math.abs(p.z)<245)o.visible=true;
+}
+
+// Main paved road + two smaller rural roads.
+road(0,0,492,7.2,0);road(0,0,7.2,492,0);
+road(-92,78,270,4.4,.34);road(105,-112,245,4.2,-.48);
+
+// Rural dirt tracks layered beside outlying buildings.
+const dirtRoadMat=new THREE.MeshStandardMaterial({color:0x78634c,roughness:1,metalness:0});
+function dirtTrack(x,z,len,w,rot){const m=new THREE.Mesh(new THREE.BoxGeometry(len,.075,w),dirtRoadMat);m.position.set(x,groundY(x,z)+.075,z);m.rotation.y=rot;m.receiveShadow=true;scene.add(m);return m;}
+dirtTrack(-130,-35,180,3.4,-.28);dirtTrack(145,76,155,3.2,.55);dirtTrack(-80,170,112,3.1,.12);
+
+// Functional loot buildings spread over the 500m map.
+const realismSites=[
+  [-165,-150,9,7,0x6c6a63,0x3d4244,'Farm Supplies'],[-118,145,8,8,0x616a64,0x39413e,'Forest Station'],
+  [145,155,10,7,0x816652,0x4d4037,'Desert Depot'],[185,-92,8,7,0x7c6757,0x45413c,'Roadside Cache'],
+  [-178,45,9,6.5,0x747a79,0x444a4b,'Mountain Shelter'],[-65,-174,8,7,0x5b6762,0x3a4545,'Marsh Cabin'],
+  [72,-182,9,7,0x59645f,0x384342,'Pump Station'],[92,92,9,8,0x756f65,0x424543,'Rural House'],
+  [-78,75,8,6.5,0x6b706b,0x3d4441,'Hunter Store'],[168,38,8.5,7,0x806950,0x4b4237,'Repair Shed'],
+  [-185,-30,8.5,7,0x707779,0x44494b,'Alpine Locker'],[32,174,9,7,0x5e6860,0x38413c,'Pine Outpost']
+];
+for(const s of realismSites)localBuilding(...s);
+
+// A few recognizable compound clusters using the existing functional outpost system.
+makeOutpost(-132,-108,'marsh');makeOutpost(122,128,'badlands');makeOutpost(-155,115,'alpine');makeOutpost(58,145,'pine');
+
+// Forest density: many low-cost pines plus harvestable trees.
+for(let i=0;i<72;i++){
+  const x=rand(-220,220),z=rand(108,235);if(Math.abs(x)<15)continue;makePine(x,z,rand(.62,1.18));
+}
+for(let i=0;i<28;i++){
+  const x=rand(-215,215),z=rand(-85,85);if(Math.hypot(x,z)<28)continue;makeTree(x,z,rand(.65,1.05));
+}
+
+// Alpine rock fields and badland boulders.
+for(let i=0;i<34;i++){const x=rand(-235,-108),z=rand(-220,220);smallBiomeRock(x,z,0x93999a,rand(.55,1.35));}
+for(let i=0;i<38;i++){const x=rand(108,235),z=rand(-220,220);smallBiomeRock(x,z,0x8e5c42,rand(.55,1.45));}
+
+// Larger marsh water pockets.
+for(let i=0;i<8;i++){
+  const x=rand(-210,210),z=rand(-230,-115),s=rand(6,13);
+  const m=new THREE.Mesh(new THREE.CircleGeometry(s,20),poolMat);m.rotation.x=-Math.PI/2;m.position.set(x,groundY(x,z)+.08,z);scene.add(m);
+}
+
+// Distant boundary embankments: visual edge around the 500m playable space.
+const boundaryMat=new THREE.MeshStandardMaterial({color:0x4d514a,roughness:1});
+function boundaryBank(x,z,sx,sz){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,5,sz),boundaryMat);m.position.set(x,groundY(x,z)+1.1,z);m.receiveShadow=m.castShadow=true;scene.add(m);blockers.push(m);playerStructures.push(m);}
+boundaryBank(0,-249,500,2.5);boundaryBank(0,249,500,2.5);boundaryBank(-249,0,2.5,500);boundaryBank(249,0,2.5,500);
+
+// Redistribute all 20 NPCs through towns, roads, forest and compounds.
+const npcSpawns500=[
+  [-18,-12],[16,14],[-38,24],[42,-28],[-82,70],[88,76],[-120,-105],[125,120],[-160,112],[160,-88],
+  [-190,28],[182,42],[-72,-168],[68,-180],[-128,148],[110,162],[-205,-142],[205,155],[-45,188],[48,202]
+];
+for(let i=0;i<npcs.length;i++){
+  const n=npcs[i],s=npcSpawns500[i%npcSpawns500.length];n.group.visible=true;n.group.position.set(s[0]+rand(-5,5),0,s[1]+rand(-5,5));
+  n.group.position.y=groundY(n.group.position.x,n.group.position.z);n.patrol.set(n.group.position.x+rand(-14,14),0,n.group.position.z+rand(-14,14));
+  n.npcEnemy=null;n.playerProvoked=0;n.health=100;
+}
+
+// Restore 500m player movement. baseUpdatePlayerCompact is the pre-50m player update.
+updatePlayer=function(dt){
+  baseUpdatePlayerCompact(dt);
+  player.pos.x=clamp(player.pos.x,-247.2,247.2);player.pos.z=clamp(player.pos.z,-247.2,247.2);
+  player.pos.y=groundY(player.pos.x,player.pos.z)+player.height;camera.position.copy(player.pos);
+};
+
+// Restore NPC roaming across the expanded map while retaining faction combat and attack rules.
+updateNPCs=function(dt){
+  baseUpdateNPCsCompact(dt);
+  for(const n of npcs){
+    if(n.dead)continue;
+    n.group.position.x=clamp(n.group.position.x,-246,246);n.group.position.z=clamp(n.group.position.z,-246,246);n.group.position.y=groundY(n.group.position.x,n.group.position.z);
+    n.patrol.x=clamp(n.patrol.x,-240,240);n.patrol.z=clamp(n.patrol.z,-240,240);
+  }
+};
+
+// Allow player construction across the 500m world.
+placeBuild=function(){
+  if(preview&&(Math.abs(preview.position.x)>246||Math.abs(preview.position.z)>246)){message('Map edge — build inside the 500m zone');return;}
+  const t=buildTypes[buildIndex];if(!previewValid){message(hasCost(t.cost)?'Blocked placement':'Need more resources');return;}
+  payCost(t.cost);const mat=new THREE.MeshStandardMaterial({color:t.name==='Foundation'?0x70614d:0x6b5138,roughness:.9});
+  const m=new THREE.Mesh(new THREE.BoxGeometry(...t.size),mat);m.position.copy(preview.position);m.rotation.y=buildRot;m.castShadow=true;m.receiveShadow=true;scene.add(m);blockers.push(m);playerStructures.push(m);updateHUD();tone(75,.08,.035,'triangle');
+};
+
+// Update HUD from 50m to 500m.
+if(typeof mapText!=='undefined')mapText.textContent='Map: 500m × 500m';
+
+// More natural atmosphere for the larger view distance.
+sun.position.set(-260,330,150);sun.intensity=2.9;hemi.intensity=1.22;
+sky.scale.setScalar(1.45);
+if(water)water.material.opacity=.68;
+
+message('500m world ready · realistic biomes · roads · settlements · 20 NPCs',3.2);
