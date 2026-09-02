@@ -1,0 +1,60 @@
+hud.type.addEventListener('pointerdown',e=>{e.stopPropagation();buildIndex=(buildIndex+1)%buildTypes.length;createPreview();updateHUD();message(buildTypes[buildIndex].name);});
+
+// ---------- NPCs ----------
+const npcs=[];
+const npcBodyMat=new THREE.MeshStandardMaterial({color:0x34393d,roughness:.85});
+const npcVestMat=new THREE.MeshStandardMaterial({color:0x493d34,roughness:.92});
+function makeNPC(i){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.42,1.15,4,8),npcBodyMat);body.position.y=1.25;body.castShadow=true;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.32,10,8),new THREE.MeshStandardMaterial({color:0xb79272,roughness:.95}));head.position.y=2.28;head.castShadow=true;
+  const vest=new THREE.Mesh(new THREE.BoxGeometry(.86,.75,.42),npcVestMat);vest.position.set(0,1.35,-.05);vest.castShadow=true;
+  const gun=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.75),gunMat);gun.position.set(.38,1.45,-.42);gun.rotation.x=-.08;
+  g.add(body,head,vest,gun);
+  const ang=i/10*Math.PI*2 + rand(-.25,.25), rad=rand(85,250); const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad; g.position.set(x,groundY(x,z),z);scene.add(g);
+  const npc={group:g,health:100,dead:false,alert:0,shotCd:rand(.3,1.1),patrol:new THREE.Vector3(x,0,z),repath:0,strafe:Math.random()<.5?-1:1,hitMeshes:[body,head,vest]};
+  g.userData.npc=npc;body.userData.npc=npc;head.userData.npc=npc;vest.userData.npc=npc; npcHitMeshes.push(body,head,vest);npcs.push(npc);
+}
+for(let i=0;i<10;i++)makeNPC(i);
+
+function npcCanSee(npc){
+  const from=npc.group.position.clone().add(new THREE.Vector3(0,2.0,0)); const to=camera.position.clone(); const d=to.clone().sub(from), dist=d.length(); if(dist>135)return false;
+  raycaster.set(from,d.normalize());raycaster.far=dist-.45;const hits=raycaster.intersectObjects([terrain,...blockers],true);return hits.length===0;
+}
+function killNpc(npc){ npc.dead=true; npc.group.rotation.z=Math.PI/2; tone(55,.12,.035,'sine'); message('Hostile down'); setTimeout(()=>{scene.remove(npc.group); for(const m of npc.hitMeshes){const i=npcHitMeshes.indexOf(m);if(i>=0)npcHitMeshes.splice(i,1);}},1200); updateHUD(); }
+function damagePlayer(amount){
+  if(player.dead)return; player.health=Math.max(0,player.health-amount); hud.flash.style.opacity='.72';setTimeout(()=>hud.flash.style.opacity='0',110); updateHUD(); if(player.health<=0)playerDeath();
+}
+function playerDeath(){ player.dead=true; firing=false; message('You were downed — respawning',2); setTimeout(()=>{player.health=100;player.pos.set(0,groundY(0,0)+player.height,0);player.dead=false;updateHUD();},1800); }
+function updateNPCs(dt){
+  for(const n of npcs){ if(n.dead)continue; const p=n.group.position, to=player.pos.clone().sub(p);to.y=0; const dist=to.length(); const see=npcCanSee(n); if(see)n.alert=5; else n.alert=Math.max(0,n.alert-dt);
+    let move=new THREE.Vector3();
+    if(n.alert>0){
+      const dir=to.clone().normalize();
+      if(dist>28)move.copy(dir); else {move.set(-dir.z,0,dir.x).multiplyScalar(n.strafe*.7); if(dist<14)move.addScaledVector(dir,-.55);}
+      n.shotCd-=dt;
+      if(see && dist<95 && n.shotCd<=0){
+        n.shotCd=rand(.45,.95); const accuracy=clamp(.62-dist/170,.24,.56); // always leaves meaningful miss chance
+        if(Math.random()<accuracy) damagePlayer(rand(6,10)); else tone(65,.025,.008,'square');
+      }
+    } else {
+      n.repath-=dt; if(n.repath<=0 || p.distanceTo(n.patrol)<4){n.repath=rand(4,8);n.patrol.set(p.x+rand(-35,35),0,p.z+rand(-35,35));}
+      move.copy(n.patrol).sub(p);move.y=0;if(move.length()>1)move.normalize();
+    }
+    if(move.lengthSq()>0){
+      const speed=n.alert>0?3.7:1.65; const nx=p.x+move.x*speed*dt,nz=p.z+move.z*speed*dt;
+      if(!blockedPosition(nx,nz)){p.x=nx;p.z=nz;} else {n.strafe*=-1;n.patrol.set(p.x+rand(-20,20),0,p.z+rand(-20,20));}
+      p.y=groundY(p.x,p.z); n.group.rotation.y=Math.atan2(move.x,move.z)+Math.PI;
+    }
+  }
+}
+
+// ---------- Main action ----------
+function doAction(){
+  if(player.dead||buildMode)return; const w=currentGear(); const now=clock.elapsedTime;if(now-lastAction<w.rate)return;lastAction=now;
+  if(w.type==='gun')shootGun(w); else toolHit(w.type);
+}
+function updateHUD(){
+  const w=currentGear(); hud.weapon.textContent=w.type==='gun'?`${w.name} · ${w.mag} / ${w.reserve}`:`${w.name} · harvesting tool`;
+  const alive=npcs.filter(n=>!n.dead).length;hud.npc.textContent=`Hostiles: ${alive}`;hud.health.style.width=`${player.health}%`;
+  const bt=buildTypes[buildIndex]; hud.inventory
