@@ -1,0 +1,95 @@
+// ============================================================================
+// FRONTIER ZERO MINIMAP + DISTINCT WEAPONS + LOOT PICKUP BANNER
+// Keeps exactly 50 NPCs and the 1000m x 1000m world.
+// ============================================================================
+
+// ---------- Enforce exactly 50 NPCs ----------
+if(npcs.length>50){
+  const removed=new Set(npcs.slice(50));
+  for(const n of removed){n.dead=true;n.group.visible=false;scene.remove(n.group);}
+  for(let i=npcHitMeshes.length-1;i>=0;i--){
+    const h=npcHitMeshes[i],owner=h?.userData?.npc||h?.parent?.userData?.npc;
+    if(removed.has(owner))npcHitMeshes.splice(i,1);
+  }
+  npcs.splice(50);
+}
+const npcCountEl13=document.getElementById('npcText');if(npcCountEl13)npcCountEl13.textContent='Hostiles: 50';
+
+// ---------- Live minimap in the top-left ----------
+const statsPanel13=document.getElementById('stats');
+if(statsPanel13){statsPanel13.style.marginTop='148px';statsPanel13.style.minWidth='178px';}
+const miniWrap=document.createElement('div');
+miniWrap.id='miniMapWrap';
+miniWrap.style.cssText='position:absolute;left:10px;top:max(8px,env(safe-area-inset-top));width:138px;height:138px;border-radius:14px;overflow:hidden;background:rgba(10,15,18,.86);border:1px solid rgba(255,255,255,.30);box-shadow:0 2px 12px rgba(0,0,0,.35);pointer-events:none;';
+const miniCanvas=document.createElement('canvas');miniCanvas.width=276;miniCanvas.height=276;miniCanvas.style.cssText='width:138px;height:138px;display:block;';
+miniWrap.appendChild(miniCanvas);document.getElementById('hud').appendChild(miniWrap);
+const miniCtx=miniCanvas.getContext('2d');
+
+function miniWorldToPx(x,z){return {x:(x+500)/1000*276,y:(z+500)/1000*276};}
+function drawMiniMap(){
+  const c=miniCtx;c.clearRect(0,0,276,276);
+  const g=c.createLinearGradient(0,0,276,276);g.addColorStop(0,'#31443b');g.addColorStop(.5,'#46543d');g.addColorStop(1,'#4e3d31');c.fillStyle=g;c.fillRect(0,0,276,276);
+  c.strokeStyle='rgba(255,255,255,.15)';c.lineWidth=2;
+  for(let i=1;i<4;i++){const p=i*69;c.beginPath();c.moveTo(p,0);c.lineTo(p,276);c.stroke();c.beginPath();c.moveTo(0,p);c.lineTo(276,p);c.stroke();}
+  // towns / cities from the current world layout
+  if(typeof settlementLayout!=='undefined'){
+    for(const s of settlementLayout){if(Math.abs(s.x)>500||Math.abs(s.z)>500)continue;const p=miniWorldToPx(s.x,s.z);c.fillStyle=s.type==='city'?'#e7d8a7':'#c5b98b';c.fillRect(p.x-3,p.y-3,6,6);}
+  }
+  // NPCs: red dots, living only
+  c.fillStyle='#ef6258';
+  for(const n of npcs){if(n.dead||!n.group.visible)continue;const p=miniWorldToPx(n.group.position.x,n.group.position.z);c.beginPath();c.arc(p.x,p.y,2.2,0,Math.PI*2);c.fill();}
+  // player arrow
+  const p=miniWorldToPx(player.pos.x,player.pos.z);c.save();c.translate(p.x,p.y);c.rotate(-player.yaw);c.fillStyle='#ffffff';c.beginPath();c.moveTo(0,-8);c.lineTo(5,6);c.lineTo(0,3);c.lineTo(-5,6);c.closePath();c.fill();c.restore();
+  c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=2;c.strokeRect(1,1,274,274);
+  c.fillStyle='rgba(0,0,0,.60)';c.fillRect(6,6,58,20);c.fillStyle='#fff';c.font='bold 13px system-ui';c.fillText('MAP',14,21);
+}
+(function miniLoop(){drawMiniMap();requestAnimationFrame(miniLoop);})();
+
+// ---------- Make each weapon family visibly different ----------
+const baseGunParts=gunHolder.children.filter(o=>o.isMesh).slice(0,3);
+const weaponAccentMat=new THREE.MeshStandardMaterial({color:0x8a9398,metalness:.65,roughness:.28});
+const scope13=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.28,10),weaponAccentMat.clone());scope13.rotation.z=Math.PI/2;scope13.position.set(0,.13,-.30);scope13.visible=false;scope13.castShadow=true;gunHolder.add(scope13);
+const foregrip13=new THREE.Mesh(new THREE.BoxGeometry(.07,.24,.08),weaponAccentMat.clone());foregrip13.position.set(0,-.16,-.43);foregrip13.visible=false;foregrip13.castShadow=true;gunHolder.add(foregrip13);
+const suppressor13=new THREE.Mesh(new THREE.CylinderGeometry(.045,.052,.42,10),weaponAccentMat.clone());suppressor13.rotation.x=Math.PI/2;suppressor13.position.set(0,.015,-.96);suppressor13.visible=false;suppressor13.castShadow=true;gunHolder.add(suppressor13);
+
+let lastWeaponLook13='';
+function applyWeaponLook13(){
+  const w=currentGear();if(!w||w.type!=='gun')return;
+  const key=(w.rarity||'Common')+'|'+w.name;if(key===lastWeaponLook13)return;lastWeaponLook13=key;
+  const body=baseGunParts[0],stock=baseGunParts[1],barrel=baseGunParts[2];if(!body||!stock||!barrel)return;
+  body.scale.set(1,1,1);stock.scale.set(1,1,1);barrel.scale.set(1,1,1);body.position.set(0,0,-.15);stock.position.set(0,-.015,.28);barrel.position.set(0,.015,-.7);
+  scope13.visible=false;foregrip13.visible=false;suppressor13.visible=false;
+  const name=w.name.toLowerCase();
+  if(name.includes('smg')){body.scale.set(.88,.82,.72);stock.scale.set(.72,.72,.58);barrel.scale.set(.82,.82,.52);body.position.z=-.05;barrel.position.z=-.48;foregrip13.visible=true;}
+  else if(name.includes('shotgun')){body.scale.set(1.08,1.02,1.15);stock.scale.set(1.08,1.02,1.15);barrel.scale.set(1.28,1.28,1.42);barrel.position.z=-.85;}
+  else if(name.includes('pistol')||name.includes('handcannon')||name.includes('cannon')){body.scale.set(.68,.82,.54);stock.scale.set(.32,.75,.30);barrel.scale.set(name.includes('cannon')?1.28:.86,name.includes('cannon')?1.28:.86,.52);body.position.z=-.02;stock.position.z=.12;barrel.position.z=-.38;}
+  else if(name.includes('carbine')){body.scale.set(.95,.92,.82);stock.scale.set(.82,.88,.76);barrel.scale.set(.92,.92,.75);foregrip13.visible=true;}
+  else {scope13.visible=(w.rarity==='Rare'||w.rarity==='Epic'||w.rarity==='Legendary'||w.rarity==='Mythic'||w.rarity==='Secret');foregrip13.visible=(w.rarity==='Epic'||w.rarity==='Legendary'||w.rarity==='Mythic'||w.rarity==='Secret');}
+  if(w.rarity==='Mythic'||w.rarity==='Secret')suppressor13.visible=true;
+  const col=RARITY[w.rarity||'Common']?.color||'#8a9398';scope13.material.color.set(col);foregrip13.material.color.set(col);suppressor13.material.color.set(col);
+  if(body.material?.color){body.material=body.material.clone();body.material.color.set(w.rarity==='Secret'?0x25363b:w.rarity==='Mythic'?0x442a32:0x242a2d);}
+}
+
+const hudBeforeWeaponLooks13=updateHUD;
+updateHUD=function(){hudBeforeWeaponLooks13();applyWeaponLook13();};
+applyWeaponLook13();
+
+// ---------- Big, unmistakable gun pickup notification ----------
+const pickupBanner13=document.createElement('div');
+pickupBanner13.id='gunPickupBanner';
+pickupBanner13.style.cssText='position:absolute;left:50%;top:28%;transform:translate(-50%,-50%) scale(.94);min-width:250px;max-width:80vw;padding:14px 18px;border-radius:14px;background:rgba(8,12,15,.92);border:2px solid #fff;text-align:center;font-weight:900;font-size:17px;letter-spacing:.4px;opacity:0;transition:opacity .18s,transform .18s;pointer-events:none;z-index:18;';
+document.getElementById('hud').appendChild(pickupBanner13);
+let pickupTimer13=null;
+function showGunPickup13(w){
+  const color=RARITY[w.rarity||'Common']?.color||'#fff';pickupBanner13.style.borderColor=color;pickupBanner13.style.color=color;
+  pickupBanner13.innerHTML='<div style="font-size:11px;color:#fff;opacity:.82;margin-bottom:4px">LOOT BOX</div>YOU GOT: '+(w.rarity||'Common').toUpperCase()+' '+w.name.toUpperCase()+'!';
+  pickupBanner13.style.opacity='1';pickupBanner13.style.transform='translate(-50%,-50%) scale(1)';clearTimeout(pickupTimer13);pickupTimer13=setTimeout(()=>{pickupBanner13.style.opacity='0';pickupBanner13.style.transform='translate(-50%,-50%) scale(.94)';},3200);
+}
+
+const lootBeforeBanner13=lootCrate;
+lootCrate=function(c){
+  const before=gear.length;lootBeforeBanner13(c);
+  if(gear.length>before){const w=gear[gear.length-1];showGunPickup13(w);updateHUD();}
+};
+
+message('50 NPCs · live minimap · different weapon models · clear gun pickup alerts',4);
