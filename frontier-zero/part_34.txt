@@ -1,0 +1,87 @@
+// ============================================================================
+// FRONTIER ZERO PHASE A FINALIZATION
+// Roof-seeded building reconstruction catches larger/closely-spaced legacy
+// buildings that wall clustering can miss. Also completes raycast collision and
+// terrain foundations for every rebuilt structure.
+// ============================================================================
+
+// Structural meshes from Phase A must block bullets / NPC line-of-sight too,
+// not only the player's simple collision rectangles.
+function registerStructuralMeshes34(g){
+  if(!g)return;
+  g.traverse(m=>{
+    if(!m.isMesh)return;
+    if(m.material===houseWall33||m.material===woodWall33||m.material===warehouseWall33||m.material===roofMat33||m.material===roofDark33){
+      if(!blockers.includes(m))blockers.push(m);
+    }
+  });
+}
+for(const g of rebuiltBuildings33)registerStructuralMeshes34(g);
+
+// Roofs are a far more reliable building identifier than proximity-clustering
+// wall pieces, especially in dense cities. Remaining legacy roofs are direct
+// children of scene; Phase-A replacement roofs are children of authored groups.
+const legacyRoofs34=[];
+for(const o of [...blockers]){
+  if(!o?.isMesh||o.parent!==scene||o.visible===false||o.geometry?.type!=='BoxGeometry')continue;
+  const p=o.geometry.parameters,w=p.width||0,h=p.height||0,d=p.depth||0;
+  if(h<.14||h>.58||w<5||d<5||w>16.5||d>16.5)continue;
+  const wp=o.getWorldPosition(new THREE.Vector3()),gy=groundY(wp.x,wp.z);
+  if(wp.y-gy<2.6||wp.y-gy>6.8||Math.abs(wp.x)>485||Math.abs(wp.z)>485)continue;
+  legacyRoofs34.push({o,p,wp});
+}
+
+let extraRebuilt34=0;
+for(const r of legacyRoofs34){
+  if(!r.o.parent||r.o.visible===false)continue;
+  const cx=r.wp.x,cz=r.wp.z,rw=r.p.width,rd=r.p.depth;
+  // Skip if an authored Phase-A structure already occupies this roof footprint.
+  if(rebuiltBuildings33.some(g=>Math.hypot(g.position.x-cx,g.position.z-cz)<2.0))continue;
+
+  const walls=[];
+  for(const o of [...blockers]){
+    if(!o?.isMesh||o.parent!==scene||o.visible===false||o.geometry?.type!=='BoxGeometry')continue;
+    const p=o.geometry.parameters,w=p.width||0,h=p.height||0,d=p.depth||0;
+    const thin=h>=2.6&&h<=6.4&&((w<=.85&&d>=3.6&&d<=17)||(d<=.85&&w>=3.6&&w<=17));if(!thin)continue;
+    const wp=o.getWorldPosition(new THREE.Vector3());
+    if(Math.abs(wp.x-cx)<=rw/2+.9&&Math.abs(wp.z-cz)<=rd/2+.9)walls.push(o);
+  }
+  if(walls.length<3)continue;
+
+  for(const o of walls)removeLegacyObject33(o);
+  removeLegacyObject33(r.o);
+
+  // Hide the matching old floor surface so it cannot shimmer through the new foundation.
+  for(const o of scene.children){
+    if(!o?.isMesh||o.visible===false||o.geometry?.type!=='BoxGeometry')continue;
+    const p=o.geometry.parameters,w=p.width||0,h=p.height||0,d=p.depth||0;
+    if(h>.55||h<.08)continue;
+    if(Math.abs(o.position.x-cx)<.7&&Math.abs(o.position.z-cz)<.7&&Math.abs(w-rw)<1.1&&Math.abs(d-rd)<1.1&&Math.abs(o.position.y-groundY(cx,cz))<.8)o.visible=false;
+  }
+  for(const o of scene.children){if(o?.userData?.detailBuilding32&&Math.hypot(o.position.x-cx,o.position.z-cz)<2.2)o.visible=false;}
+
+  // localBuilding roofs have a small overhang; outpost roofs do not. A slight
+  // inset keeps the replacement aligned with both kinds without exposing gaps.
+  const bw=Math.max(5,rw-.28),bd=Math.max(5,rd-.28);
+  const g=buildFamily33(cx,cz,bw,bd,rebuildIndex33++);registerStructuralMeshes34(g);extraRebuilt34++;
+  if(extraRebuilt34>=34)break;
+}
+
+// Add terrain-following foundation piers where corners fall below the center
+// ground height. This removes floating corners without tilting the building.
+const pierMat34=new THREE.MeshStandardMaterial({color:0x6f706b,roughness:.98,metalness:0});
+for(const g of rebuiltBuildings33){
+  if(g.userData.piers34)continue;g.userData.piers34=true;
+  const b=g.userData.bounds33;if(!b)continue;const centerGround=groundY(b.x,b.z);
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    const lx=sx*(b.w/2-.28),lz=sz*(b.d/2-.28),worldX=b.x+lx,worldZ=b.z+lz,cornerGround=groundY(worldX,worldZ),drop=centerGround-cornerGround;
+    if(drop>.10){const h=Math.min(2.6,drop+.30);part33(g,new THREE.BoxGeometry(.42,h,.42),pierMat34,lx,.05-h/2,lz);}
+  }
+}
+
+// Remove any newly-hidden legacy meshes from collision arrays one final time.
+for(let i=blockers.length-1;i>=0;i--){const o=blockers[i];if(!o||!o.parent||!visibleWorld33(o))blockers.splice(i,1);}
+if(typeof playerStructures!=='undefined')for(let i=playerStructures.length-1;i>=0;i--){const o=playerStructures[i];if(!o||!o.parent||!visibleWorld33(o))playerStructures.splice(i,1);}
+if(typeof colliders!=='undefined')for(let i=colliders.length-1;i>=0;i--){const o=colliders[i]?.obj;if(!o||!o.parent||!visibleWorld33(o))colliders.splice(i,1);}
+
+message(`PHASE A FINALIZED · ${rebuiltBuildings33.length} authored buildings · physics aligned`,4.2);
