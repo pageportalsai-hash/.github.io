@@ -1,0 +1,221 @@
+// ============================================================================
+// FRONTIER ZERO THREE-PASS QA UPGRADE
+// Pass 1: gameplay/balance, Pass 2: bugs/performance, Pass 3: UX/polish.
+// Keeps the 5m player-damage rule, 67-kill victory, car progression and lobby.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// PASS 1 — GAMEPLAY / BALANCE
+// ---------------------------------------------------------------------------
+
+// Enemies are now aware of the player before 5m and move toward the action,
+// but the existing npcCanSee/range layer still prevents player damage outside 5m.
+const QA_AWARENESS31=60;
+const updateNPCsBeforeQA31=updateNPCs;
+updateNPCs=function(dt){
+  if(!matchWon24 && !(typeof lobbyActive17!=='undefined'&&lobbyActive17) && !player.dead){
+    for(const n of npcs){
+      if(!n||n.dead)continue;
+      const p=n.group.position,dx=player.pos.x-p.x,dz=player.pos.z-p.z,d=Math.hypot(dx,dz);
+      if(d>5&&d<=QA_AWARENESS31){
+        // Close enemies prioritize the player over faction fights.
+        if(d<18)n.npcEnemy=null;
+        const inv=d>0?1/d:0,dirX=dx*inv,dirZ=dz*inv;
+        // A small extra chase step makes enemies actually close distance instead
+        // of wandering for most of the match. Collision checks remain active.
+        const chaseSpeed=playerKills24>=50?2.0:playerKills24>=30?1.7:1.45;
+        const nx=p.x+dirX*chaseSpeed*dt,nz=p.z+dirZ*chaseSpeed*dt;
+        if(!blockedPosition(nx,nz)){p.x=nx;p.z=nz;p.y=groundY(p.x,p.z);}
+        n.patrol.set(player.pos.x,0,player.pos.z);
+        n.repath=Math.max(n.repath||0,.55);
+        n.group.rotation.y=Math.atan2(dirX,dirZ)+Math.PI;
+      }
+    }
+  }
+  updateNPCsBeforeQA31(dt);
+};
+
+// Reset streak cleanly when the player is downed. The old timer-only behavior
+// could leave a streak alive through a death if the respawn was fast enough.
+const playerDeathBeforeQA31=playerDeath;
+playerDeath=function(){
+  if(!player.dead){streak30=0;lastKillTime30=0;updateFlowHud30();}
+  return playerDeathBeforeQA31();
+};
+
+// Make car collision use the car footprint instead of only its center point.
+// This greatly reduces cars clipping their corners through buildings/rocks.
+const blockedPositionBeforeCarQA31=blockedPosition;
+blockedPosition=function(x,z){
+  if(!activeCar19)return blockedPositionBeforeCarQA31(x,z);
+  if(blockedPositionBeforeCarQA31(x,z))return true;
+  const a=activeCar19.group.rotation.y;
+  const forwardX=-Math.sin(a),forwardZ=-Math.cos(a),rightX=Math.cos(a),rightZ=-Math.sin(a);
+  const probes=[[1.25,2.15],[-1.25,2.15],[1.25,-2.15],[-1.25,-2.15]];
+  for(const [side,front] of probes){
+    const px=x+rightX*side+forwardX*front,pz=z+rightZ*side+forwardZ*front;
+    if(blockedPositionBeforeCarQA31(px,pz))return true;
+  }
+  return false;
+};
+
+// ---------------------------------------------------------------------------
+// PASS 2 — BUGS / PERFORMANCE / SYSTEM CONSISTENCY
+// ---------------------------------------------------------------------------
+
+// Dead NPCs could leave crate reservations behind. Clear stale reservations and
+// keep active looters committed to their crate until combat interrupts them.
+setInterval(()=>{
+  for(const c of lootCrates){
+    if(c?.npcReserved14?.dead)c.npcReserved14=null;
+  }
+  for(const n of npcs){
+    if(!n||n.dead||!n.lootTarget14)continue;
+    const c=n.lootTarget14;
+    if(c.looted||!c.group?.parent){if(c.npcReserved14===n)c.npcReserved14=null;n.lootTarget14=null;continue;}
+    if((n.playerProvoked||0)>0||(n.npcEnemy&&!n.npcEnemy.dead)){if(c.npcReserved14===n)c.npcReserved14=null;n.lootTarget14=null;continue;}
+    n.patrol.set(c.group.position.x,0,c.group.position.z);n.repath=Math.max(n.repath||0,1.2);
+  }
+},900);
+
+// NPCs now visually display the weapon/skin they actually equip after looting.
+if(typeof setNpcWeapon14==='function'){
+  const setNpcWeaponBeforeQA31=setNpcWeapon14;
+  setNpcWeapon14=function(n,w){
+    setNpcWeaponBeforeQA31(n,w);
+    const vg=n?.visualGun25;if(!vg||!w)return;
+    const rarity=RARITY[w.rarity]||RARITY.Common;
+    const skin=w.skin||GUN_SKINS[0];
+    const name=(w.name||'').toLowerCase();
+    vg.scale.set(1,1,1);
+    if(name.includes('pistol')||name.includes('revolver')||name.includes('handcannon')||name.includes('cannon'))vg.scale.set(.72,.86,.66);
+    else if(name.includes('smg')||name.includes('machine'))vg.scale.set(.84,.90,.80);
+    else if(name.includes('shotgun'))vg.scale.set(1.12,1.04,1.18);
+    else if(name.includes('dmr')||name.includes('marksman'))vg.scale.set(1.04,1.02,1.14);
+    vg.traverse(m=>{
+      if(!m.isMesh||!m.material?.color)return;
+      m.material=m.material.clone();
+      m.material.color.setHex((m.material.metalness??0)>.35?skin.body:skin.accent);
+      if('emissive' in m.material&&rarity?.color){m.material.emissive=new THREE.Color(rarity.color).multiplyScalar(w.rarity==='Secret'?.10:w.rarity==='Mythic'?.06:.015);}
+    });
+  };
+}
+
+// The minimap does not need to redraw at 60–120fps. Throttle it to ~12fps,
+// which saves CPU/GPU time without changing what the player sees.
+if(typeof drawMiniMap==='function'){
+  const drawMiniMapBeforeQA31=drawMiniMap;let lastMiniDraw31=0;
+  drawMiniMap=function(){const now=performance.now();if(now-lastMiniDraw31<82)return;lastMiniDraw31=now;drawMiniMapBeforeQA31();};
+}
+
+// Replace allocation-heavy bullet tracers with a small reusable pool. This is
+// especially important for shotguns, which otherwise create many objects/shot.
+const tracerPool31=[];let tracerCursor31=0;
+function buildTracer31(){
+  const geom=new THREE.BufferGeometry();geom.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));
+  const mat=new THREE.LineBasicMaterial({color:0xffedb0,transparent:true,opacity:0});
+  const line=new THREE.Line(geom,mat);line.visible=false;scene.add(line);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(.042,6,5),new THREE.MeshBasicMaterial({color:0xffdf72,transparent:true,opacity:0}));tip.visible=false;scene.add(tip);
+  return {line,geom,mat,tip,start:new THREE.Vector3(),end:new THREE.Vector3(),started:0,duration:48,active:false};
+}
+for(let i=0;i<24;i++)tracerPool31.push(buildTracer31());
+spawnTracer24=function(_start,end,hitNpc=false){
+  const t=tracerPool31[tracerCursor31++%tracerPool31.length];
+  // Start visually at the lower-right gun position rather than the center of camera.
+  const start=camera.localToWorld(new THREE.Vector3(.22,-.16,-.42));
+  t.start.copy(start);t.end.copy(end);t.started=performance.now();t.duration=hitNpc?54:46;t.active=true;
+  const a=t.geom.attributes.position.array;a[0]=start.x;a[1]=start.y;a[2]=start.z;a[3]=end.x;a[4]=end.y;a[5]=end.z;t.geom.attributes.position.needsUpdate=true;
+  t.mat.color.setHex(hitNpc?0xffcb55:0xffedb0);t.mat.opacity=.82;t.line.visible=true;
+  t.tip.material.color.setHex(hitNpc?0xffc84e:0xffdf72);t.tip.material.opacity=1;t.tip.position.copy(start);t.tip.visible=true;
+};
+(function tracerLoopQA31(now){
+  for(const t of tracerPool31){
+    if(!t.active)continue;
+    const p=Math.min(1,(now-t.started)/t.duration);t.tip.position.lerpVectors(t.start,t.end,p);t.mat.opacity=.82*(1-p*.7);t.tip.material.opacity=1-p*.65;
+    if(p>=1){t.active=false;t.line.visible=false;t.tip.visible=false;t.mat.opacity=0;t.tip.material.opacity=0;}
+  }
+  requestAnimationFrame(tracerLoopQA31);
+})(performance.now());
+
+// Adaptive desktop rendering: start at Ultra, then only step down if sustained
+// frame rate is poor. This preserves the high-quality look without hard-locking
+// slower Macs to a 4096-shadow/2.7x workload.
+const qaDesktop31=matchMedia('(pointer:fine)').matches;
+let qaRenderTier31=0; // 0 Ultra, 1 High, 2 Performance
+function applyRenderTier31(tier){
+  if(!qaDesktop31)return;qaRenderTier31=clamp(tier,0,2);
+  const ratios=[Math.min(devicePixelRatio,2.7),Math.min(devicePixelRatio,2.15),Math.min(devicePixelRatio,1.7)];
+  const shadows=[4096,2048,1024];
+  renderer.setPixelRatio(ratios[qaRenderTier31]);renderer.setSize(innerWidth,innerHeight,false);
+  sun.shadow.mapSize.set(shadows[qaRenderTier31],shadows[qaRenderTier31]);
+  if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
+  sun.shadow.needsUpdate=true;
+  if(typeof graphicsBadge21!=='undefined')graphicsBadge21.textContent=`GRAPHICS: ${qaRenderTier31===0?'ULTRA':qaRenderTier31===1?'HIGH':'PERFORMANCE'} · NPC DAMAGE: 5m`;
+}
+if(qaDesktop31)applyRenderTier31(0);
+let fpsFrames31=0,fpsStart31=performance.now(),goodWindows31=0;
+(function qaFpsLoop31(now){
+  fpsFrames31++;
+  if(now-fpsStart31>=3000){
+    const fps=fpsFrames31*1000/(now-fpsStart31);fpsFrames31=0;fpsStart31=now;
+    if(fps<34&&qaRenderTier31<2){applyRenderTier31(qaRenderTier31+1);goodWindows31=0;}
+    else if(fps>56){goodWindows31++;if(goodWindows31>=3&&qaRenderTier31>0){applyRenderTier31(qaRenderTier31-1);goodWindows31=0;}}
+    else goodWindows31=0;
+  }
+  requestAnimationFrame(qaFpsLoop31);
+})(performance.now());
+addEventListener('resize',()=>{if(qaDesktop31)applyRenderTier31(qaRenderTier31);});
+
+// ---------------------------------------------------------------------------
+// PASS 3 — UX / POLISH
+// ---------------------------------------------------------------------------
+
+// Correct the lobby summary so shop-bought Rare/Epic/etc guns are not labelled
+// COMMON, and keep a visible 2-slot summary.
+if(typeof refreshLoadout18==='function'){
+  const refreshLoadoutBeforeQA31=refreshLoadout18;
+  refreshLoadout18=function(){
+    refreshLoadoutBeforeQA31();
+    if(typeof chosenGun17!=='undefined'){
+      const labels=selectedLoadout18.map(name=>{const c=gunCatalog?.find?.(g=>g.name===name);return `${(c?.rarity||'Common').toUpperCase()} ${name.toUpperCase()}`;});
+      chosenGun17.textContent=labels.length?`Selected ${labels.length}/2: ${labels.join(' + ')}`:'Selected 0/2 — CHOOSE TWO WEAPONS';
+      chosenGun17.style.color=selectedLoadout18.length===2?'#ffe27a':'#fff';
+    }
+    if(typeof readyBtn31!=='undefined')readyBtn31.disabled=selectedLoadout18.length!==2;
+  };
+}
+
+// Collapse the long coin shop by default so the weapon chooser is easier to use.
+let shopToggle31=null;
+if(typeof shopPanel19!=='undefined'&&shopPanel19&&shopPanel19.parentElement){
+  shopToggle31=document.createElement('button');shopToggle31.type='button';shopToggle31.textContent='COIN SHOP ▾';
+  shopToggle31.style.cssText='width:100%;margin-top:12px;min-height:42px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#ffe17a;font:900 12px system-ui;cursor:pointer';
+  shopPanel19.parentElement.insertBefore(shopToggle31,shopPanel19);shopPanel19.style.display='none';
+  shopToggle31.addEventListener('click',e=>{e.stopPropagation();const open=shopPanel19.style.display==='none';shopPanel19.style.display=open?'block':'none';shopToggle31.textContent=open?'COIN SHOP ▴':'COIN SHOP ▾';});
+}
+
+// Allow players who have chosen both slots to deploy before the 30s timer ends.
+let readyBtn31=null;
+if(typeof lobby17!=='undefined'&&lobby17?.firstElementChild){
+  readyBtn31=document.createElement('button');readyBtn31.type='button';readyBtn31.disabled=selectedLoadout18.length!==2;readyBtn31.textContent='READY · DEPLOY';
+  readyBtn31.style.cssText='width:100%;margin-top:12px;min-height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.32);background:#d4b34e;color:#111417;font:950 14px system-ui;cursor:pointer;opacity:1';
+  readyBtn31.addEventListener('click',e=>{e.stopPropagation();if(selectedLoadout18.length===2)finishLobby17();});
+  lobby17.firstElementChild.appendChild(readyBtn31);
+  const syncReady31=()=>{readyBtn31.disabled=selectedLoadout18.length!==2;readyBtn31.style.opacity=readyBtn31.disabled?'.45':'1';};
+  const obs31=new MutationObserver(syncReady31);if(chosenGun17)obs31.observe(chosenGun17,{childList:true,characterData:true,subtree:true});syncReady31();
+}
+if(typeof refreshLoadout18==='function')refreshLoadout18();
+
+// Temporary instruction/debug badges should not permanently cover gameplay.
+if(typeof graphicsBadge21!=='undefined')setTimeout(()=>{graphicsBadge21.style.transition='opacity .5s';graphicsBadge21.style.opacity='0';},8000);
+if(hud?.desktop)setTimeout(()=>{hud.desktop.style.transition='opacity .5s';hud.desktop.style.opacity='0';},11000);
+
+// Stronger car lock feedback: briefly highlight the kill objective.
+const enterCarBeforeFeedbackQA31=enterCar19;
+enterCar19=function(c){
+  const locked=c&&playerKills24<(c.unlockKills24||0);
+  enterCarBeforeFeedbackQA31(c);
+  if(locked){killHud24.style.transform='translateX(-50%) scale(1.10)';setTimeout(()=>killHud24.style.transform='translateX(-50%) scale(1)',180);}
+};
+
+message('3-PASS QA COMPLETE · gameplay, performance and UX upgraded',4);
