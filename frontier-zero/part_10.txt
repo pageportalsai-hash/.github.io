@@ -1,0 +1,108 @@
+// ============================================================================
+// FRONTIER ZERO 1500m + 30 NPC + JUMP UPDATE
+// Keeps phone + MacBook controls and existing combat/build/loot systems.
+// ============================================================================
+
+const WORLD_HALF_1500=750;
+camera.far=1220;camera.updateProjectionMatrix();
+scene.fog.density=.00088;
+
+// Remove the former 2km hard boundary at +/-998m.
+const old2kEdges=[];
+for(const o of [...blockers,...playerStructures]){
+  if(!o?.parent)continue;
+  const p=new THREE.Vector3();o.getWorldPosition(p);
+  const b=new THREE.Box3().setFromObject(o),s=new THREE.Vector3();b.getSize(s);
+  if((Math.abs(Math.abs(p.x)-998)<6||Math.abs(Math.abs(p.z)-998)<6)&&Math.max(s.x,s.z)>1800)old2kEdges.push(o);
+}
+for(const o of old2kEdges){
+  scene.remove(o);
+  for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===o)blockers.splice(i,1);
+  for(let i=playerStructures.length-1;i>=0;i--)if(playerStructures[i]===o)playerStructures.splice(i,1);
+}
+
+// New physical 1500m world boundary.
+const edge1500Mat=new THREE.MeshStandardMaterial({color:0x454b45,roughness:1});
+function edge1500(x,z,sx,sz){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(sx,8,sz),edge1500Mat);
+  m.position.set(x,groundY(x,z)+2,z);m.castShadow=m.receiveShadow=true;scene.add(m);blockers.push(m);playerStructures.push(m);
+}
+edge1500(0,-748,1500,4);edge1500(0,748,1500,4);edge1500(-748,0,4,1500);edge1500(748,0,4,1500);
+
+// ---------- Add 10 more NPCs: total 30 ----------
+const extraNpcSpawns1500=[
+  [-320,180],[335,-210],[-480,355],[505,330],[-535,-360],
+  [540,-410],[-120,520],[145,-535],[-650,85],[645,-70]
+];
+for(let i=npcs.length;i<30;i++)makeNPC(i);
+for(let i=20;i<npcs.length;i++){
+  const n=npcs[i],s=extraNpcSpawns1500[(i-20)%extraNpcSpawns1500.length];
+  n.faction=(i%2===0)?'WARDEN':'RAIDER';n.npcEnemy=null;n.npcCombatCd=rand(.25,.9);n.playerProvoked=0;n.health=100;n.dead=false;
+  const vest=n.group.children[2];if(vest?.material){vest.material=vest.material.clone();vest.material.color.setHex(n.faction==='WARDEN'?0x354f48:0x654139);vest.material.roughness=.76;}
+  const gun=n.group.children[3];if(gun?.material){gun.material=gun.material.clone();gun.material.metalness=.72;gun.material.roughness=.28;}
+  n.group.visible=true;n.group.position.set(s[0]+rand(-10,10),0,s[1]+rand(-10,10));
+  n.group.position.y=groundY(n.group.position.x,n.group.position.z);
+  n.patrol.set(n.group.position.x+rand(-24,24),0,n.group.position.z+rand(-24,24));
+}
+
+// Redistribute a few of the original NPCs so encounters cover the 1500m world.
+const spread1500=[[-690,-500],[-610,540],[620,520],[675,-480],[-430,-610],[420,610],[-50,670],[60,-675]];
+for(let i=0;i<spread1500.length&&i<npcs.length;i++){
+  const n=npcs[i],s=spread1500[i];n.group.position.set(s[0],groundY(s[0],s[1]),s[1]);n.patrol.set(s[0]+rand(-20,20),0,s[1]+rand(-20,20));
+}
+
+// ---------- Jumping ----------
+let jumpVelocity=0,jumpOffset=0,onGround=true,jumpQueued=false;
+function requestJump(){if(player.dead)return;if(onGround){jumpQueued=true;}}
+
+// Phone jump button.
+const jumpBtn=document.createElement('div');
+jumpBtn.id='jumpBtn';jumpBtn.className='button';jumpBtn.textContent='JUMP';
+Object.assign(jumpBtn.style,{right:'118px',bottom:'36px',width:'66px',height:'66px',fontSize:'10px',zIndex:'12'});
+document.getElementById('hud').appendChild(jumpBtn);
+const coarsePointer=matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
+if(!coarsePointer)jumpBtn.style.display='none';
+jumpBtn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();requestJump();});
+
+// MacBook: Space to jump.
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();requestJump();}});
+
+// Wrap the current movement so jumping works with phone and MacBook movement.
+const movementBeforeJump1500=updatePlayer;
+updatePlayer=function(dt){
+  movementBeforeJump1500(dt);
+  // Enforce actual 1500m x 1500m playable bounds.
+  player.pos.x=clamp(player.pos.x,-744,744);player.pos.z=clamp(player.pos.z,-744,744);
+
+  if(jumpQueued&&onGround){jumpQueued=false;onGround=false;jumpVelocity=7.4;tone(150,.045,.015,'triangle');}
+  if(!onGround){
+    jumpVelocity-=18.5*dt;jumpOffset+=jumpVelocity*dt;
+    if(jumpOffset<=0){jumpOffset=0;jumpVelocity=0;onGround=true;}
+  }
+  player.pos.y=groundY(player.pos.x,player.pos.z)+player.height+jumpOffset;
+  camera.position.copy(player.pos);
+};
+
+// Keep all NPCs inside the 1500m world while preserving their rival combat logic.
+const npcLogicBefore1500=updateNPCs;
+updateNPCs=function(dt){
+  npcLogicBefore1500(dt);
+  for(const n of npcs){
+    if(n.dead)continue;
+    n.group.position.x=clamp(n.group.position.x,-742,742);n.group.position.z=clamp(n.group.position.z,-742,742);
+    n.group.position.y=groundY(n.group.position.x,n.group.position.z);
+    n.patrol.x=clamp(n.patrol.x,-730,730);n.patrol.z=clamp(n.patrol.z,-730,730);
+  }
+};
+
+// Building placement follows the new 1500m limit.
+const buildBefore1500=placeBuild;
+placeBuild=function(){
+  if(preview&&(Math.abs(preview.position.x)>740||Math.abs(preview.position.z)>740)){message('Map edge — build inside the 1500m zone');return;}
+  buildBefore1500();
+};
+
+if(typeof mapText!=='undefined')mapText.textContent='Map: 1500m × 1500m';
+const npcTextEl=document.getElementById('npcText');if(npcTextEl)npcTextEl.textContent='Hostiles: 30';
+if(hud.desktop&&!coarsePointer)hud.desktop.textContent='MacBook: WASD move · mouse look · SPACE jump · click shoot · R reload · Q gear · B build/place · T type · E loot · Shift sprint';
+message('1500m map · 30 NPCs · jumping added on phone + MacBook',3.4);
