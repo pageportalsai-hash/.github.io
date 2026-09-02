@@ -1,0 +1,16 @@
+// ============================================================================
+// FRONTIER ZERO PLAYER-KILL REWARD ATTRIBUTION FIX
+// Only player gun kills award coins/loot. NPC-vs-NPC deaths do not pay player.
+// ============================================================================
+let playerGunKillWindow20=false;
+const shootGunBeforeKillCredit20=shootGun;
+shootGun=function(w){
+  playerGunKillWindow20=true;
+  try{return shootGunBeforeKillCredit20(w);}
+  finally{playerGunKillWindow20=false;}
+};
+const killNpcRewardsWrapper20=killNpc;
+killNpc=function(n){
+  if(playerGunKillWindow20)killNpcRewardsWrapper20(n);
+  else killNpcBeforeRewards19(n);
+};
