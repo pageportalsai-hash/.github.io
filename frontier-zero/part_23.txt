@@ -1,0 +1,32 @@
+// ============================================================================
+// FRONTIER ZERO BLACK-SCREEN GRAPHICS HOTFIX
+// The HUD rendered but the 3D world went nearly black after the custom sky
+// shader upgrade. Remove that shader and restore a safe bright sky/fog setup.
+// ============================================================================
+
+// Remove the custom shader sky dome from part_21. Some WebGL/browser setups
+// can render it incorrectly and obscure the entire 3D scene.
+if(typeof skyDome21!=='undefined' && skyDome21){
+  scene.remove(skyDome21);
+  skyDome21.geometry?.dispose?.();
+  skyDome21.material?.dispose?.();
+}
+
+// Restore a normal Three.js background so the world can never be hidden by
+// the sky mesh. Keep the upgraded lighting but make shadows readable.
+scene.background=new THREE.Color(0x91b4ca);
+scene.fog.color.setHex(0xaec4cc);
+scene.fog.density=.00082;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.18;
+hemi.intensity=1.75;
+sun.intensity=3.0;
+if(typeof fill21!=='undefined')fill21.intensity=.52;
+
+// Remove the dark full-screen vignette while troubleshooting/playing.
+if(typeof visualFx21!=='undefined' && visualFx21?.parentNode)visualFx21.remove();
+
+// Disable the old sky-follow function because its mesh has been removed.
+updateSky21=function(){};
+
+message('DISPLAY FIXED · bright world restored',2.8);
