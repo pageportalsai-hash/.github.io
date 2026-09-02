@@ -1,14 +1,14 @@
 // ============================================================================
-// FRONTIER ZERO SKY LOBBY + TWO-WEAPON COMMON LOADOUT UPDATE
-// Floating sky lobby, 30-second countdown, 16 Common starter choices,
-// choose exactly two weapons, then random dry deployment into the map.
+// FRONTIER ZERO INTERACTIVE SKY LOBBY + TWO-WEAPON LOADOUT UPDATE
+// Walk/look around the floating box, choose exactly two Common weapons from
+// a scrollable clickable panel, then deploy randomly when the timer reaches 0.
 // ============================================================================
 
 // ---------- Floating sky lobby ----------
 const skyLobby18=new THREE.Group();scene.add(skyLobby18);
 const skyLobbyY18=120;
 const skyFloorMat18=new THREE.MeshStandardMaterial({color:0x56616a,roughness:.82,metalness:.12});
-const skyWallMat18=new THREE.MeshStandardMaterial({color:0x7b8b96,roughness:.72,metalness:.08,transparent:true,opacity:.72});
+const skyWallMat18=new THREE.MeshStandardMaterial({color:0x7b8b96,roughness:.72,metalness:.08,transparent:true,opacity:.58});
 const skyTrimMat18=new THREE.MeshStandardMaterial({color:0xd5b84a,roughness:.48,metalness:.32});
 function skyBoxPart18(sx,sy,sz,x,y,z,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;skyLobby18.add(m);return m;}
 skyBoxPart18(16,.5,16,0,skyLobbyY18,0,skyFloorMat18);
@@ -24,18 +24,44 @@ function putPlayerInSkyLobby18(){
 }
 putPlayerInSkyLobby18();
 
+// IMPORTANT: during the lobby, use the pre-lobby player movement so WASD/touch
+// still works, then pin the player to the floating platform instead of terrain.
 const updatePlayerBeforeSkyLobby18=updatePlayer;
 updatePlayer=function(dt){
   if(typeof lobbyActive17!=='undefined'&&lobbyActive17){
-    player.pos.x=clamp(player.pos.x,-6.8,6.8);player.pos.z=clamp(player.pos.z,-6.8,6.8);player.pos.y=skyLobbyY18+player.height+.32;
+    if(typeof updatePlayerBeforeLobby17==='function')updatePlayerBeforeLobby17(dt);
+    player.pos.x=clamp(player.pos.x,-6.65,6.65);player.pos.z=clamp(player.pos.z,-6.65,6.65);player.pos.y=skyLobbyY18+player.height+.32;
     camera.position.copy(player.pos);
-    if(typeof playerAvatar16!=='undefined'){playerAvatar16.position.set(player.pos.x,skyLobbyY18+.28,player.pos.z);playerAvatar16.rotation.y=player.yaw;}
+    camera.rotation.set(player.pitch,player.yaw,0);
+    if(typeof playerAvatar16!=='undefined'){
+      playerAvatar16.position.set(player.pos.x,skyLobbyY18+.28,player.pos.z);playerAvatar16.rotation.y=player.yaw;
+    }
     return;
   }
   updatePlayerBeforeSkyLobby18(dt);
 };
 
-if(typeof lobby17!=='undefined')lobby17.style.background='linear-gradient(180deg,rgba(8,13,17,.72),rgba(12,19,24,.78))';
+// ---------- Make the lobby UI a real clickable loadout panel ----------
+if(typeof lobby17!=='undefined'){
+  lobby17.style.background='transparent';
+  lobby17.style.alignItems='flex-start';
+  lobby17.style.justifyContent='flex-end';
+  lobby17.style.padding='14px';
+  lobby17.style.pointerEvents='none';
+  const card=lobby17.firstElementChild;
+  if(card){
+    card.style.width='min(560px,92vw)';
+    card.style.maxHeight='88vh';
+    card.style.overflowY='auto';
+    card.style.pointerEvents='auto';
+    card.style.background='rgba(10,16,20,.90)';
+    card.style.border='1px solid rgba(255,255,255,.24)';
+    card.style.borderRadius='16px';
+    card.style.padding='16px';
+    card.style.backdropFilter='blur(8px)';
+    card.style.boxShadow='0 8px 30px rgba(0,0,0,.36)';
+  }
+}
 
 // ---------- Expanded Common starter pool ----------
 const commonLoadoutDefs18=[
@@ -61,10 +87,11 @@ function makeCommonLoadoutGun18(def){
   return {name:def.name,type:'gun',rarity:'Common',magSize:def.magSize,mag:def.magSize,reserve:def.reserve,damage:def.damage,rate:def.rate,spread:def.spread,pellets:def.pellets,skin:typeof randomGunSkin==='function'?randomGunSkin('Common'):undefined};
 }
 
-let selectedLoadout18=['Rifle','Shotgun'];
+let selectedLoadout18=[];
 
 if(typeof commonChoices17!=='undefined'){
-  commonChoices17.innerHTML='';commonChoices17.style.gridTemplateColumns='repeat(4,minmax(0,1fr))';
+  commonChoices17.innerHTML='';commonChoices17.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
+  commonChoices17.style.gap='9px';
 }
 
 function refreshLoadout18(){
@@ -72,18 +99,24 @@ function refreshLoadout18(){
   for(const b of commonChoices17.querySelectorAll('button')){
     const ix=selectedLoadout18.indexOf(b.dataset.gun),active=ix>=0;
     b.style.borderColor=active?'#f4d36a':'rgba(255,255,255,.22)';
-    b.style.background=active?'rgba(116,92,35,.78)':'rgba(255,255,255,.07)';
-    const badge=b.querySelector('.slot18');if(badge)badge.textContent=active?`SLOT ${ix+1}`:'SELECT';
+    b.style.background=active?'rgba(116,92,35,.82)':'rgba(255,255,255,.07)';
+    b.style.transform=active?'scale(1.015)':'scale(1)';
+    const badge=b.querySelector('.slot18');if(badge)badge.textContent=active?`SLOT ${ix+1}`:'CLICK TO SELECT';
   }
-  if(typeof chosenGun17!=='undefined')chosenGun17.textContent=`Selected ${selectedLoadout18.length}/2: ${selectedLoadout18.map(n=>'COMMON '+n.toUpperCase()).join(' + ')}`;
+  if(typeof chosenGun17!=='undefined'){
+    chosenGun17.textContent=selectedLoadout18.length?`Selected ${selectedLoadout18.length}/2: ${selectedLoadout18.map(n=>'COMMON '+n.toUpperCase()).join(' + ')}`:'Selected 0/2 — CLICK TWO WEAPONS BELOW';
+    chosenGun17.style.color=selectedLoadout18.length===2?'#ffe29a':'#fff';
+  }
 }
 
 if(typeof commonChoices17!=='undefined'){
   for(const def of commonLoadoutDefs18){
     const b=document.createElement('button');b.type='button';b.dataset.gun=def.name;
-    b.style.cssText='min-height:108px;border-radius:14px;border:2px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#fff;padding:10px 8px;font:inherit;cursor:pointer;transition:.15s;position:relative;';
-    b.innerHTML=`<div class="slot18" style="position:absolute;right:7px;top:7px;font-size:8px;font-weight:900;opacity:.75">SELECT</div><div style="font-size:13px;font-weight:900;margin-top:8px">COMMON ${def.label.toUpperCase()}</div><div style="font-size:10px;opacity:.70;margin-top:7px">${def.desc}</div><div style="font-size:9px;opacity:.5;margin-top:5px">DMG ${def.damage} · MAG ${def.magSize}</div>`;
-    b.addEventListener('click',()=>{
+    b.style.cssText='min-height:96px;border-radius:12px;border:2px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#fff;padding:10px 8px;font:inherit;cursor:pointer;transition:.15s;position:relative;touch-action:manipulation;';
+    b.innerHTML=`<div class="slot18" style="position:absolute;right:7px;top:7px;font-size:8px;font-weight:900;opacity:.82">CLICK TO SELECT</div><div style="font-size:13px;font-weight:900;margin-top:9px">COMMON ${def.label.toUpperCase()}</div><div style="font-size:10px;opacity:.72;margin-top:6px">${def.desc}</div><div style="font-size:9px;opacity:.55;margin-top:5px">DMG ${def.damage} · MAG ${def.magSize}</div>`;
+    b.addEventListener('pointerdown',e=>e.stopPropagation());
+    b.addEventListener('click',e=>{
+      e.stopPropagation();
       const ix=selectedLoadout18.indexOf(def.name);
       if(ix>=0)selectedLoadout18.splice(ix,1);
       else if(selectedLoadout18.length<2)selectedLoadout18.push(def.name);
@@ -96,12 +129,21 @@ if(typeof commonChoices17!=='undefined'){
 }
 
 if(typeof lobby17!=='undefined'){
-  const info=[...lobby17.querySelectorAll('div')].find(d=>d.textContent?.includes('Choose your starting gun'));
-  if(info)info.innerHTML='Choose <b>exactly 2 starting weapons</b> from the larger Common weapon pool.';
+  const card=lobby17.firstElementChild;
+  const title=[...lobby17.querySelectorAll('div')].find(d=>d.textContent?.trim()==='MATCH LOBBY');
+  if(title)title.textContent='CHOOSE 2 WEAPONS';
+  const info=[...lobby17.querySelectorAll('div')].find(d=>d.textContent?.includes('Choose your starting gun')||d.textContent?.includes('Choose exactly 2'));
+  if(info)info.innerHTML='Click or tap <b>ANY 2 COMMON WEAPONS</b> below. You can still move and look around the sky box while choosing.';
+  if(card){
+    const help=document.createElement('div');
+    help.style.cssText='margin:10px 0 6px;font-size:11px;opacity:.72';
+    help.textContent='Mac: use WASD + mouse to move/look. Click the panel to choose weapons. Phone: use the controls and tap weapons.';
+    const choices=commonChoices17;choices?.insertAdjacentElement('beforebegin',help);
+  }
 }
 if(typeof lobbyCountdown17!=='undefined'){
-  const hint=document.createElement('div');hint.style.cssText='margin-top:10px;font-size:12px;opacity:.68';
-  hint.textContent='Pick any 2 Common weapons. At 0 seconds you will deploy randomly into a dry safe part of the map with both selected guns.';
+  const hint=document.createElement('div');hint.style.cssText='margin-top:8px;font-size:12px;opacity:.78;color:#ffe29a';
+  hint.textContent='Pick 2 weapons before the timer reaches 0. If you pick a third, it replaces your oldest selection.';
   lobbyCountdown17.insertAdjacentElement('afterend',hint);
 }
 
@@ -127,6 +169,6 @@ finishLobby17=function(){
 };
 
 const lobbyGridStyle18=document.createElement('style');
-lobbyGridStyle18.textContent='@media(max-width:760px){#commonChoices17{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:390px){#commonChoices17{grid-template-columns:1fr!important}}';document.head.appendChild(lobbyGridStyle18);
+lobbyGridStyle18.textContent='@media(max-width:700px){#matchLobby17{justify-content:center!important;padding:8px!important}#matchLobby17>div{width:min(96vw,560px)!important;max-height:86vh!important}#commonChoices17{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:390px){#commonChoices17{grid-template-columns:1fr!important}}';document.head.appendChild(lobbyGridStyle18);
 
-message('Sky lobby upgraded · choose exactly 2 Common weapons · 16 starter options',3.5);
+message('Sky lobby interactive · click/tap any 2 Common weapons',3.5);
