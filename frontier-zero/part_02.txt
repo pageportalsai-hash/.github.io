@@ -1,0 +1,70 @@
+.look.addEventListener('pointermove',e=>{ if(e.pointerId!==lookPointer) return; const p=pointerPos(e), dx=p.x-lookLast.x, dy=p.y-lookLast.y; lookLast=p; player.yaw-=dx*.0041; player.pitch=clamp(player.pitch-dy*.0037,-1.28,1.28); });
+hud.look.addEventListener('pointerup',e=>{if(e.pointerId===lookPointer)lookPointer=null;});
+hud.look.addEventListener('pointercancel',()=>lookPointer=null);
+
+// ---------- View-model / weapons ----------
+const gunHolder=new THREE.Group(); gunHolder.position.set(.35,-.32,-.72); camera.add(gunHolder);
+const gunMat=new THREE.MeshStandardMaterial({color:0x242a2d,metalness:.55,roughness:.38});
+const stockMat=new THREE.MeshStandardMaterial({color:0x4c3827,roughness:.85});
+function addGunPart(geo,mat,pos,rot){const m=new THREE.Mesh(geo,mat);m.position.copy(pos); if(rot)m.rotation.set(...rot);m.castShadow=true;gunHolder.add(m);return m;}
+addGunPart(new THREE.BoxGeometry(.16,.14,.66),gunMat,new THREE.Vector3(0,0,-.15));
+addGunPart(new THREE.BoxGeometry(.18,.18,.28),stockMat,new THREE.Vector3(0,-.015,.28));
+addGunPart(new THREE.CylinderGeometry(.035,.035,.54,8),gunMat,new THREE.Vector3(0,.015,-.7),[Math.PI/2,0,0]);
+const muzzleLight=new THREE.PointLight(0xffb15a,0,5); muzzleLight.position.set(0,.01,-1); gunHolder.add(muzzleLight);
+
+const gear=[
+  {name:'Rifle',type:'gun',magSize:30,mag:30,reserve:120,damage:20,rate:.105,spread:.014,pellets:1},
+  {name:'Pistol',type:'gun',magSize:12,mag:12,reserve:60,damage:34,rate:.28,spread:.010,pellets:1},
+  {name:'Shotgun',type:'gun',magSize:6,mag:6,reserve:30,damage:13,rate:.75,spread:.055,pellets:8},
+  {name:'Axe',type:'axe',rate:.48},
+  {name:'Pickaxe',type:'pickaxe',rate:.48},
+  {name:'Dig Tool',type:'dig',rate:.40}
+];
+let gearIndex=0, lastAction=-99, firing=false, reloading=false;
+function currentGear(){return gear[gearIndex];}
+function cycleGear(){
+  buildMode=false; updateBuildUI(); gearIndex=(gearIndex+1)%gear.length; reloading=false; updateHUD(); message(currentGear().name);
+}
+hud.gear.addEventListener('pointerdown',e=>{e.stopPropagation();cycleGear();});
+
+let audioCtx=null;
+function tone(freq=180,dur=.05,vol=.045,type='square'){
+  try{ audioCtx ||= new (window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type=type;o.frequency.value=freq;g.gain.value=vol;o.connect(g);g.connect(audioCtx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+dur);o.stop(audioCtx.currentTime+dur);}catch{}
+}
+
+hud.fire.addEventListener('pointerdown',e=>{e.stopPropagation();firing=true;});
+hud.fire.addEventListener('pointerup',()=>firing=false); hud.fire.addEventListener('pointercancel',()=>firing=false);
+hud.reload.addEventListener('pointerdown',e=>{e.stopPropagation();reload();});
+function reload(){ const w=currentGear(); if(w.type!=='gun'||reloading||w.mag>=w.magSize||w.reserve<=0)return; reloading=true; message('Reloading…',.8); setTimeout(()=>{if(currentGear()!==w)return; const n=Math.min(w.magSize-w.mag,w.reserve);w.mag+=n;w.reserve-=n;reloading=false;updateHUD(); tone(95,.08,.03,'sine');},650); }
+
+const raycaster=new THREE.Raycaster();
+function cameraBasis(spread=0){
+  const dir=new THREE.Vector3(0,0,-1).applyEuler(camera.rotation).normalize();
+  if(spread){
+    const right=new THREE.Vector3(1,0,0).applyEuler(camera.rotation); const up=new THREE.Vector3(0,1,0).applyEuler(camera.rotation);
+    dir.addScaledVector(right,rand(-spread,spread)).addScaledVector(up,rand(-spread,spread)).normalize();
+  }
+  return dir;
+}
+function nearestHit(dir, maxDist=130){
+  raycaster.set(camera.position,dir); raycaster.far=maxDist;
+  const objs=[terrain,...blockers,...npcHitMeshes].filter(o=>o===terrain||o.parent);
+  const hits=raycaster.intersectObjects(objs,true);
+  return hits[0]||null;
+}
+function shootGun(w){
+  if(reloading) return;
+  if(w.mag<=0){tone(70,.035,.025,'square');message('Empty — RELOAD'); return;}
+  w.mag--; lastAction=clock.elapsedTime; muzzleLight.intensity=7; setTimeout(()=>muzzleLight.intensity=0,35); gunHolder.position.z=-.67; setTimeout(()=>gunHolder.position.z=-.72,55);
+  tone(w.name==='Shotgun'?85:w.name==='Pistol'?145:115,.045,w.name==='Shotgun'?.075:.045,'sawtooth');
+  for(let p=0;p<w.pellets;p++){
+    const hit=nearestHit(cameraBasis(w.spread), w.name==='Shotgun'?80:160); if(!hit)continue;
+    const obj=hit.object;
+    let npc=obj.userData.npc; if(!npc && obj.parent) npc=obj.parent.userData.npc;
+    if(npc && !npc.dead){ npc.health-=w.damage; npc.alert=5; impact(hit.point,0xb75e3b); if(npc.health<=0) killNpc(npc); continue; }
+    const res=findResource(obj); if(res && !res.dead){ impact(hit.point,0xc7b291); }
+    else impact(hit.point,0xb7c0c0);
+  }
+  updateHUD();
+}
+function findResource(obj){ let o=obj; for(let i=0;i<3&&o;i++,o=o.parent){ if(o.userData?.resource)return o.userData.resource; } return null; }
