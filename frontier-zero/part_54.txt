@@ -1,0 +1,311 @@
+// ============================================================================
+// FRONTIER ZERO TOWER INTERIOR REBUILD + NPC STUCK FIX + 60 FPS TARGET
+// Replaces the first multi-floor tower interior with clean side-wall stairwells,
+// removes floor/stair meshes from 2D movement collision, strengthens NPC routing,
+// and applies a lighter stylized render profile designed to hold ~60 FPS.
+// ============================================================================
+
+const fixDesktop54=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. REMOVE THE OLD COLLIDING TOWER FLOORS / STAIRS
+// ---------------------------------------------------------------------------
+function removeBlocker54(o){
+  for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===o)blockers.splice(i,1);
+}
+for(let i=blockers.length-1;i>=0;i--){
+  const o=blockers[i];
+  if(o?.userData?.towerFloor52||o?.userData?.towerStair52||o?.userData?.towerRoof52)blockers.splice(i,1);
+}
+if(typeof towerStates52!=='undefined')for(const s of towerStates52){
+  if(!s?.group)continue;
+  s.group.traverse(o=>{if(o?.isMesh)removeBlocker54(o);});
+  if(s.group.parent)scene.remove(s.group);
+}
+
+// ---------------------------------------------------------------------------
+// 2. CLEAN SIDE-WALL STAIRWELL + REAL FLOOR OPENINGS
+// ---------------------------------------------------------------------------
+const towerFixStates54=[];
+const floorMat54=new THREE.MeshStandardMaterial({color:0x9aa5aa,roughness:.88,metalness:.02});
+const ceilingMat54=new THREE.MeshStandardMaterial({color:0xb7c0c3,roughness:.92,metalness:0});
+const stairMat54=new THREE.MeshStandardMaterial({color:0x506776,roughness:.58,metalness:.24});
+const railMat54=new THREE.MeshStandardMaterial({color:0x263844,roughness:.46,metalness:.48});
+const trimMat54=new THREE.MeshStandardMaterial({color:0xd3d9da,roughness:.70,metalness:.03});
+const lightPanelMat54=new THREE.MeshStandardMaterial({color:0xf7f1dc,emissive:0xffe2a8,emissiveIntensity:.55,roughness:.55});
+
+function mesh54(parent,geo,mat,x,y,z,shadow=false){
+  const m=new THREE.Mesh(geo,mat);m.position.set(x||0,y||0,z||0);m.castShadow=!!shadow;m.receiveShadow=true;parent.add(m);return m;
+}
+function slab54(g,w,d,x,y,z,mat=floorMat54){
+  if(w<=.16||d<=.16)return null;
+  return mesh54(g,new THREE.BoxGeometry(w,.14,d),mat,x,y,z,false);
+}
+function floorOpening54(state,floor){
+  const {g,rec,floorH,stairX,holeW,holeD}=state;
+  const y=floor*floorH-.07,iw=Math.max(4,rec.w-.72),id=Math.max(4,rec.d-.72);
+  const minX=-iw/2,maxX=iw/2,minZ=-id/2,maxZ=id/2;
+  const hMinX=Math.max(minX+.25,stairX-holeW/2),hMaxX=Math.min(maxX-.25,stairX+holeW/2);
+  const hMinZ=Math.max(minZ+.25,-holeD/2),hMaxZ=Math.min(maxZ-.25,holeD/2);
+  slab54(g,hMinX-minX,id,(minX+hMinX)/2,y,0);
+  slab54(g,maxX-hMaxX,id,(hMaxX+maxX)/2,y,0);
+  slab54(g,hMaxX-hMinX,hMinZ-minZ,(hMinX+hMaxX)/2,y,(minZ+hMinZ)/2);
+  slab54(g,hMaxX-hMinX,maxZ-hMaxZ,(hMinX+hMaxX)/2,y,(hMaxZ+maxZ)/2);
+
+  // Guard rail around the open stairwell; leave the flight ends open as landings.
+  const railY=y+.58;
+  mesh54(g,new THREE.BoxGeometry(.06,1.05,holeD-.15),railMat54,hMinX-.08,railY,0,false);
+  mesh54(g,new THREE.BoxGeometry(holeW,.06,.06),railMat54,stairX,railY,hMinZ-.08,false);
+  mesh54(g,new THREE.BoxGeometry(holeW,.06,.06),railMat54,stairX,railY,hMaxZ+.08,false);
+  // Soft ceiling panels keep the interior bright without expensive point lights.
+  if(floor<state.floors)mesh54(g,new THREE.BoxGeometry(1.25,.045,.34),lightPanelMat54,-rec.w*.18,y-.12,-rec.d*.20,false);
+}
+function flight54(state,f){
+  const {g,floorH,stairX,run}=state,steps=15,width=1.42,dir=f%2===0?1:-1;
+  // Two parallel lanes make the switchback unambiguous: one flight can descend
+  // while the next flight rises from the same landing without occupying the same path.
+  const lane=(f%2===0?-1:1)*.82,x=stairX+lane;
+  const z0=dir>0?-run/2:run/2,z1=-z0,rise=floorH/steps;
+  const flight={f,x,width,run,z0,z1,dir};
+  for(let i=0;i<steps;i++){
+    const t=(i+.5)/steps,z=z0+(z1-z0)*t,y=f*floorH+(i+1)*rise-.07;
+    const step=mesh54(g,new THREE.BoxGeometry(width,.16,run/steps+.035),stairMat54,x,y,z,false);
+    step.userData.stairVisual54=true;
+  }
+  // Rail only on the room-facing edge; the tower wall is the outside edge.
+  const innerX=x+(lane<0?-width/2-.10:width/2+.10);
+  mesh54(g,new THREE.BoxGeometry(.055,1.00,run+.20),railMat54,innerX,f*floorH+floorH*.53,0,false);
+  // Wide landings bridge both parallel flights at each turn.
+  mesh54(g,new THREE.BoxGeometry(state.holeW-.22,.14,1.08),trimMat54,stairX,f*floorH-.03,z0,false);
+  mesh54(g,new THREE.BoxGeometry(state.holeW-.22,.14,1.08),trimMat54,stairX,(f+1)*floorH-.03,z1,false);
+  return flight;
+}
+
+const towerRecs54=(typeof townBuildings51!=='undefined'?townBuildings51:[]).filter(r=>r?.tall51&&r.g?.parent);
+for(let i=0;i<towerRecs54.length;i++){
+  const rec=towerRecs54[i],largest=i===0;
+  // Keep the larger shell from part 52, but make the interior rooms taller/cleaner.
+  const floors=largest?5:4,floorH=largest?3.62:3.42;
+  const baseY=groundY(rec.x,rec.z)+.18;
+  const g=new THREE.Group();g.position.set(rec.x,baseY,rec.z);g.rotation.y=rec.rot;g.userData.towerInterior54=true;scene.add(g);
+  const stairX=rec.w/2-2.55,run=Math.max(4.6,Math.min(rec.d-3.0,8.5));
+  const state={rec,g,floors,floorH,baseY,stairX,run,holeW:3.55,holeD:run+1.10,flights:[],floor:0,elev:0,largest};
+  for(let f=1;f<floors;f++)floorOpening54(state,f);
+  for(let f=0;f<floors-1;f++)state.flights.push(flight54(state,f));
+  // Roof ceiling, raised enough that the top floor does not feel crushed.
+  slab54(g,rec.w-.72,rec.d-.72,0,floors*floorH-.06,0,ceilingMat54);
+  towerFixStates54.push(state);
+}
+
+function towerAt54(x,z,margin=.12){
+  for(const s of towerFixStates54)if(insideBuilding50(s.rec,x,z,margin))return s;
+  return null;
+}
+function flightProgress54(f,z){return clamp((z-f.z0)/(f.z1-f.z0),0,1);}
+function stairCandidate54(state,local){
+  const c=[];
+  for(const fi of [state.floor,state.floor-1]){
+    if(fi<0||fi>=state.flights.length)continue;
+    const f=state.flights[fi];
+    if(Math.abs(local.x-f.x)>f.width/2+.38||Math.abs(local.z)>f.run/2+.45)continue;
+    const t=flightProgress54(f,local.z),e=fi*state.floorH+t*state.floorH;
+    c.push({fi,f,t,e,d:Math.abs(e-state.elev)});
+  }
+  c.sort((a,b)=>a.d-b.d);return c[0]||null;
+}
+
+let activeTower54=null;
+updatePlayer=function(dt){
+  const prevX=player.pos.x,prevZ=player.pos.z,previous=activeTower54;
+  // Bypass the old part-52 floor wrapper but retain every gameplay/camera system before it.
+  const r=updatePlayerBeforeFloors52(dt);
+  if(activeCar19){activeTower54=null;if(typeof styleWorld53==='function')styleWorld53();return r;}
+
+  let state=towerAt54(player.pos.x,player.pos.z,.08);
+  if(!state&&previous&&previous.floor>0){
+    // No walking out through upper-floor windows/walls.
+    player.pos.x=prevX;player.pos.z=prevZ;state=previous;
+  }
+  if(!state){activeTower54=null;if(typeof styleWorld53==='function')styleWorld53();return r;}
+  if(activeTower54!==state){state.floor=0;state.elev=0;activeTower54=state;}
+
+  const local=localXZ50(state.rec,player.pos.x,player.pos.z),cand=stairCandidate54(state,local);
+  if(cand){
+    state.elev=cand.e;
+    if(cand.fi===state.floor&&cand.t>.965&&state.floor<state.floors-1){state.floor++;state.elev=state.floor*state.floorH;}
+    else if(cand.fi===state.floor-1&&cand.t<.035&&state.floor>0){state.floor--;state.elev=state.floor*state.floorH;}
+  }else{
+    const snapped=clamp(Math.round(state.elev/state.floorH),0,state.floors-1);
+    state.floor=snapped;state.elev=snapped*state.floorH;
+  }
+
+  const oldY=player.pos.y,desiredY=state.baseY+state.elev+player.height,dy=desiredY-oldY;
+  player.pos.y=desiredY;camera.position.y+=dy;
+  if(typeof playerAvatar16!=='undefined')playerAvatar16.position.y+=dy;
+  if(typeof nearbyLoot!=='undefined'&&typeof findNearbyLoot==='function'){
+    nearbyLoot=(!buildMode&&!player.dead)?findNearbyLoot():null;
+    if(typeof lootBtn!=='undefined')lootBtn.style.display=nearbyLoot?'flex':'none';
+  }
+  if(typeof styleWorld53==='function')styleWorld53();
+  return r;
+};
+
+// Re-spread each tower's crates so every floor has something worth climbing for,
+// while keeping the staircase side completely clear.
+for(const state of towerFixStates54){
+  const crates=lootCrates.filter(c=>!c.looted&&c.group?.parent&&typeof c.label==='string'&&c.label.startsWith(state.rec.label51+' Loot'));
+  for(let i=0;i<crates.length;i++){
+    const floor=i%state.floors,side=i%2===0?-1:1;
+    let lx=side*state.rec.w*.25;
+    if(lx>0)lx=Math.min(lx,state.stairX-state.holeW*.80);
+    const lz=(i%4<2?-1:1)*state.rec.d*.23,p=worldXZ50(state.rec,lx,lz),c=crates[i];
+    c.group.position.set(p.x,state.baseY+floor*state.floorH+.43,p.z);
+    c.towerFloor52=floor;c.towerState52=state;c.towerState54=state;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. MORE AGGRESSIVE NPC DOOR/CORNER ROUTING FOR THE WALL-STUCK BUG
+// ---------------------------------------------------------------------------
+function rebuildNavCollision54(){
+  buildingCollision33.length=0;
+  for(const rec of buildingNav50){
+    if(!rec?.g?.parent)continue;
+    const t=.40;
+    const navDoor=rec.type===1?Math.max(rec.doorW||0,3.05):rec.tall51?Math.max(rec.doorW||0,3.10):Math.max(rec.doorW||0,2.55);
+    const seg=Math.max(.62,(rec.w-navDoor)/2);
+    pushWall50(rec,-rec.w/2,0,t,rec.d+.05);pushWall50(rec,rec.w/2,0,t,rec.d+.05);pushWall50(rec,0,-rec.d/2,rec.w+.05,t);
+    pushWall50(rec,-(navDoor/2+seg/2),rec.d/2,seg,t);pushWall50(rec,(navDoor/2+seg/2),rec.d/2,seg,t);
+    rec.center=worldXZ50(rec,0,rec.d/2+.20);
+    rec.outside=worldXZ50(rec,0,rec.d/2+1.75);
+    rec.inside=worldXZ50(rec,0,rec.d/2-1.65);
+  }
+}
+rebuildNavCollision54();
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+
+const npcRoute54=new WeakMap();
+function freePoint54(x,z){
+  if(!blockedPosition(x,z))return {x,z};
+  for(const r of [.45,.8,1.15])for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2,nx=x+Math.cos(a)*r,nz=z+Math.sin(a)*r;
+    if(!blockedPosition(nx,nz))return {x:nx,z:nz};
+  }
+  return null;
+}
+function routeAround54(n,target){
+  const portal=doorwayWaypoint50(n,target);
+  if(portal){const p=freePoint54(portal.x,portal.z);if(p)return {...p,kind:'door'};}
+  const rec=obstruction51(n,target);if(!rec)return null;
+  const cand=[];
+  const pad=2.05;
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    const p=worldXZ50(rec,sx*(rec.w/2+pad),sz*(rec.d/2+pad)),q=freePoint54(p.x,p.z);if(!q)continue;
+    const score=Math.hypot(q.x-n.group.position.x,q.z-n.group.position.z)+Math.hypot(target.x-q.x,target.z-q.z);
+    cand.push({...q,score,kind:'corner'});
+  }
+  if(rec.outside){const q=freePoint54(rec.outside.x,rec.outside.z);if(q)cand.push({...q,score:Math.hypot(q.x-n.group.position.x,q.z-n.group.position.z)+Math.hypot(target.x-q.x,target.z-q.z)+.3,kind:'door'});}
+  cand.sort((a,b)=>a.score-b.score);return cand[0]||null;
+}
+function assistNpc54(n,wp,dt){
+  const p=n.group.position,dx=wp.x-p.x,dz=wp.z-p.z,d=Math.hypot(dx,dz);if(d<.20)return true;
+  const ux=dx/d,uz=dz/d,speed=(n.alert>0||(n.playerProvoked||0)>0||(n.npcEnemy&&!n.npcEnemy.dead))?3.55:1.95,step=Math.min(d,speed*dt);
+  const tests=[[ux,uz],[-uz,ux],[uz,-ux]];
+  for(const [tx,tz] of tests){
+    const nx=p.x+tx*step,nz=p.z+tz*step;
+    if(blockedPosition(nx,nz))continue;
+    p.x=nx;p.z=nz;p.y=groundY(nx,nz);n.group.rotation.y=Math.atan2(tx,tz)+Math.PI;return false;
+  }
+  return false;
+}
+
+updateNPCs=function(dt){
+  const paused=(typeof settingsOpen46!=='undefined'&&settingsOpen46)||(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24);
+  const before=new WeakMap();
+  if(!paused)for(const n of npcs)if(n&&!n.dead)before.set(n,{x:n.group.position.x,z:n.group.position.z});
+  // Bypass the obsolete part-52 LOD wrapper; all AI/door logic through part 51 still runs.
+  const r=updateNPCsBeforeTowerLod52(dt);
+  if(!paused){
+    const now=performance.now();
+    for(const n of npcs){
+      if(!n||n.dead)continue;const b=before.get(n);if(!b)continue;
+      const moved=Math.hypot(n.group.position.x-b.x,n.group.position.z-b.z),target=npcTarget50(n),dist=Math.hypot(target.x-n.group.position.x,target.z-n.group.position.z);
+      let s=npcRoute54.get(n);if(!s){s={stuck:0,wp:null,until:0};npcRoute54.set(n,s);}
+      if(dist>2.2&&moved<.035)s.stuck+=dt;else s.stuck=Math.max(0,s.stuck-dt*1.8);
+      const portal=doorwayWaypoint50(n,target);
+      if(portal||s.stuck>.18||!s.wp||now>s.until||Math.hypot(n.group.position.x-s.wp.x,n.group.position.z-s.wp.z)<.55){
+        const wp=routeAround54(n,target);if(wp){s.wp=wp;s.until=now+2400;}
+      }
+      if(s.wp&&(portal||s.stuck>.08)){
+        const done=assistNpc54(n,s.wp,dt);
+        if(done){s.wp=null;s.stuck=0;}
+      }
+      // Last-resort tiny nudge after prolonged contact; never jumps through a wall.
+      if(s.stuck>2.0){
+        const q=freePoint54(n.group.position.x,n.group.position.z);if(q){n.group.position.x=q.x;n.group.position.z=q.z;n.group.position.y=groundY(q.x,q.z);}s.stuck=.5;
+      }
+    }
+  }
+
+  // LOD only the replacement tower interiors / tower loot.
+  for(const s of towerFixStates54){
+    const d=Math.hypot(player.pos.x-s.rec.x,player.pos.z-s.rec.z),vis=d<(fixDesktop54?210:125);
+    s.g.visible=vis;
+    for(const c of lootCrates)if(c?.towerState54===s&&c.group?.parent)c.group.visible=vis&&!c.looted;
+  }
+  return r;
+};
+
+// ---------------------------------------------------------------------------
+// 4. STYLIZED 60 FPS TARGET PROFILE
+// ---------------------------------------------------------------------------
+let perfMode54=0,perfFrames54=0,perfStart54=performance.now(),good54=0;
+function setShadow54(size){
+  if(sun.shadow.mapSize.x===size&&sun.shadow.mapSize.y===size)return;
+  sun.shadow.mapSize.set(size,size);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}sun.shadow.needsUpdate=true;
+}
+function apply60Profile54(){
+  const mode=typeof quality46!=='undefined'?quality46:'auto';
+  let ratio,shadow=1024;
+  if(mode==='performance')ratio=fixDesktop54?1.22:1.00;
+  else if(mode==='high')ratio=fixDesktop54?(perfMode54>=1?1.45:1.72):(perfMode54>=1?1.16:1.34);
+  else ratio=fixDesktop54?(perfMode54===0?1.58:perfMode54===1?1.38:1.20):(perfMode54===0?1.24:1.05);
+  ratio=Math.min(devicePixelRatio,ratio);
+  if(Math.abs(renderer.getPixelRatio()-ratio)>.02){renderer.setPixelRatio(ratio);renderer.setSize(innerWidth,innerHeight,false);}
+  setShadow54(shadow);
+  sun.shadow.camera.left=-82;sun.shadow.camera.right=82;sun.shadow.camera.top=82;sun.shadow.camera.bottom=-82;sun.shadow.camera.far=300;sun.shadow.camera.updateProjectionMatrix();
+  // One key sun + hemisphere + a very light fill is much cheaper than many directional lights.
+  if(typeof fill21!=='undefined')fill21.intensity=.18;
+  if(typeof rim29!=='undefined')rim29.intensity=0;
+  if(typeof bounce32!=='undefined')bounce32.intensity=0;
+  if(typeof coolBounce33!=='undefined')coolBounce33.intensity=0;
+  if(typeof warmBounce33!=='undefined')warmBounce33.intensity=0;
+  if(typeof styleRim53!=='undefined')styleRim53.intensity=0;
+  if(typeof cloud29!=='undefined')cloud29.visible=perfMode54<2;
+  if(typeof atmosphere39!=='undefined')atmosphere39.visible=perfMode54===0;
+}
+if(typeof applyRenderTier31==='function')applyRenderTier31=function(tier){qaRenderTier31=clamp(tier,0,2);apply60Profile54();};
+if(typeof applyClarityQuality48==='function')applyClarityQuality48=function(){apply60Profile54();if(typeof styleWorld53==='function')styleWorld53();};
+apply60Profile54();
+
+(function target60Loop54(now){
+  perfFrames54++;
+  if(now-perfStart54>=3000){
+    const fps=perfFrames54*1000/(now-perfStart54);perfFrames54=0;perfStart54=now;
+    if(fps<52){perfMode54=2;good54=0;}
+    else if(fps<57){perfMode54=Math.max(perfMode54,1);good54=0;}
+    else if(fps>=59){good54++;if(good54>=3){perfMode54=Math.max(0,perfMode54-1);good54=0;}}
+    else good54=0;
+    apply60Profile54();
+    window.__frontierZeroFPS54={fps:Math.round(fps),quality:perfMode54,target:60};
+  }
+  requestAnimationFrame(target60Loop54);
+})(performance.now());
+addEventListener('resize',()=>setTimeout(apply60Profile54,80));
+
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='TOWER FIX + NPC NAV + 60 FPS TARGET';
+  setTimeout(()=>graphicsBadge21.style.opacity='0',8000);
+}
+message('FIXED: side-wall stairs · clean floor openings · NPC wall routing · 60 FPS target',5.2);
