@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#071018" />
+  <title>Corefall Salvage Simulator</title>
+  <meta name="description" content="A high-fidelity first-person salvage simulator built with Three.js." />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="game"></div>
+
+  <div id="vignette"></div>
+  <div id="damageFlash"></div>
+  <div id="crosshair"><span></span><span></span></div>
+  <div id="hitmarker">✦</div>
+
+  <section id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="brand-mini">COREFALL</div>
+      <div class="stat-row">
+        <div class="pill"><span>₡</span><b id="coins">0</b></div>
+        <div class="pill"><span>LVL</span><b id="level">1</b></div>
+        <div class="pill"><span>CORE</span><b id="coreCount">0 / 20</b></div>
+        <div class="pill prestige"><span>★</span><b id="prestigeCount">0</b></div>
+      </div>
+    </div>
+
+    <div class="objective-card">
+      <div class="eyebrow">CURRENT LOOP</div>
+      <div id="objective">Harvest cores, return to the refinery, upgrade, repeat.</div>
+      <div class="bar"><i id="xpBar"></i></div>
+      <small id="xpText">0 / 100 XP</small>
+    </div>
+
+    <div class="health-wrap">
+      <div class="meter-label"><span>SUIT</span><b id="healthText">100</b></div>
+      <div class="meter health"><i id="healthBar"></i></div>
+      <div class="meter-label"><span>ENERGY</span><b id="energyText">100</b></div>
+      <div class="meter energy"><i id="energyBar"></i></div>
+    </div>
+
+    <div id="interaction"></div>
+    <div id="toast"></div>
+
+    <div class="controls">
+      <span><b>WASD</b> move</span>
+      <span><b>SHIFT</b> sprint</span>
+      <span><b>SPACE</b> jump</span>
+      <span><b>CLICK</b> mine / fire</span>
+      <span><b>F</b> refinery</span>
+      <span><b>U</b> upgrades</span>
+      <span><b>ESC</b> mouse</span>
+    </div>
+
+    <canvas id="minimap" width="180" height="180" aria-label="minimap"></canvas>
+  </section>
+
+  <section id="startScreen" class="screen active">
+    <div class="hero-card">
+      <div class="kicker">FIRST-PERSON 3D SIMULATOR</div>
+      <h1>COREFALL<br><span>SALVAGE</span></h1>
+      <p>
+        Mine unstable energy cores, survive hunter drones, cash in at the refinery,
+        unlock hostile biomes, stack upgrades and prestige into stronger runs.
+      </p>
+      <div class="feature-grid">
+        <div><b>3</b><span>distinct biomes</span></div>
+        <div><b>4</b><span>upgrade paths</span></div>
+        <div><b>∞</b><span>prestige scaling</span></div>
+      </div>
+      <button id="playBtn" class="primary">PLAY</button>
+      <button id="resetBtn" class="secondary">RESET SAVE</button>
+      <small>Desktop recommended • Click PLAY to lock mouse • Esc unlocks safely</small>
+    </div>
+  </section>
+
+  <section id="pauseScreen" class="screen">
+    <div class="panel narrow">
+      <div class="kicker">PAUSED</div>
+      <h2>Mouse released</h2>
+      <p>Your run is still active.</p>
+      <button id="resumeBtn" class="primary">RESUME</button>
+    </div>
+  </section>
+
+  <section id="shopScreen" class="screen">
+    <div class="panel shop-panel">
+      <div class="shop-head">
+        <div>
+          <div class="kicker">GEAR TERMINAL</div>
+          <h2>Upgrade loadout</h2>
+        </div>
+        <button id="closeShop" class="icon-btn">×</button>
+      </div>
+
+      <div class="shop-grid">
+        <button class="upgrade" data-upgrade="power">
+          <span class="upgrade-icon">⚡</span>
+          <span><b>Mining Power</b><small>Break cores faster and hit drones harder.</small></span>
+          <em id="powerCost">₡ 250</em>
+        </button>
+        <button class="upgrade" data-upgrade="capacity">
+          <span class="upgrade-icon">▣</span>
+          <span><b>Core Capacity</b><small>Carry more salvage before returning.</small></span>
+          <em id="capacityCost">₡ 300</em>
+        </button>
+        <button class="upgrade" data-upgrade="speed">
+          <span class="upgrade-icon">»</span>
+          <span><b>Thruster Speed</b><small>Move and sprint faster.</small></span>
+          <em id="speedCost">₡ 350</em>
+        </button>
+        <button class="upgrade" data-upgrade="shield">
+          <span class="upgrade-icon">◇</span>
+          <span><b>Suit Shield</b><small>Increase maximum health.</small></span>
+          <em id="shieldCost">₡ 400</em>
+        </button>
+      </div>
+
+      <div class="zone-unlocks">
+        <div class="zone-card">
+          <div><b>EMBER RAVINE</b><small>Rare plasma cores • stronger drones</small></div>
+          <button id="unlockEmber">UNLOCK ₡ 3,500</button>
+        </div>
+        <div class="zone-card">
+          <div><b>NEON GLACIER</b><small>Quantum cores • elite drones</small></div>
+          <button id="unlockGlacier">UNLOCK ₡ 12,000</button>
+        </div>
+      </div>
+
+      <div class="prestige-box">
+        <div>
+          <div class="kicker">OVERCHARGE</div>
+          <b>Prestige for a permanent +25% value multiplier.</b>
+          <small>Requires Level 15 and ₡ 25,000. Coins, level and upgrades reset.</small>
+        </div>
+        <button id="prestigeBtn">PRESTIGE</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="deathScreen" class="screen">
+    <div class="panel narrow">
+      <div class="kicker danger">SUIT FAILURE</div>
+      <h2>Recovered at base</h2>
+      <p>You lost the salvage in your backpack, but kept your coins and upgrades.</p>
+      <button id="respawnBtn" class="primary">RESPAWN</button>
+    </div>
+  </section>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
