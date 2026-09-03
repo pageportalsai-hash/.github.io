@@ -1,0 +1,153 @@
+// ============================================================================
+// FRONTIER ZERO FINAL STABILITY PASS
+// Corrected version of the anti-glitch layer. The earlier draft is not loaded.
+// ============================================================================
+
+const stableDesktop42=matchMedia('(pointer:fine)').matches;
+
+// Stop older LOD systems from repeatedly undoing each other's visibility choices.
+if(typeof lodUpdate39==='function')lodUpdate39=function(){};
+if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40=function(){};
+if(typeof updatePhaseAVisuals33==='function')updatePhaseAVisuals33=function(){if(typeof focusSun33==='function')focusSun33();};
+
+// ---------- Consolidated collision ----------
+const colliderCenters42=new WeakMap();
+const structureBoxes42=new WeakMap();
+function visible42(o){let p=o;while(p){if(p.visible===false)return false;p=p.parent;}return true;}
+function staticCenter42(o){let p=colliderCenters42.get(o);if(!p){p=new THREE.Vector3();o.getWorldPosition(p);colliderCenters42.set(o,p);}return p;}
+function staticBox42(o){let b=structureBoxes42.get(o);if(!b){o.updateWorldMatrix(true,false);b=new THREE.Box3().setFromObject(o).expandByScalar(.32);structureBoxes42.set(o,b);}return b;}
+function broken42(o){return !!(o&&o.userData&&o.userData.break39&&o.userData.break39.broken);}
+function pointBlocked42(x,z,includeCars){
+  for(const c of colliders){
+    if(!c||!c.obj||!c.obj.parent||!visible42(c.obj))continue;
+    const p=staticCenter42(c.obj);if(Math.hypot(x-p.x,z-p.z)<c.radius+.53)return true;
+  }
+  for(const s of playerStructures){
+    if(!s||!s.parent||!visible42(s))continue;
+    const b=staticBox42(s);if(x>b.min.x&&x<b.max.x&&z>b.min.z&&z<b.max.z)return true;
+  }
+  if(typeof buildingCollision33!=='undefined'){
+    for(const r of buildingCollision33){if(Math.abs(x-r.x)<r.w/2+.52&&Math.abs(z-r.z)<r.d/2+.52)return true;}
+  }
+  if(typeof interiorCols39!=='undefined'){
+    for(const c of interiorCols39){
+      if(!c||!c.root||!c.root.parent||!visible42(c.root))continue;
+      if(c.owner&&broken42(c.owner))continue;
+      if(Math.abs(x-c.x)<c.w/2+.17&&Math.abs(z-c.z)<c.d/2+.17)return true;
+    }
+  }
+  if(typeof propCols39!=='undefined'){
+    for(const c of propCols39){
+      if(!c||!c.g||!c.g.parent||!visible42(c.g))continue;
+      if(c.owner40&&broken42(c.owner40))continue;
+      const p=c.g.position;if(Math.abs(x-p.x)<c.w/2+.18&&Math.abs(z-p.z)<c.d/2+.18)return true;
+    }
+  }
+  if(includeCars&&typeof cars19!=='undefined'){
+    for(const car of cars19){
+      if(!car||car===activeCar19||!car.group||!car.group.parent||!car.group.visible)continue;
+      const dx=x-car.group.position.x,dz=z-car.group.position.z,a=-car.group.rotation.y,ca=Math.cos(a),sa=Math.sin(a);
+      const lx=dx*ca-dz*sa,lz=dx*sa+dz*ca;
+      const sx=Math.max(.82,Math.abs(car.group.scale.x||1)),sz=Math.max(.82,Math.abs(car.group.scale.z||1));
+      if(Math.abs(lx)<1.62*sx&&Math.abs(lz)<2.62*sz)return true;
+    }
+  }
+  return false;
+}
+blockedPosition=function(x,z){
+  if(typeof qaCarMovement31!=='undefined'&&qaCarMovement31&&activeCar19){
+    const g=activeCar19.group,a=g.rotation.y,fx=-Math.sin(a),fz=-Math.cos(a),rx=Math.cos(a),rz=-Math.sin(a);
+    const sx=Math.max(.86,Math.abs(g.scale.x||1)),sz=Math.max(.86,Math.abs(g.scale.z||1));
+    if(pointBlocked42(x,z,true))return true;
+    const probes=[[1.22*sx,2.05*sz],[-1.22*sx,2.05*sz],[1.22*sx,-2.05*sz],[-1.22*sx,-2.05*sz],[0,2.34*sz],[0,-2.34*sz]];
+    for(const q of probes){const px=x+rx*q[0]+fx*q[1],pz=z+rz*q[0]+fz*q[1];if(pointBlocked42(px,pz,true))return true;}
+    return false;
+  }
+  return pointBlocked42(x,z,true);
+};
+
+// ---------- Stable LOD with hysteresis ----------
+const buildingState42=new WeakMap(),interiorState42=new WeakMap(),propState42=new WeakMap(),npcState42=new WeakMap();
+const structuralLists42=new WeakMap();
+function hyst42(map,obj,d,onD,offD){let on=map.has(obj)?map.get(obj):d<onD;if(on&&d>offD)on=false;else if(!on&&d<onD)on=true;map.set(obj,on);return on;}
+function isStructural42(o){
+  if(!o||!o.isMesh)return false;
+  if(typeof houseWall33!=='undefined'&&o.material===houseWall33)return true;
+  if(typeof woodWall33!=='undefined'&&o.material===woodWall33)return true;
+  if(typeof warehouseWall33!=='undefined'&&o.material===warehouseWall33)return true;
+  if(typeof roofMat33!=='undefined'&&o.material===roofMat33)return true;
+  if(typeof roofDark33!=='undefined'&&o.material===roofDark33)return true;
+  return false;
+}
+function structuralList42(g){let list=structuralLists42.get(g);if(list)return list;list=[];g.traverse(function(o){if(isStructural42(o))list.push(o);});structuralLists42.set(g,list);return list;}
+function blocker42(o,on){if(typeof syncBlocker39==='function'){syncBlocker39(o,on);return;}const i=blockers.indexOf(o);if(on&&i<0)blockers.push(o);else if(!on&&i>=0)blockers.splice(i,1);}
+let lodFrame42=0;
+function stableLod42(force){
+  if(!force&&((lodFrame42++%10)!==0))return;
+  const px=player.pos.x,pz=player.pos.z;
+  if(typeof rebuiltBuildings33!=='undefined')for(const g of rebuiltBuildings33){
+    if(!g||!g.userData||!g.userData.bounds33)continue;const b=g.userData.bounds33,d=Math.hypot(b.x-px,b.z-pz),on=hyst42(buildingState42,g,d,stableDesktop42?300:165,stableDesktop42?360:215);g.visible=on;for(const m of structuralList42(g))blocker42(m,on);
+  }
+  if(typeof interiors39!=='undefined')for(const root of interiors39){
+    if(!root||!root.userData||!root.userData.bounds39)continue;const b=root.userData.bounds39,d=Math.hypot(b.x-px,b.z-pz),parentOn=!!(root.parent&&root.parent.visible);const on=parentOn&&hyst42(interiorState42,root,d,stableDesktop42?70:40,stableDesktop42?94:60);root.visible=on;if(root.userData.light39)root.userData.light39.visible=on&&d<28&&(typeof perfTier39==='undefined'||perfTier39===0);root.traverse(function(o){if(o.userData&&o.userData.break39)blocker42(o,on&&!o.userData.break39.broken);});
+  }
+  if(typeof propCols39!=='undefined')for(const c of propCols39){
+    if(!c||!c.g)continue;const p=c.g.position,d=Math.hypot(p.x-px,p.z-pz),on=hyst42(propState42,c.g,d,stableDesktop42?105:58,stableDesktop42?140:82);c.g.visible=on;c.g.traverse(function(o){if(o.userData&&o.userData.break39)blocker42(o,on&&!o.userData.break39.broken);});
+  }
+  if(typeof npcRigs35!=='undefined')for(const r of npcRigs35){
+    if(!r||!r.n||r.n.dead)continue;const g=r.n.group,d=Math.hypot(g.position.x-px,g.position.z-pz),near=hyst42(npcState42,r.rig,d,stableDesktop42?102:60,stableDesktop42?128:80);r.rig.visible=near;for(const o of r.legacy)if(o&&o!==r.rig)o.visible=!near;
+  }
+  if(typeof shadow39==='function'){
+    for(const n of npcs){if(!n||n.dead)continue;const d=Math.hypot(n.group.position.x-px,n.group.position.z-pz);shadow39(n.group,d<(stableDesktop42?68:36));}
+    for(const c of cars19){if(!c||!c.group)continue;const d=Math.hypot(c.group.position.x-px,c.group.position.z-pz);shadow39(c.group,c===activeCar19||d<(stableDesktop42?92:50));}
+  }
+}
+
+// ---------- Vehicle physics substeps + camera damping ----------
+const playerBeforeStable42=updatePlayer;
+const camOldPos42=new THREE.Vector3(),camTargetPos42=new THREE.Vector3();
+const camOldQuat42=new THREE.Quaternion(),camTargetQuat42=new THREE.Quaternion();
+let camMode42='';
+updatePlayer=function(dt){
+  camOldPos42.copy(camera.position);camOldQuat42.copy(camera.quaternion);
+  if(activeCar19&&dt>.013){let left=Math.min(dt,.04),steps=0;while(left>.0001&&steps<4){const step=Math.min(left,.0115);playerBeforeStable42(step);left-=step;steps++;}}
+  else playerBeforeStable42(dt);
+  const mode=activeCar19?'car':((typeof thirdPerson16!=='undefined'&&thirdPerson16)?'third':'first');camTargetPos42.copy(camera.position);camTargetQuat42.copy(camera.quaternion);
+  if(mode!==camMode42){camMode42=mode;stableLod42(true);return;}
+  if(mode==='car'&&camOldPos42.distanceTo(camTargetPos42)<14){const f=1-Math.exp(-Math.max(.001,dt)*10);camera.position.copy(camOldPos42).lerp(camTargetPos42,f);camera.quaternion.copy(camOldQuat42).slerp(camTargetQuat42,f);}
+  else if(mode==='third'){
+    const oldD=camOldPos42.distanceTo(player.pos),newD=camTargetPos42.distanceTo(player.pos);if(newD>=oldD-.15&&camOldPos42.distanceTo(camTargetPos42)<7){const f=1-Math.exp(-Math.max(.001,dt)*12);camera.position.copy(camOldPos42).lerp(camTargetPos42,f);camera.quaternion.copy(camOldQuat42).slerp(camTargetQuat42,f);}
+  }
+  stableLod42(false);
+};
+
+// Never exit a car into a wall or another vehicle.
+const exitBeforeStable42=exitCar19;
+exitCar19=function(){
+  if(!activeCar19)return;const car=activeCar19,g=car.group,px=g.position.x,pz=g.position.z,a=g.rotation.y;exitBeforeStable42();if(!blockedPosition(player.pos.x,player.pos.z))return;
+  const sx=Math.max(.9,Math.abs(g.scale.x||1)),sz=Math.max(.9,Math.abs(g.scale.z||1));const candidates=[];
+  const rightX=Math.cos(a),rightZ=-Math.sin(a),frontX=-Math.sin(a),frontZ=-Math.cos(a);
+  candidates.push([px+rightX*3.2*sx,pz+rightZ*3.2*sx],[px-rightX*3.2*sx,pz-rightZ*3.2*sx],[px+frontX*3.7*sz,pz+frontZ*3.7*sz],[px-frontX*3.7*sz,pz-frontZ*3.7*sz]);
+  for(let i=0;i<8;i++){const ang=i/8*Math.PI*2,r=4.2;candidates.push([px+Math.cos(ang)*r,pz+Math.sin(ang)*r]);}
+  for(const q of candidates){const x=q[0],z=q[1];if(Math.abs(x)>492||Math.abs(z)>492)continue;if(!blockedPosition(x,z)){player.pos.set(x,groundY(x,z)+player.height,z);if(!(typeof thirdPerson16!=='undefined'&&thirdPerson16))camera.position.copy(player.pos);return;}}
+};
+
+// ---------- Smooth NPC visual turning + cleanup ----------
+const npcBeforeStable42=updateNPCs;
+let cleanupFrame42=0;
+updateNPCs=function(dt){
+  npcBeforeStable42(dt);
+  for(const n of npcs){
+    if(!n||n.dead||!n.group)continue;const target=n.group.rotation.y;let prev=n.stableYaw42;if(prev===undefined)prev=target;let delta=((target-prev+Math.PI)%(Math.PI*2))-Math.PI;if(delta<-Math.PI)delta+=Math.PI*2;const next=prev+delta*Math.min(1,Math.max(.001,dt)*8.5);n.group.rotation.y=next;n.stableYaw42=next;
+  }
+  stableLod42(false);
+  if((cleanupFrame42++%120)===0){const seen=new Set();for(let i=blockers.length-1;i>=0;i--){const o=blockers[i];if(!o||!o.parent||seen.has(o)||(o.userData&&o.userData.break39&&o.userData.break39.broken)){blockers.splice(i,1);continue;}if(!visible42(o)&&!(o.userData&&o.userData.carProxy39)){blockers.splice(i,1);continue;}seen.add(o);}}
+};
+
+// Let all old resize listeners finish, then restore the current adaptive tier once.
+let resizeTimer42=0;
+addEventListener('resize',function(){clearTimeout(resizeTimer42);resizeTimer42=setTimeout(function(){if(typeof qaDesktop31!=='undefined'&&qaDesktop31&&typeof applyRenderTier31==='function')applyRenderTier31(qaRenderTier31);},100);});
+
+stableLod42(true);
+if(typeof graphicsBadge21!=='undefined')graphicsBadge21.textContent='STABILITY MODE · SMOOTH COLLISION + LOD';
+message('STABILITY PASS · fewer glitches, smoother cars/camera/LOD',4.0);
