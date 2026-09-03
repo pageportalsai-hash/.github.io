@@ -1,0 +1,235 @@
+// ============================================================================
+// FRONTIER ZERO STABILITY / ANTI-GLITCH PASS
+// Consolidates collision, stabilizes LOD, smooths vehicle/camera motion and
+// removes several competing late-stage systems that caused popping/jitter.
+// ============================================================================
+
+const stableDesktop41=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. STOP COMPETING LOD/BLOCKER SYSTEMS FROM FIGHTING EACH OTHER
+// ---------------------------------------------------------------------------
+if(typeof lodUpdate39==='function')lodUpdate39=function(){};
+if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40=function(){};
+if(typeof updatePhaseAVisuals33==='function'){
+  updatePhaseAVisuals33=function(){if(typeof focusSun33==='function')focusSun33();};
+}
+
+// ---------------------------------------------------------------------------
+// 2. ONE FAST, CONSISTENT COLLISION PATH
+// ---------------------------------------------------------------------------
+const colliderCenter41=new WeakMap();
+const structureBox41=new WeakMap();
+const tmpCenter41=new THREE.Vector3();
+function visibleWorld41(o){let p=o;while(p){if(p.visible===false)return false;p=p.parent;}return true;}
+function center41(o){
+  let p=colliderCenter41.get(o);
+  if(!p){p=new THREE.Vector3();o.getWorldPosition(p);colliderCenter41.set(o,p);}
+  return p;
+}
+function box41(o){
+  let b=structureBox41.get(o);
+  if(!b){o.updateWorldMatrix(true,false);b=new THREE.Box3().setFromObject(o).expandByScalar(.32);structureBox41.set(o,b);}
+  return b;
+}
+function brokenOwner41(o){return !!(o&&o.userData&&o.userData.break39&&o.userData.break39.broken);}
+function pointBlocked41(x,z,includeCars=true){
+  // Original resource/static radial colliders, but ignore hidden/dead objects.
+  for(const c of colliders){
+    if(!c||!c.obj||!c.obj.parent||!visibleWorld41(c.obj))continue;
+    const p=center41(c.obj);if(Math.hypot(x-p.x,z-p.z)<c.radius+.53)return true;
+  }
+
+  // Static/player-built structures. Cache their AABB instead of allocating a Box3
+  // on every movement probe.
+  for(const s of playerStructures){
+    if(!s||!s.parent||!visibleWorld41(s))continue;
+    const b=box41(s);if(x>b.min.x&&x<b.max.x&&z>b.min.z&&z<b.max.z)return true;
+  }
+
+  // Phase-A authored building walls / doorway openings.
+  if(typeof buildingCollision33!=='undefined'){
+    for(const r of buildingCollision33){if(Math.abs(x-r.x)<r.w/2+.52&&Math.abs(z-r.z)<r.d/2+.52)return true;}
+  }
+
+  // Interior furniture. Broken crates stop colliding immediately.
+  if(typeof interiorCols39!=='undefined'){
+    for(const c of interiorCols39){
+      if(!c||!c.root||!c.root.parent||!visibleWorld41(c.root))continue;
+      if(c.owner&&brokenOwner41(c.owner))continue;
+      if(Math.abs(x-c.x)<c.w/2+.17&&Math.abs(z-c.z)<c.d/2+.17)return true;
+    }
+  }
+
+  // Exterior props.
+  if(typeof propCols39!=='undefined'){
+    for(const c of propCols39){
+      if(!c||!c.g||!c.g.parent||!visibleWorld41(c.g))continue;
+      if(c.owner40&&brokenOwner41(c.owner40))continue;
+      const p=c.g.position;if(Math.abs(x-p.x)<c.w/2+.18&&Math.abs(z-p.z)<c.d/2+.18)return true;
+    }
+  }
+
+  // Parked/wrecked cars use an oriented footprint. Never collide with the car
+  // currently being driven.
+  if(includeCars&&typeof cars19!=='undefined'){
+    for(const car of cars19){
+      if(!car||car===activeCar19||!car.group||!car.group.parent||!car.group.visible)continue;
+      const dx=x-car.group.position.x,dz=z-car.group.position.z,a=-car.group.rotation.y,ca=Math.cos(a),sa=Math.sin(a);
+      const lx=dx*ca-dz*sa,lz=dx*sa+dz*ca;
+      const sx=Math.max(.82,Math.abs(car.group.scale.x||1)),sz=Math.max(.82,Math.abs(car.group.scale.z||1));
+      if(Math.abs(lx)<1.62*sx&&Math.abs(lz)<2.62*sz)return true;
+    }
+  }
+  return false;
+}
+
+blockedPosition=function(x,z){
+  // While driving, test the actual car footprint instead of only its center.
+  if(typeof qaCarMovement31!=='undefined'&&qaCarMovement31&&activeCar19){
+    const g=activeCar19.group,a=g.rotation.y,fx=-Math.sin(a),fz=-Math.cos(a),rx=Math.cos(a),rz=-Math.sin(a);
+    const sx=Math.max(.86,Math.abs(g.scale.x||1)),sz=Math.max(.86,Math.abs(g.scale.z||1));
+    if(pointBlocked41(x,z,true))return true;
+    const probes=[[1.24*sx,2.08*sz],[-1.24*sx,2.08*sz],[1.24*sx,-2.08*sz],[-1.24*sx,-2.08*sz],[0,2.36*sz],[0,-2.36*sz]];
+    for(const q of probes){const px=x+rx*q[0]+fx*q[1],pz=z+rz*q[0]+fz*q[1];if(pointBlocked41(px,pz,true))return true;}
+    return false;
+  }
+  return pointBlocked41(x,z,true);
+};
+
+// ---------------------------------------------------------------------------
+// 3. HYSTERESIS LOD — PREVENT RAPID POPPING AT DISTANCE THRESHOLDS
+// ---------------------------------------------------------------------------
+const buildingState41=new WeakMap(),interiorState41=new WeakMap(),propState41=new WeakMap(),npcState41=new WeakMap();
+const structuralLists41=new WeakMap();
+function hysteresis41(map,obj,dist,onDist,offDist){
+  let on=map.has(obj)?map.get(obj):dist<onDist;
+  if(on&&dist>offDist)on=false;else if(!on&&dist<onDist)on=true;
+  map.set(obj,on);return on;
+}
+function structural41(o){
+  if(!o||!o.isMesh)return false;
+  if(typeof houseWall33!=='undefined'&&o.material===houseWall33)return true;
+  if(typeof woodWall33!=='undefined'&&o.material===woodWall33)return true;
+  if(typeof warehouseWall33!=='undefined'&&o.material===warehouseWall33)return true;
+  if(typeof roofMat33!=='undefined'&&o.material===roofMat33)return true;
+  if(typeof roofDark33!=='undefined'&&o.material===roofDark33)return true;
+  return false;
+}
+function structuresFor41(g){
+  let list=structuralLists41.get(g);if(list)return list;list=[];g.traverse(function(o){if(structural41(o))list.push(o);});structuralLists41.set(g,list);return list;
+}
+function syncBlockerState41(o,on){
+  if(typeof syncBlocker39==='function'){syncBlocker39(o,on);return;}
+  const i=blockers.indexOf(o);if(on&&i<0)blockers.push(o);else if(!on&&i>=0)blockers.splice(i,1);
+}
+let lodTick41=0;
+function stableLod41(){
+  if((lodTick41++%10)!==0)return;
+  const px=player.pos.x,pz=player.pos.z;
+
+  if(typeof rebuiltBuildings33!=='undefined')for(const g of rebuiltBuildings33){
+    if(!g||!g.userData||!g.userData.bounds33)continue;const b=g.userData.bounds33,d=Math.hypot(b.x-px,b.z-pz);
+    const on=hysteresis41(buildingState41,g,d,stableDesktop41?300:165,stableDesktop41?360:215);g.visible=on;
+    for(const m of structuresFor41(g))syncBlockerState41(m,on);
+  }
+
+  if(typeof interiors39!=='undefined')for(const root of interiors39){
+    if(!root||!root.userData||!root.userData.bounds39)continue;const b=root.userData.bounds39,d=Math.hypot(b.x-px,b.z-pz);
+    const parentOn=root.parent&&root.parent.visible;const on=parentOn&&hysteresis41(interiorState41,root,d,stableDesktop41?70:40,stableDesktop41?94:60);root.visible=on;
+    if(root.userData.light39)root.userData.light39.visible=on&&d<28&&(typeof perfTier39==='undefined'||perfTier39===0);
+    root.traverse(function(o){if(o.userData&&o.userData.break39)syncBlockerState41(o,on&&!o.userData.break39.broken);});
+  }
+
+  if(typeof propCols39!=='undefined')for(const c of propCols39){
+    if(!c||!c.g)continue;const p=c.g.position,d=Math.hypot(p.x-px,p.z-pz),on=hysteresis41(propState41,c.g,d,stableDesktop41?105:58,stableDesktop41?140:82);c.g.visible=on;
+    c.g.traverse(function(o){if(o.userData&&o.userData.break39)syncBlockerState41(o,on&&!o.userData.break39.broken);});
+  }
+
+  // Stabilize near/far character model switching.
+  if(typeof npcRigs35!=='undefined')for(const r of npcRigs35){
+    if(!r||!r.n||r.n.dead)continue;const g=r.n.group,d=Math.hypot(g.position.x-px,g.position.z-pz),near=hysteresis41(npcState41,r.rig,d,stableDesktop41?102:60,stableDesktop41?128:80);
+    r.rig.visible=near;for(const o of r.legacy)if(o&&o!==r.rig)o.visible=!near;
+  }
+
+  // Shadow hysteresis is much cheaper than flipping every few metres.
+  if(typeof shadow39==='function'){
+    for(const n of npcs){if(!n||n.dead)continue;const d=Math.hypot(n.group.position.x-px,n.group.position.z-pz);shadow39(n.group,d<(stableDesktop41?68:36));}
+    for(const c of cars19){if(!c||!c.group)continue;const d=Math.hypot(c.group.position.x-px,c.group.position.z-pz);shadow39(c.group,c===activeCar19||d<(stableDesktop41?92:50));}
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. VEHICLE SUB-STEPS + CAMERA DAMPING
+// ---------------------------------------------------------------------------
+const updatePlayerBeforeStable41=updatePlayer;
+const oldCamPos41=new THREE.Vector3(),targetCamPos41=new THREE.Vector3();
+const oldCamQuat41=new THREE.Quaternion(),targetCamQuat41=new THREE.Quaternion();
+let cameraMode41='';
+updatePlayer=function(dt){
+  oldCamPos41.copy(camera.position);oldCamQuat41.copy(camera.quaternion);
+  const driving=!!activeCar19;
+  if(driving&&dt>.013){
+    let left=Math.min(dt,.04),steps=0;
+    while(left>.0001&&steps<4){const step=Math.min(left,.0115);updatePlayerBeforeStable41(step);left-=step;steps++;}
+  }else updatePlayerBeforeStable41(dt);
+
+  const mode=activeCar19?'car':((typeof thirdPerson16!=='undefined'&&thirdPerson16)?'third':'first');
+  targetCamPos41.copy(camera.position);targetCamQuat41.copy(camera.quaternion);
+  if(mode!==cameraMode41){cameraMode41=mode;stableLod41();return;}
+
+  if(mode==='car'){
+    if(oldCamPos41.distanceTo(targetCamPos41)<14){const f=1-Math.exp(-Math.max(.001,dt)*10);camera.position.copy(oldCamPos41).lerp(targetCamPos41,f);camera.quaternion.copy(oldCamQuat41).slerp(targetCamQuat41,f);}
+  }else if(mode==='third'){
+    const oldD=oldCamPos41.distanceTo(player.pos),newD=targetCamPos41.distanceTo(player.pos);
+    // Snap inward around walls, ease outward when the obstruction clears.
+    if(newD>=oldD-.15&&oldCamPos41.distanceTo(targetCamPos41)<7){const f=1-Math.exp(-Math.max(.001,dt)*12);camera.position.copy(oldCamPos41).lerp(targetCamPos41,f);camera.quaternion.copy(oldCamQuat41).slerp(targetCamQuat41,f);}
+  }
+  stableLod41();
+};
+
+// Safe exit: never place the player inside a wall, prop or another car.
+const exitCarBeforeStable41=exitCar19;
+exitCar19=function(){
+  if(!activeCar19)return;const car=activeCar19,g=car.group,px=g.position.x,pz=g.position.z,a=g.rotation.y;
+  exitCarBeforeStable41();
+  if(!blockedPosition(player.pos.x,player.pos.z))return;
+  const rx=Math.cos(a),rz=-Math.sin(a),fx=-Math.sin(a),fz=-Math.cos(a),sx=Math.max(.9,Math.abs(g.scale.x||1)),sz=Math.max(.9,Math.abs(g.scale.z||1));
+  const choices=[[rx*3.15*sx,rz*3.15*sx],[-rx*3.15*sx,-rz*3.15*sx],[fx*3.55*sz,fz*3.55*sz],[-fx*3.55*sz,-fz*3.55*sz]];
+  for(const q of choices){const x=px+q[0],z=pz+q[1];if(Math.abs(x)>492||Math.abs(z)>492)continue;if(!blockedPosition(x,z)){player.pos.set(x,groundY(x,z)+player.height,z);if(!(typeof thirdPerson16!=='undefined'&&thirdPerson16))camera.position.copy(player.pos);break;}}
+};
+
+// ---------------------------------------------------------------------------
+// 5. SMOOTHER NPC TURNING + FINAL BLOCKER HOUSEKEEPING
+// ---------------------------------------------------------------------------
+let cleanupTick41=0;
+const updateNPCsBeforeStable41=updateNPCs;
+updateNPCs=function(dt){
+  updateNPCsBeforeStable41(dt);
+  for(const n of npcs){
+    if(!n||n.dead||!n.group)continue;const target=n.group.rotation.y;
+    let prev=n.userData.stableYaw41;
+    if(prev===undefined)prev=target;
+    let d=((target-prev+Math.PI)%(Math.PI*2))-Math.PI;if(d<-Math.PI)d+=Math.PI*2;
+    const next=prev+d*Math.min(1,Math.max(.001,dt)*8.5);n.group.rotation.y=next;n.userData.stableYaw41=next;
+  }
+  stableLod41();
+
+  if((cleanupTick41++%120)===0){
+    const seen=new Set();
+    for(let i=blockers.length-1;i>=0;i--){
+      const o=blockers[i];
+      if(!o||!o.parent||seen.has(o)||(o.userData&&o.userData.break39&&o.userData.break39.broken)){blockers.splice(i,1);continue;}
+      if(!visibleWorld41(o)&&!(o.userData&&o.userData.carProxy39)){blockers.splice(i,1);continue;}
+      seen.add(o);
+    }
+  }
+};
+
+// Settle the renderer after the many historical resize listeners have fired.
+let resizeTimer41=0;
+addEventListener('resize',function(){clearTimeout(resizeTimer41);resizeTimer41=setTimeout(function(){if(typeof qaDesktop31!=='undefined'&&qaDesktop31&&typeof applyRenderTier31==='function')applyRenderTier31(qaRenderTier31);},90);});
+
+stableLod41();
+if(typeof graphicsBadge21!=='undefined')graphicsBadge21.textContent='STABILITY MODE · SMOOTH COLLISION + LOD';
+message('STABILITY PASS · collision, cars, camera and LOD smoothed',4.0);
