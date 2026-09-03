@@ -1,0 +1,201 @@
+// ============================================================================
+// FRONTIER ZERO CLARITY GRAPHICS + VISUAL CONSISTENCY PASS
+// Sharper, cleaner image with restrained atmosphere, consistent lighting,
+// higher texture filtering and cleanup of late-stage visual/performance issues.
+// ============================================================================
+
+const clarityDesktop48=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. CLEAN SKY / LIGHTING — one final readable presentation
+// ---------------------------------------------------------------------------
+if(typeof sky!=='undefined'&&sky)sky.visible=false;
+if(typeof cinematicEdge33!=='undefined'&&cinematicEdge33){
+  cinematicEdge33.style.background='radial-gradient(circle at 50% 46%,transparent 58%,rgba(8,13,17,.035) 82%,rgba(8,13,17,.075) 100%)';
+  cinematicEdge33.style.mixBlendMode='multiply';
+}
+if(typeof glare39!=='undefined'&&glare39){
+  glare39.style.background='radial-gradient(circle at 17% 14%,rgba(255,226,172,.055),rgba(255,226,172,.012) 12%,transparent 25%)';
+}
+
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=clarityDesktop48?1.08:1.10;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+hemi.intensity=1.58;
+hemi.color.setHex(0xd9edf3);
+hemi.groundColor.setHex(0x51584b);
+sun.intensity=2.92;
+sun.color.setHex(0xffe1b8);
+sun.shadow.bias=-.00014;
+sun.shadow.normalBias=.016;
+if(typeof fill21!=='undefined'){fill21.intensity=.28;fill21.color.setHex(0xa8d2ef);}
+if(typeof rim29!=='undefined')rim29.intensity=.16;
+if(typeof bounce32!=='undefined')bounce32.intensity=.09;
+if(typeof coolBounce33!=='undefined')coolBounce33.intensity=.11;
+if(typeof warmBounce33!=='undefined')warmBounce33.intensity=.065;
+
+// Smaller focused shadow camera gives cleaner nearby edges without an oversized
+// shadow projection across the entire kilometre-wide map.
+const shadowExtent48=clarityDesktop48?96:72;
+sun.shadow.camera.left=-shadowExtent48;sun.shadow.camera.right=shadowExtent48;
+sun.shadow.camera.top=shadowExtent48;sun.shadow.camera.bottom=-shadowExtent48;
+sun.shadow.camera.near=1;sun.shadow.camera.far=345;sun.shadow.camera.updateProjectionMatrix();
+
+// ---------------------------------------------------------------------------
+// 2. QUALITY PROFILE THAT RESPECTS THE EXISTING SETTINGS MENU
+// ---------------------------------------------------------------------------
+function clarityMode48(){return typeof quality46!=='undefined'?quality46:'auto';}
+function clarityTier48(){return typeof qaRenderTier31!=='undefined'?qaRenderTier31:0;}
+function desiredPixelRatio48(){
+  const mode=clarityMode48(),tier=clarityTier48();
+  if(clarityDesktop48){
+    if(mode==='high')return Math.min(devicePixelRatio,2.35);
+    if(mode==='performance')return Math.min(devicePixelRatio,1.55);
+    return Math.min(devicePixelRatio,tier===0?2.20:tier===1?1.88:1.58);
+  }
+  if(mode==='high')return Math.min(devicePixelRatio,1.55);
+  if(mode==='performance')return Math.min(devicePixelRatio,1.12);
+  return Math.min(devicePixelRatio,tier>=2?1.12:1.38);
+}
+function desiredShadow48(){
+  const mode=clarityMode48(),tier=clarityTier48();
+  if(!clarityDesktop48)return 1024;
+  if(mode==='high')return Math.min(3072,renderer.capabilities.maxTextureSize||3072);
+  if(mode==='performance'||tier>=2)return 1024;
+  return Math.min(tier===0?2048:1536,renderer.capabilities.maxTextureSize||2048);
+}
+function setShadowSize48(size){
+  if(sun.shadow.mapSize.x===size&&sun.shadow.mapSize.y===size)return;
+  sun.shadow.mapSize.set(size,size);
+  if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
+  sun.shadow.needsUpdate=true;
+}
+function applyClarityQuality48(){
+  const ratio=desiredPixelRatio48();
+  if(Math.abs(renderer.getPixelRatio()-ratio)>.015){renderer.setPixelRatio(ratio);renderer.setSize(innerWidth,innerHeight,false);}
+  setShadowSize48(desiredShadow48());
+  renderer.toneMappingExposure=clarityDesktop48?1.08:1.10;
+}
+if(typeof applyRenderTier31==='function'){
+  const applyRenderTierBefore48=applyRenderTier31;
+  applyRenderTier31=function(tier){const r=applyRenderTierBefore48(tier);applyClarityQuality48();return r;};
+}
+applyClarityQuality48();
+
+// ---------------------------------------------------------------------------
+// 3. TEXTURE / MATERIAL CLARITY
+// ---------------------------------------------------------------------------
+const maxAniso48=Math.max(1,renderer.capabilities.getMaxAnisotropy?.()||1);
+const targetAniso48=Math.min(maxAniso48,clarityDesktop48?16:6);
+const touchedTextures48=new Set();
+scene.traverse(function(o){
+  if(!o||!o.isMesh||!o.material)return;
+  const mats=Array.isArray(o.material)?o.material:[o.material];
+  for(const m of mats){
+    if(!m)continue;
+    if(m.map&&!touchedTextures48.has(m.map)){m.map.anisotropy=targetAniso48;m.map.needsUpdate=true;touchedTextures48.add(m.map);}
+    if(m.normalMap&&!touchedTextures48.has(m.normalMap)){m.normalMap.anisotropy=Math.min(targetAniso48,8);m.normalMap.needsUpdate=true;touchedTextures48.add(m.normalMap);}
+    if(m.bumpMap&&!touchedTextures48.has(m.bumpMap)){m.bumpMap.anisotropy=Math.min(targetAniso48,8);m.bumpMap.needsUpdate=true;touchedTextures48.add(m.bumpMap);}
+    if('envMapIntensity' in m&&Number.isFinite(m.envMapIntensity))m.envMapIntensity=Math.min(m.envMapIntensity,1.05);
+  }
+});
+if(typeof terrainMap33!=='undefined')terrainMap33.anisotropy=targetAniso48;
+if(typeof terrainBumpMap33!=='undefined')terrainBumpMap33.anisotropy=Math.min(targetAniso48,8);
+if(typeof glass39!=='undefined'){glass39.opacity=.43;glass39.roughness=.10;glass39.needsUpdate=true;}
+if(typeof glassMat33!=='undefined'){glassMat33.opacity=.58;glassMat33.roughness=.10;glassMat33.needsUpdate=true;}
+if(typeof interiorGlow39!=='undefined')interiorGlow39.emissiveIntensity=.72;
+if(typeof windowGlow33!=='undefined')windowGlow33.emissiveIntensity=.065;
+
+// Old contact blobs plus real shadows were making feet/vehicles look dirty and
+// over-dark. Keep them, but make them subtle.
+scene.traverse(function(o){
+  if(!o?.isMesh||!o.material?.color)return;
+  if(o.material.color.getHex()===0x18300f&&o.material.transparent)o.material.opacity=.075;
+});
+
+// Clouds remain as depth cues but no longer veil distant objects.
+if(typeof cloudMat29!=='undefined')cloudMat29.opacity=.18;
+
+// Reduce particle haze while preserving biome identity.
+if(typeof atmosphereUpdate39==='function'){
+  const atmosphereBeforeClarity48=atmosphereUpdate39;
+  atmosphereUpdate39=function(dt){
+    atmosphereBeforeClarity48(dt);
+    if(typeof aMat39!=='undefined')aMat39.opacity=Math.min(aMat39.opacity,.16)*(clarityDesktop48?.72:.62);
+    if(typeof mist39!=='undefined')for(const m of mist39)if(m?.material)m.material.opacity=.018;
+  };
+}
+if(typeof pPts39!=='undefined'&&pPts39.material)pPts39.material.opacity=.80;
+
+// ---------------------------------------------------------------------------
+// 4. FINAL BIOME COLOR / FOG OVERRIDE — CLEAR DISTANCE READING
+// ---------------------------------------------------------------------------
+const bgMeadow48=new THREE.Color(0x8fc5e2),fogMeadow48=new THREE.Color(0xbcd5dc);
+const bgPine48=new THREE.Color(0x86b9d1),fogPine48=new THREE.Color(0xb2cbd0);
+const bgMarsh48=new THREE.Color(0x91b5bd),fogMarsh48=new THREE.Color(0xb0c7c8);
+const bgAlpine48=new THREE.Color(0xa4c7dc),fogAlpine48=new THREE.Color(0xd0dce0);
+const bgBad48=new THREE.Color(0x9fc0d3),fogBad48=new THREE.Color(0xd3c5b5);
+function finalWorldColor48(){
+  let bg=bgMeadow48,fog=fogMeadow48,density=clarityDesktop48?.00034:.00050;
+  if(typeof biomeAt==='function'&&typeof BIOMES!=='undefined'){
+    const b=biomeAt(player.pos.x,player.pos.z);
+    if(b===BIOMES.pine){bg=bgPine48;fog=fogPine48;density*=1.08;}
+    else if(b===BIOMES.marsh){bg=bgMarsh48;fog=fogMarsh48;density*=1.28;}
+    else if(b===BIOMES.alpine){bg=bgAlpine48;fog=fogAlpine48;density*=.94;}
+    else if(b===BIOMES.badlands){bg=bgBad48;fog=fogBad48;density*=1.02;}
+  }
+  if(!scene.background||!scene.background.isColor)scene.background=bg.clone();else scene.background.copy(bg);
+  scene.fog.color.copy(fog);scene.fog.density=density;
+}
+
+// ---------------------------------------------------------------------------
+// 5. CAMERA / HUD CLARITY + PERFORMANCE MISTAKE FIXES
+// ---------------------------------------------------------------------------
+if(typeof baseFov47!=='undefined')baseFov47=74;
+if(!activeCar19)camera.fov=74;
+
+// Part 47 updates the projection matrix every frame even when FOV/aspect are
+// unchanged. Cache projection state so stationary frames do no unnecessary work.
+const projectionOriginal48=camera.updateProjectionMatrix.bind(camera);
+let projFov48=NaN,projAspect48=NaN,projNear48=NaN,projFar48=NaN,projZoom48=NaN;
+camera.updateProjectionMatrix=function(){
+  const changed=!Number.isFinite(projFov48)||Math.abs(camera.fov-projFov48)>.012||Math.abs(camera.aspect-projAspect48)>.00001||camera.near!==projNear48||camera.far!==projFar48||camera.zoom!==projZoom48;
+  if(!changed)return;
+  projFov48=camera.fov;projAspect48=camera.aspect;projNear48=camera.near;projFar48=camera.far;projZoom48=camera.zoom;
+  return projectionOriginal48();
+};
+camera.updateProjectionMatrix();
+
+const panels48=document.querySelectorAll('.panel');
+for(const p of panels48){p.style.background='rgba(12,17,20,.84)';p.style.backdropFilter='none';p.style.borderColor='rgba(255,255,255,.25)';}
+const stats48=document.getElementById('stats');if(stats48)stats48.style.textShadow='0 1px 2px rgba(0,0,0,.95)';
+const cross48=document.getElementById('crosshair');if(cross48){cross48.style.filter='drop-shadow(0 1px 1px rgba(0,0,0,.9))';}
+
+const updatePlayerBeforeClarity48=updatePlayer;
+updatePlayer=function(dt){
+  const r=updatePlayerBeforeClarity48(dt);
+  finalWorldColor48();
+  if(typeof sky!=='undefined'&&sky)sky.visible=false;
+  return r;
+};
+
+// ---------------------------------------------------------------------------
+// 6. LOOT / EFFECT HOUSEKEEPING — prevent long-match visual clutter
+// ---------------------------------------------------------------------------
+function pruneArray48(arr,predicate){for(let i=arr.length-1;i>=0;i--)if(predicate(arr[i]))arr.splice(i,1);}
+setInterval(function(){
+  if(typeof lootCrates!=='undefined')pruneArray48(lootCrates,c=>!c||((c.looted||!c.group?.parent)&&!c.npcReserved14));
+  if(typeof npcDrops47!=='undefined')pruneArray48(npcDrops47,c=>!c||c.looted||!c.group?.parent);
+  if(typeof activeSupplies47!=='undefined')pruneArray48(activeSupplies47,c=>!c||c.looted||!c.group?.parent);
+  if(typeof blockers!=='undefined'){
+    const seen=new Set();for(let i=blockers.length-1;i>=0;i--){const o=blockers[i];if(!o||!o.parent||seen.has(o)||(o.userData?.break39?.broken)){blockers.splice(i,1);continue;}seen.add(o);}
+  }
+  if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+},8000);
+
+addEventListener('resize',function(){setTimeout(function(){applyClarityQuality48();finalWorldColor48();camera.updateProjectionMatrix();},110);});
+finalWorldColor48();
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='GRAPHICS: CLEAR ULTRA · SHARP TEXTURES + CLEAN LIGHTING';setTimeout(()=>graphicsBadge21.style.opacity='0',7000);}
+message('CLEAR GRAPHICS PASS · sharper image, cleaner lighting, less haze',4.2);
