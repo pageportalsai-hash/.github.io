@@ -1,43 +1,58 @@
 // ============================================================================
-// FRONTIER ZERO TERRAIN-FOLLOWING TOWN ROADS
-// Replaces long rigid town road/sidewalk slabs with instanced short segments that
-// hug the terrain. Fixes giant ramps/floating wedges while preserving 60 FPS.
+// FRONTIER ZERO TERRAIN-FOLLOWING TOWN ROADS — CORRECTED
+// Replaces long rigid town road/sidewalk slabs with short instanced segments that
+// follow the ground. Fixes giant ramps/floating wedges while preserving 60 FPS.
 // ============================================================================
 
 const roadFixDesktop56=matchMedia('(pointer:fine)').matches;
 
-// Hide the original 92-108m single-box town roads and pavements from part 51.
+// Hide the original 92–108m single-box roads/pavements created by part 51.
 let hiddenRoadSlabs56=0;
 for(const o of scene.children){
   if(!o?.isMesh)continue;
-  if(o.material===roadMat51||o.material===sidewalkMat51){o.visible=false;hiddenRoadSlabs56++;}
+  if(o.material===roadMat51||o.material===sidewalkMat51){
+    o.visible=false;
+    hiddenRoadSlabs56++;
+  }
 }
 
 const roadMatrices56=[];
 const walkMatrices56=[];
 const roadDummy56=new THREE.Object3D();
-const roadUnitGeo56=new THREE.BoxGeometry(1,.12,1);
+const roadUnitGeo56=new THREE.BoxGeometry(1,.10,1);
+const yAxis56=new THREE.Vector3(0,1,0);
+const zAxis56=new THREE.Vector3(0,0,1);
+const yawQ56=new THREE.Quaternion();
+const slopeQ56=new THREE.Quaternion();
 
 function smoothGround56(x,z,dx,dz,span){
-  const q=span*.34;
+  const q=span*.32;
   return (groundY(x,z)*2+groundY(x-dx*q,z-dz*q)+groundY(x+dx*q,z+dz*q))/4;
 }
 
 function addStrip56(list,cx,cz,length,width,rot,yLift){
-  const targetSeg=roadFixDesktop56?4.2:5.0;
+  // Shorter pieces hug the terrain much better than one huge rigid slab while
+  // still rendering in a single instanced draw call.
+  const targetSeg=roadFixDesktop56?3.6:4.6;
   const count=Math.max(1,Math.ceil(length/targetSeg));
   const seg=length/count;
   const dirX=Math.cos(rot),dirZ=-Math.sin(rot);
+
   for(let i=0;i<count;i++){
     const along=-length/2+(i+.5)*seg;
     const x=cx+dirX*along,z=cz+dirZ*along;
-    const ex=dirX*seg*.48,ez=dirZ*seg*.48;
+    const ex=dirX*seg*.49,ez=dirZ*seg*.49;
     const y0=groundY(x-ex,z-ez),y1=groundY(x+ex,z+ez);
     const y=smoothGround56(x,z,dirX,dirZ,seg)+yLift;
-    const slope=Math.atan2(y1-y0,seg*.96);
+    const slope=Math.atan2(y1-y0,seg*.98);
+
     roadDummy56.position.set(x,y,z);
-    roadDummy56.rotation.set(0,rot,slope);
-    roadDummy56.scale.set(seg+.10,1,width);
+    // Local X is the long road axis. Rotate around local Z for the uphill/downhill
+    // slope, then yaw that already-sloped segment into its world direction.
+    yawQ56.setFromAxisAngle(yAxis56,rot);
+    slopeQ56.setFromAxisAngle(zAxis56,slope);
+    roadDummy56.quaternion.copy(yawQ56).multiply(slopeQ56);
+    roadDummy56.scale.set(seg+.12,1,width);
     roadDummy56.updateMatrix();
     list.push(roadDummy56.matrix.clone());
   }
@@ -47,12 +62,12 @@ if(typeof townZones51!=='undefined'){
   for(const zone of townZones51){
     if(!zone)continue;
     const len=zone.bigCity?108:92,cx=zone.x,cz=zone.z;
-    addStrip56(roadMatrices56,cx,cz,len,7.5,0,.055);
-    addStrip56(roadMatrices56,cx,cz,len,7.5,Math.PI/2,.062);
-    addStrip56(walkMatrices56,cx,cz+6,len,2.2,0,.105);
-    addStrip56(walkMatrices56,cx,cz-6,len,2.2,0,.108);
-    addStrip56(walkMatrices56,cx+6,cz,len,2.2,Math.PI/2,.112);
-    addStrip56(walkMatrices56,cx-6,cz,len,2.2,Math.PI/2,.115);
+    addStrip56(roadMatrices56,cx,cz,len,7.5,0,.060);
+    addStrip56(roadMatrices56,cx,cz,len,7.5,Math.PI/2,.064);
+    addStrip56(walkMatrices56,cx,cz+6,len,2.2,0,.115);
+    addStrip56(walkMatrices56,cx,cz-6,len,2.2,0,.115);
+    addStrip56(walkMatrices56,cx+6,cz,len,2.2,Math.PI/2,.120);
+    addStrip56(walkMatrices56,cx-6,cz,len,2.2,Math.PI/2,.120);
   }
 }
 
@@ -60,17 +75,23 @@ const roadMesh56=new THREE.InstancedMesh(roadUnitGeo56,roadMat51,Math.max(1,road
 for(let i=0;i<roadMatrices56.length;i++)roadMesh56.setMatrixAt(i,roadMatrices56[i]);
 roadMesh56.count=roadMatrices56.length;
 roadMesh56.instanceMatrix.needsUpdate=true;
-roadMesh56.castShadow=false;roadMesh56.receiveShadow=true;roadMesh56.frustumCulled=true;
-roadMesh56.userData.terrainRoad56=true;scene.add(roadMesh56);
+roadMesh56.castShadow=false;
+roadMesh56.receiveShadow=true;
+roadMesh56.frustumCulled=true;
+roadMesh56.userData.terrainRoad56=true;
+scene.add(roadMesh56);
 
 const walkMesh56=new THREE.InstancedMesh(roadUnitGeo56,sidewalkMat51,Math.max(1,walkMatrices56.length));
 for(let i=0;i<walkMatrices56.length;i++)walkMesh56.setMatrixAt(i,walkMatrices56[i]);
 walkMesh56.count=walkMatrices56.length;
 walkMesh56.instanceMatrix.needsUpdate=true;
-walkMesh56.castShadow=false;walkMesh56.receiveShadow=true;walkMesh56.frustumCulled=true;
-walkMesh56.userData.terrainWalk56=true;scene.add(walkMesh56);
+walkMesh56.castShadow=false;
+walkMesh56.receiveShadow=true;
+walkMesh56.frustumCulled=true;
+walkMesh56.userData.terrainWalk56=true;
+scene.add(walkMesh56);
 
-// Keep the rough-terrain decoration away from the visible roadway corridors.
+// Keep decorative rough-ground clumps visually behind the road surface.
 if(typeof roughClods55!=='undefined')roughClods55.renderOrder=-1;
 if(typeof gravel55!=='undefined')gravel55.renderOrder=-1;
 
