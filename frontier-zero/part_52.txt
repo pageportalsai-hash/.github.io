@@ -1,0 +1,192 @@
+// ============================================================================
+// FRONTIER ZERO MULTI-FLOOR TOWER UPDATE
+// Enlarges the city towers, adds real floor levels + walkable switchback stairs,
+// distributes tower loot vertically, and makes loot proximity height-aware.
+// ============================================================================
+
+const towerDesktop52=matchMedia('(pointer:fine)').matches;
+const towerStates52=[];
+const towerFloorMat52=new THREE.MeshStandardMaterial({color:0x7f8587,roughness:.93,metalness:.03});
+const towerStairMat52=new THREE.MeshStandardMaterial({color:0x414b52,roughness:.62,metalness:.42});
+const towerRailMat52=new THREE.MeshStandardMaterial({color:0x252d32,roughness:.44,metalness:.68});
+const towerCeilMat52=new THREE.MeshStandardMaterial({color:0xa6a59d,roughness:.90});
+
+function towerWallHeight52(rec){
+  let h=0;
+  for(const o of rec.g.children){
+    if(!o?.isMesh||o.geometry?.type!=='BoxGeometry')continue;
+    const p=o.geometry.parameters||{};
+    if((p.height||0)>3.2&&((p.width||0)<1||(p.depth||0)<1))h=Math.max(h,p.height||0);
+  }
+  return h||12;
+}
+function towerMesh52(parent,geo,mat,x,y,z,shadow=true){
+  const m=new THREE.Mesh(geo,mat);m.position.set(x||0,y||0,z||0);m.castShadow=shadow;m.receiveShadow=true;parent.add(m);return m;
+}
+function rebuildTowerPortals52(rec){
+  rec.center=worldXZ50(rec,0,rec.d/2+.22);
+  rec.outside=worldXZ50(rec,0,rec.d/2+1.42);
+  rec.inside=worldXZ50(rec,0,rec.d/2-1.35);
+}
+function makeFloorWithStairHall52(state,floor){
+  const {group,rec,floorH}=state,w=rec.w,d=rec.d,y=floor*floorH-.08;
+  const hallW=Math.min(4.6,Math.max(3.7,w*.36)),edgeD=1.45,sideW=Math.max(.65,(w-hallW)/2);
+  const back=towerMesh52(group,new THREE.BoxGeometry(w-.5,.16,edgeD),towerFloorMat52,0,y,-d/2+edgeD/2+.25);
+  const front=towerMesh52(group,new THREE.BoxGeometry(w-.5,.16,edgeD),towerFloorMat52,0,y,d/2-edgeD/2-.25);
+  const midD=Math.max(1.6,d-edgeD*2-.5);
+  const left=towerMesh52(group,new THREE.BoxGeometry(sideW,.16,midD),towerFloorMat52,-hallW/2-sideW/2,y,0);
+  const right=towerMesh52(group,new THREE.BoxGeometry(sideW,.16,midD),towerFloorMat52,hallW/2+sideW/2,y,0);
+  for(const m of [back,front,left,right]){m.userData.towerFloor52=floor;blockers.push(m);}
+}
+function makeFlight52(state,f){
+  const {group,rec,floorH}=state,steps=13,run=Math.min(rec.d*.60,7.2),side=1.08*(f%2===0?-1:1),dir=f%2===0?1:-1;
+  const z0=dir>0?-run/2:run/2,z1=-z0,rise=floorH/steps;
+  const flight={f,side,dir,z0,z1,run,width:1.72};
+  for(let s=0;s<steps;s++){
+    const t=(s+.5)/steps,z=z0+(z1-z0)*t,y=f*floorH+(s+1)*rise-.06;
+    const step=towerMesh52(group,new THREE.BoxGeometry(flight.width,.18,run/steps+.035),towerStairMat52,side,y,z);
+    step.userData.towerStair52=true;blockers.push(step);
+  }
+  // Slim railings make the stair route visually obvious without blocking movement.
+  for(const rx of [side-flight.width/2-.08,side+flight.width/2+.08]){
+    const rail=towerMesh52(group,new THREE.BoxGeometry(.055,1.0,run+.2),towerRailMat52,rx,f*floorH+floorH*.52,0,false);
+    rail.userData.decorative52=true;
+  }
+  return flight;
+}
+
+const tallRecs52=typeof townBuildings51!=='undefined'?townBuildings51.filter(r=>r?.tall51&&r.g?.parent):[];
+for(let i=0;i<tallRecs52.length;i++){
+  const rec=tallRecs52[i];if(rec.g.userData.multiFloor52)continue;rec.g.userData.multiFloor52=true;
+  const largest=i===0,scaleXZ=largest?1.34:1.22,scaleY=largest?1.34:1.22;
+  rec.g.scale.x*=scaleXZ;rec.g.scale.z*=scaleXZ;rec.g.scale.y*=scaleY;
+  rec.w*=scaleXZ;rec.d*=scaleXZ;rebuildTowerPortals52(rec);rec.g.updateMatrixWorld(true);
+
+  const mainH=towerWallHeight52(rec)*scaleY;
+  const floors=largest?5:Math.max(4,Math.min(5,Math.floor(mainH/3.0)));
+  const floorH=Math.min(3.15,Math.max(2.85,(mainH-.45)/floors));
+  const baseY=groundY(rec.x,rec.z)+.19;
+  const group=new THREE.Group();group.position.set(rec.x,baseY,rec.z);group.rotation.y=rec.rot;group.userData.towerInterior52=true;scene.add(group);
+  const state={rec,group,floors,floorH,baseY,flights:[],floor:0,elev:0,largest};
+  for(let f=1;f<floors;f++)makeFloorWithStairHall52(state,f);
+  for(let f=0;f<floors-1;f++)state.flights.push(makeFlight52(state,f));
+  // Ceiling/roof deck makes the final level read as a complete floor.
+  const roofDeck=towerMesh52(group,new THREE.BoxGeometry(rec.w-.5,.18,rec.d-.5),towerCeilMat52,0,floors*floorH-.12,0);
+  roofDeck.userData.towerRoof52=true;blockers.push(roofDeck);
+  towerStates52.push(state);
+}
+
+// Rebuild building navigation collision after the tower footprints were enlarged.
+if(typeof rebuildDoorClearance51==='function')rebuildDoorClearance51();
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40();
+
+function towerAt52(x,z,margin=.16){
+  for(const s of towerStates52)if(insideBuilding50(s.rec,x,z,margin))return s;
+  return null;
+}
+function flightProgress52(f,z){return clamp((z-f.z0)/(f.z1-f.z0),0,1);}
+function stairCandidate52(state,local){
+  const floor=state.floor,cands=[];
+  for(const fi of [floor,floor-1]){
+    if(fi<0||fi>=state.flights.length)continue;const f=state.flights[fi];
+    if(Math.abs(local.x-f.side)>f.width/2+.34||Math.abs(local.z)>f.run/2+.38)continue;
+    const t=flightProgress52(f,local.z),e=fi*state.floorH+t*state.floorH;
+    cands.push({f,fi,t,e,d:Math.abs(e-state.elev)});
+  }
+  cands.sort((a,b)=>a.d-b.d);return cands[0]||null;
+}
+
+let activeTower52=null;
+const updatePlayerBeforeFloors52=updatePlayer;
+updatePlayer=function(dt){
+  const prevX=player.pos.x,prevZ=player.pos.z,prevTower=activeTower52;
+  const r=updatePlayerBeforeFloors52(dt);
+  if(activeCar19){activeTower52=null;return r;}
+  let state=towerAt52(player.pos.x,player.pos.z,.10);
+  if(!state&&prevTower&&prevTower.floor>0){
+    // Upper floors cannot walk out through the ground-floor doorway/windows.
+    player.pos.x=prevX;player.pos.z=prevZ;state=prevTower;
+  }
+  if(!state){activeTower52=null;return r;}
+  if(activeTower52!==state){state.floor=0;state.elev=0;activeTower52=state;}
+
+  const local=localXZ50(state.rec,player.pos.x,player.pos.z),cand=stairCandidate52(state,local);
+  if(cand){
+    state.elev=cand.e;
+    if(cand.fi===state.floor&&cand.t>.94&&state.floor<state.floors-1){state.floor++;state.elev=state.floor*state.floorH;}
+    else if(cand.fi===state.floor-1&&cand.t<.06&&state.floor>0){state.floor--;state.elev=state.floor*state.floorH;}
+  }else state.elev=state.floor*state.floorH;
+
+  const oldY=player.pos.y,desiredY=state.baseY+state.elev+player.height,dy=desiredY-oldY;
+  player.pos.y=desiredY;camera.position.y+=dy;
+  if(typeof playerAvatar16!=='undefined')playerAvatar16.position.y+=dy;
+  // Re-evaluate mobile loot after vertical position is finalized.
+  if(typeof nearbyLoot!=='undefined'&&typeof findNearbyLoot==='function'){
+    nearbyLoot=(!buildMode&&!player.dead)?findNearbyLoot():null;
+    if(typeof lootBtn!=='undefined')lootBtn.style.display=nearbyLoot?'flex':'none';
+  }
+  return r;
+};
+
+// Move each tower's existing loot across multiple floors instead of stacking it
+// all on the ground floor.
+for(const state of towerStates52){
+  const rec=state.rec;
+  const crates=lootCrates.filter(c=>!c.looted&&c.group?.parent&&typeof c.label==='string'&&c.label.startsWith(rec.label51+' Loot'));
+  for(let i=0;i<crates.length;i++){
+    const c=crates[i],floor=i%state.floors,slot=(i*3+floor)%4;
+    const lx=slot%2===0?-rec.w*.27:rec.w*.27,lz=slot<2?-rec.d*.27:rec.d*.27,p=worldXZ50(rec,lx,lz);
+    c.group.position.set(p.x,state.baseY+floor*state.floorH+.42,p.z);
+    c.towerFloor52=floor;c.towerState52=state;
+  }
+}
+
+// Height-aware player loot proximity: upper-floor crates cannot be opened through
+// the ceiling while standing underneath them.
+findNearbyLoot=function(){
+  let best=null,bestD=4.25;
+  for(const c of lootCrates){
+    if(!c||c.looted||!c.group?.parent)continue;
+    const dx=c.group.position.x-player.pos.x,dz=c.group.position.z-player.pos.z,dy=c.group.position.y-(player.pos.y-player.height*.45),d=Math.hypot(dx,dz,dy);
+    if(d<bestD){bestD=d;best=c;}
+  }
+  return best;
+};
+
+// Ground NPCs ignore upper-floor tower boxes until vertical NPC navigation is
+// deliberately added; this prevents them running forever beneath a ceiling.
+if(typeof nearestNpcLoot14==='function'){
+  nearestNpcLoot14=function(n,maxDist=58){
+    let best=null,bestD=maxDist;
+    for(const c of lootCrates){
+      if(!c||c.looted||!c.group?.parent||(c.towerFloor52||0)>0)continue;
+      if(c.supply47||c.npcDrop47)continue;
+      if(c.npcReserved14&&c.npcReserved14!==n)continue;
+      const d=Math.hypot(c.group.position.x-n.group.position.x,c.group.position.z-n.group.position.z);
+      if(d<bestD){best=c;bestD=d;}
+    }
+    return best;
+  };
+}
+
+// Interior + tower loot LOD follows the enlarged tower shell.
+let towerLodFrame52=0;
+const updateNPCsBeforeTowerLod52=updateNPCs;
+updateNPCs=function(dt){
+  const r=updateNPCsBeforeTowerLod52(dt);
+  if((towerLodFrame52++%18)===0){
+    for(const s of towerStates52){
+      const d=Math.hypot(player.pos.x-s.rec.x,player.pos.z-s.rec.z),vis=d<(towerDesktop52?290:170);
+      s.group.visible=vis;
+      for(const c of lootCrates)if(c?.towerState52===s&&c.group?.parent)c.group.visible=vis&&!c.looted;
+    }
+  }
+  return r;
+};
+
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='TOWERS: BIGGER · 4–5 FLOORS · WALKABLE STAIRS';
+  setTimeout(()=>graphicsBadge21.style.opacity='0',7600);
+}
+message('TOWER UPGRADE · bigger buildings, real floors, stairs and multi-level loot',5.0);
