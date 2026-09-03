@@ -1,0 +1,70 @@
+// ============================================================================
+// FRONTIER ZERO PHASE B STABILIZATION
+// Fixes viewmodel movement sway, far-LOD NPC weapon syncing, vehicle lean input,
+// and adds restrained rarity/material polish after the main Phase B rebuild.
+// ============================================================================
+
+// Recover the old part-25 weapon group inside each far-distance fallback model.
+for(const r of npcRigs35){
+  if(!r?.n||r.n.phaseBLegacyGun35)continue;
+  const candidate=r.legacy.find(o=>o?.isGroup&&o.children?.length>=3&&Math.abs((o.position?.y||0)-1.47)<.35&&Math.abs((o.position?.x||0)-.48)<.35);
+  if(candidate)r.n.phaseBLegacyGun35=candidate;
+}
+
+// True movement-driven weapon bob. The main Phase B wrapper had already updated
+// the player rig's previous-position sample before its first-person sway step.
+let bobPrev36=player.pos.clone(),bobPhase36=0;
+const updatePlayerBeforePhaseBFix36=updatePlayer;
+updatePlayer=function(dt){
+  const px=bobPrev36.x,pz=bobPrev36.z;
+  updatePlayerBeforePhaseBFix36(dt);
+  const dx=player.pos.x-px,dz=player.pos.z-pz,speed=Math.hypot(dx,dz)/Math.max(dt,.001);bobPrev36.copy(player.pos);
+  bobPhase36+=dt*(6.2+Math.min(speed,10)*.42);
+  const w=currentGear();
+  if(w?.type==='gun'&&!activeCar19){
+    const amount=clamp(speed/8,0,1)*(phaseBDesktop35?.015:.010);
+    if(!reloadActive35){
+      weaponModels27.position.x=.015+Math.sin(bobPhase36)*amount;
+      weaponModels27.position.y=-.015-Math.abs(Math.cos(bobPhase36))*amount*.58;
+    }
+    weaponModels27.rotation.z=-.015+Math.sin(bobPhase36)*amount*.42;
+  }
+
+  // Phone steering/throttle now contributes to the same restrained vehicle body motion.
+  if(activeCar19){
+    const joySteer=typeof joy!=='undefined'?-joy.x:0,joyThrottle=typeof joy!=='undefined'?-joy.y:0;
+    const keySteer=(keys.KeyA||keys.ArrowLeft?1:0)-(keys.KeyD||keys.ArrowRight?1:0);
+    const keyThrottle=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
+    const steer=clamp(keySteer+joySteer,-1,1),throttle=clamp(keyThrottle+joyThrottle,-1,1),speedNow=Math.abs(activeCar19.speed||0);
+    activeCar19.group.rotation.z=THREE.MathUtils.lerp(activeCar19.group.rotation.z,-steer*Math.min(.060,speedNow*.0024),Math.min(1,dt*6));
+    activeCar19.group.rotation.x=THREE.MathUtils.lerp(activeCar19.group.rotation.x,-throttle*Math.min(.025,speedNow*.0012),Math.min(1,dt*5));
+  }
+};
+
+// Subtle rarity accents on first-person weapons: readable without neon overload.
+function applyRarityAccent36(){
+  const w=currentGear();if(!w||w.type!=='gun')return;
+  const model=models27[weaponFamily27(w)];if(!model)return;
+  const rank=RARITY?.[w.rarity||'Common']?.rank||1;
+  const rarityColor=RARITY?.[w.rarity||'Common']?.color||0xffffff;
+  model.traverse(m=>{
+    if(!m.isMesh||!m.material)return;
+    if(rank>=4&&'emissive' in m.material&&(m.material.metalness??0)>.45){
+      if(!m.userData.rarityMat36){m.material=m.material.clone();m.userData.rarityMat36=true;}
+      m.material.emissive=new THREE.Color(rarityColor);m.material.emissiveIntensity=rank>=6?.055:.025;
+    }
+  });
+}
+const updateHUDBeforePhaseBFix36=updateHUD;
+updateHUD=function(){updateHUDBeforePhaseBFix36();applyRarityAccent36();};
+applyRarityAccent36();
+
+// Keep the headlight hidden whenever the car is no longer being driven, including
+// lobby/victory transitions where normal exit input may not run first.
+const updateNPCsBeforePhaseBFix36=updateNPCs;
+updateNPCs=function(dt){
+  updateNPCsBeforePhaseBFix36(dt);
+  if(matchWon24&&headSpot35)headSpot35.visible=false;
+};
+
+message('PHASE B POLISH · animation, weapon LOD + vehicle motion finalized',3.4);
