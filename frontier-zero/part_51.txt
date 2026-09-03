@@ -1,0 +1,249 @@
+// ============================================================================
+// FRONTIER ZERO BIG TOWNS + TOWERS + ROBUST NPC WALL/DOOR NAVIGATION
+// Adds two dense town districts with tall loot-rich buildings, roads and towers.
+// Also fixes NPCs getting stuck against the outside/back wall of rotated houses.
+// ============================================================================
+
+const cityDesktop51=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. ROBUST NPC ROUTING AROUND BUILDINGS AND THROUGH DOORS
+// ---------------------------------------------------------------------------
+function segmentHitsRec51(rec,ax,az,bx,bz,margin=.10){
+  const a=localXZ50(rec,ax,az),b=localXZ50(rec,bx,bz);
+  const minX=-rec.w/2-margin,maxX=rec.w/2+margin,minZ=-rec.d/2-margin,maxZ=rec.d/2+margin;
+  let t0=0,t1=1;
+  const clipAxis=(p0,d,min,max)=>{
+    if(Math.abs(d)<1e-6)return p0>=min&&p0<=max;
+    let u0=(min-p0)/d,u1=(max-p0)/d;if(u0>u1){const q=u0;u0=u1;u1=q;}
+    t0=Math.max(t0,u0);t1=Math.min(t1,u1);return t0<=t1;
+  };
+  if(!clipAxis(a.x,b.x-a.x,minX,maxX))return false;
+  if(!clipAxis(a.z,b.z-a.z,minZ,maxZ))return false;
+  return t1>.035&&t0<.965;
+}
+function obstruction51(n,target){
+  const ax=n.group.position.x,az=n.group.position.z,bx=target.x,bz=target.z;
+  for(const rec of buildingNav50){
+    if(!rec?.g?.parent||rec.g.visible===false)continue;
+    if(insideBuilding50(rec,ax,az,.05)||insideBuilding50(rec,bx,bz,.05))continue;
+    const mx=(ax+bx)*.5,mz=(az+bz)*.5,reach=Math.hypot(bx-ax,bz-az)*.5+Math.max(rec.w,rec.d);
+    if(Math.hypot(rec.x-mx,rec.z-mz)>reach)continue;
+    if(segmentHitsRec51(rec,ax,az,bx,bz,.12))return rec;
+  }
+  return null;
+}
+function cornerRoute51(rec,n,target){
+  const pad=1.32,candidates=[];
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    const p=worldXZ50(rec,sx*(rec.w/2+pad),sz*(rec.d/2+pad));
+    if(blockedPosition(p.x,p.z))continue;
+    const score=Math.hypot(p.x-n.group.position.x,p.z-n.group.position.z)+Math.hypot(target.x-p.x,target.z-p.z);
+    candidates.push({x:p.x,z:p.z,rec,score,kind:'corner'});
+  }
+  if(rec.outside&&!blockedPosition(rec.outside.x,rec.outside.z)){
+    const p=rec.outside,score=Math.hypot(p.x-n.group.position.x,p.z-n.group.position.z)+Math.hypot(target.x-p.x,target.z-p.z)+.45;
+    candidates.push({x:p.x,z:p.z,rec,score,kind:'door'});
+  }
+  candidates.sort((a,b)=>a.score-b.score);return candidates[0]||null;
+}
+
+function rebuildDoorClearance51(){
+  buildingCollision33.length=0;
+  for(const rec of buildingNav50){
+    const t=.41,navDoor=rec.type===1?Math.max(rec.doorW,2.50):Math.max(rec.doorW,2.05),seg=Math.max(.70,(rec.w-navDoor)/2);
+    pushWall50(rec,-rec.w/2,0,t,rec.d+.05);pushWall50(rec,rec.w/2,0,t,rec.d+.05);pushWall50(rec,0,-rec.d/2,rec.w+.05,t);
+    pushWall50(rec,-(navDoor/2+seg/2),rec.d/2,seg,t);pushWall50(rec,(navDoor/2+seg/2),rec.d/2,seg,t);
+  }
+}
+rebuildDoorClearance51();
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+
+const wallRoutes51=new WeakMap();
+function chooseRoute51(n,target,now){
+  const portal=doorwayWaypoint50(n,target);
+  if(portal)return {x:portal.x,z:portal.z,rec:portal.rec,kind:'portal',until:now+1600};
+  const old=wallRoutes51.get(n);
+  if(old&&old.until>now&&Math.hypot(n.group.position.x-old.x,n.group.position.z-old.z)>.65)return old;
+  const rec=obstruction51(n,target);if(!rec){wallRoutes51.delete(n);return null;}
+  const next=cornerRoute51(rec,n,target);if(next){next.until=now+2200;wallRoutes51.set(n,next);}return next;
+}
+
+const updateNPCsBeforeCity51=updateNPCs;
+const navBeforePos51=new WeakMap(),navBeforeTarget51=new WeakMap();
+updateNPCs=function(dt){
+  const paused=(typeof settingsOpen46!=='undefined'&&settingsOpen46)||(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24);
+  if(!paused){
+    for(const n of npcs){
+      if(!n||n.dead)continue;const t=npcTarget50(n);
+      navBeforePos51.set(n,{x:n.group.position.x,z:n.group.position.z});
+      navBeforeTarget51.set(n,{x:t.x,z:t.z,d:Math.hypot(t.x-n.group.position.x,t.z-n.group.position.z)});
+    }
+  }
+  const r=updateNPCsBeforeCity51(dt);
+  if(!paused){
+    const now=performance.now();
+    for(const n of npcs){
+      if(!n||n.dead)continue;const info=navBeforeTarget51.get(n),bp=navBeforePos51.get(n);if(!info||!bp)continue;
+      const target=npcTarget50(n),route=chooseRoute51(n,target,now);if(!route)continue;
+      const p=n.group.position,routeDist=Math.hypot(route.x-bp.x,route.z-bp.z);if(routeDist<.06)continue;
+      const afterTarget=Math.hypot(target.x-p.x,target.z-p.z),moved=Math.hypot(p.x-bp.x,p.z-bp.z);
+      const needsAssist=route.kind==='portal'||moved<.045||afterTarget>info.d-.018||Math.hypot(p.x-route.x,p.z-route.z)<5.5;
+      if(!needsAssist)continue;
+      const dx=(route.x-bp.x)/routeDist,dz=(route.z-bp.z)/routeDist;
+      const speed=(n.alert>0||(n.playerProvoked||0)>0||(n.npcEnemy&&!n.npcEnemy.dead))?3.45:1.82;
+      const step=Math.min(routeDist,speed*dt),nx=bp.x+dx*step,nz=bp.z+dz*step;
+      if(!blockedPosition(nx,nz)){
+        p.x=nx;p.z=nz;p.y=groundY(nx,nz);n.group.rotation.y=Math.atan2(dx,dz)+Math.PI;
+        if(n.patrol)n.patrol.set(route.x,0,route.z);
+      }
+      if(Math.hypot(p.x-route.x,p.z-route.z)<.72)wallRoutes51.delete(n);
+    }
+  }
+  return r;
+};
+
+// ---------------------------------------------------------------------------
+// 2. BIG TOWN / CITY GENERATION
+// ---------------------------------------------------------------------------
+const townZones51=[];
+const townBuildings51=[];
+const urbanWall51=new THREE.MeshStandardMaterial({color:0x9b9a92,roughness:.82,metalness:.03});
+const urbanWallDark51=new THREE.MeshStandardMaterial({color:0x666d70,roughness:.72,metalness:.16});
+const urbanConcrete51=new THREE.MeshStandardMaterial({color:0x747770,roughness:.95,metalness:0});
+const urbanRoof51=new THREE.MeshStandardMaterial({color:0x333a3e,roughness:.62,metalness:.32});
+const urbanGlass51=new THREE.MeshPhysicalMaterial({color:0x31596c,roughness:.09,metalness:.05,transparent:true,opacity:.62,clearcoat:.85,clearcoatRoughness:.08});
+const urbanDoor51=new THREE.MeshStandardMaterial({color:0x594a3d,roughness:.74,metalness:.10});
+const urbanAccent51=new THREE.MeshStandardMaterial({color:0x8d623e,roughness:.75,metalness:.08});
+const roadMat51=new THREE.MeshStandardMaterial({color:0x424548,roughness:.96,metalness:.02});
+const sidewalkMat51=new THREE.MeshStandardMaterial({color:0x777a76,roughness:.96});
+function um51(g,geo,mat,x,y,z,shadow=true){const m=new THREE.Mesh(geo,mat);m.position.set(x||0,y||0,z||0);m.castShadow=shadow;m.receiveShadow=true;g.add(m);return m;}
+function localWorld51(rec,lx,lz){return worldXZ50(rec,lx,lz);}
+function registerUrbanWalls51(rec){
+  const t=.40,seg=Math.max(.8,(rec.w-rec.doorW)/2);
+  pushWall50(rec,-rec.w/2,0,t,rec.d+.05);pushWall50(rec,rec.w/2,0,t,rec.d+.05);pushWall50(rec,0,-rec.d/2,rec.w+.05,t);
+  pushWall50(rec,-(rec.doorW/2+seg/2),rec.d/2,seg,t);pushWall50(rec,(rec.doorW/2+seg/2),rec.d/2,seg,t);
+}
+function addTownLoot51(rec,count,label){
+  const cols=Math.max(2,Math.ceil(Math.sqrt(count))),rows=Math.ceil(count/cols);let made=0;
+  for(let rz=0;rz<rows&&made<count;rz++)for(let cx=0;cx<cols&&made<count;cx++){
+    const lx=((cx+.5)/cols-.5)*Math.max(2.2,rec.w-2.6),lz=((rz+.5)/rows-.5)*Math.max(2.0,rec.d-2.8)-.15;
+    if(Math.abs(lx)<1.1&&lz>rec.d*.15)continue;
+    const p=localWorld51(rec,lx,lz),c=createLootCrate(p.x,p.z,`${label} Loot ${made+1}`);c.town51=true;c.tallBuilding51=rec.tall51;c.group.position.y=groundY(p.x,p.z)+.42;made++;
+  }
+  while(made<count){const lx=(made%2?-.28:.28)*rec.w,lz=-rec.d*.22+(made%3)*.65,p=localWorld51(rec,lx,lz),c=createLootCrate(p.x,p.z,`${label} Loot ${made+1}`);c.town51=true;c.tallBuilding51=rec.tall51;c.group.position.y=groundY(p.x,p.z)+.42;made++;}
+}
+function makeUrbanBuilding51(x,z,w,d,h,rot,label,lootCount,tall=false,style='block'){
+  const g=new THREE.Group();g.position.set(x,groundY(x,z),z);g.rotation.y=rot;scene.add(g);
+  const doorW=tall?2.65:2.10,t=.28;
+  um51(g,new THREE.BoxGeometry(w+.35,.30,d+.35),urbanConcrete51,0,.12,0);
+  const walls=[];
+  walls.push(um51(g,new THREE.BoxGeometry(t,h,d),style==='house'?urbanWall51:urbanWallDark51,-w/2,h/2,0));
+  walls.push(um51(g,new THREE.BoxGeometry(t,h,d),style==='house'?urbanWall51:urbanWallDark51,w/2,h/2,0));
+  walls.push(um51(g,new THREE.BoxGeometry(w,h,t),style==='house'?urbanWall51:urbanWallDark51,0,h/2,-d/2));
+  const seg=(w-doorW)/2;
+  walls.push(um51(g,new THREE.BoxGeometry(seg,h,t),style==='house'?urbanWall51:urbanWallDark51,-(doorW/2+seg/2),h/2,d/2));
+  walls.push(um51(g,new THREE.BoxGeometry(seg,h,t),style==='house'?urbanWall51:urbanWallDark51,(doorW/2+seg/2),h/2,d/2));
+  for(const m of walls)blockers.push(m);
+  const roof=um51(g,new THREE.BoxGeometry(w+.55,.22,d+.55),urbanRoof51,0,h+.12,0);roof.castShadow=true;
+  const door=um51(g,new THREE.BoxGeometry(doorW,Math.min(2.65,h*.66),.07),urbanDoor51,0,Math.min(1.34,h*.34),d/2+.18);
+  const rec={g,index:10000+townBuildings51.length,type:tall?4:3,x,z,w,d,doorW,rot,doorParts:[{o:door,mode:'side',x:0,y:door.position.y,shift:doorW*.92}],tall51:tall,label51:label};
+  rec.center=worldXZ50(rec,0,d/2+.22);rec.outside=worldXZ50(rec,0,d/2+1.35);rec.inside=worldXZ50(rec,0,d/2-1.28);
+  buildingNav50.push(rec);registerUrbanWalls51(rec);townBuildings51.push(rec);
+  const floors=tall?Math.max(4,Math.floor(h/3.0)):1;
+  for(let f=0;f<floors;f++){
+    const y=tall?2.0+f*2.75:1.75;if(y>h-.65)break;
+    for(const lx of [-w*.28,w*.28]){
+      um51(g,new THREE.BoxGeometry(Math.min(1.65,w*.20),1.05,.045),urbanGlass51,lx,y,d/2+.16,false);
+      um51(g,new THREE.BoxGeometry(Math.min(1.65,w*.20),1.05,.045),urbanGlass51,lx,y,-d/2-.16,false);
+    }
+    if(tall)um51(g,new THREE.BoxGeometry(w*.74,.08,.18),urbanConcrete51,0,y-1.0,d/2+.15,false);
+  }
+  for(const side of [-1,1])for(let f=0;f<(tall?floors:1);f++){
+    const y=tall?2.0+f*2.75:1.75;if(y>h-.65)continue;um51(g,new THREE.BoxGeometry(.045,.95,Math.min(2.0,d*.25)),urbanGlass51,side*(w/2+.16),y,0,false);
+  }
+  if(style==='house'){
+    um51(g,new THREE.BoxGeometry(Math.min(4.4,w*.55),.18,1.3),urbanAccent51,0,.16,d/2+.70);
+  }else if(tall){
+    um51(g,new THREE.BoxGeometry(w*.42,.65,d*.30),urbanRoof51,w*.18,h+.52,-d*.12);
+    const antenna=um51(g,new THREE.CylinderGeometry(.07,.10,3.8,7),urbanWallDark51,-w*.22,h+2.0,d*.12);antenna.castShadow=false;
+  }
+  addTownLoot51(rec,lootCount,label);return rec;
+}
+function makeRoad51(cx,cz,w,d,rot=0){const m=new THREE.Mesh(new THREE.BoxGeometry(w,.10,d),roadMat51);m.position.set(cx,groundY(cx,cz)+.045,cz);m.rotation.y=rot;m.receiveShadow=true;scene.add(m);return m;}
+function makeSidewalk51(cx,cz,w,d,rot=0){const m=new THREE.Mesh(new THREE.BoxGeometry(w,.14,d),sidewalkMat51);m.position.set(cx,groundY(cx,cz)+.07,cz);m.rotation.y=rot;m.receiveShadow=true;scene.add(m);return m;}
+function clearNature51(cx,cz,r){
+  for(const res of resources){
+    if(!res||res.dead||!res.group?.parent)continue;const p=res.group.position;if(Math.hypot(p.x-cx,p.z-cz)>r)continue;
+    if(res.kind==='tree'||res.kind==='rock'||res.kind==='metal'){res.dead=true;scene.remove(res.group);if(typeof removeReferences==='function')removeReferences(res.group);}
+  }
+}
+function zoneScore51(c){
+  let score=0;for(const g of rebuiltBuildings33){const b=g?.userData?.bounds33;if(b&&Math.hypot(b.x-c.x,b.z-c.z)<70)score+=3;}
+  if(typeof outposts!=='undefined')for(const o of outposts)if(Math.hypot(o.x-c.x,o.z-c.z)<65)score+=4;
+  if(typeof cars19!=='undefined')for(const car of cars19)if(car?.group&&Math.hypot(car.group.position.x-c.x,car.group.position.z-c.z)<72)score+=2;
+  if(groundY(c.x,c.z)<=water.position.y+1.1)score+=100;return score;
+}
+const zoneCandidates51=[
+  {x:315,z:-315},{x:315,z:220},{x:-320,z:-300},{x:-325,z:255},{x:110,z:-335},{x:-120,z:335},{x:390,z:-175},{x:-390,z:120}
+].sort((a,b)=>zoneScore51(a)-zoneScore51(b));
+const chosenZones51=[];for(const c of zoneCandidates51){if(chosenZones51.every(z=>Math.hypot(z.x-c.x,z.z-c.z)>255)){chosenZones51.push(c);if(chosenZones51.length===2)break;}}
+
+function buildTown51(center,name,bigCity){
+  const cx=center.x,cz=center.z,r=bigCity?63:55;clearNature51(cx,cz,r+8);
+  const zone={name,x:cx,z:cz,radius:r,bigCity};townZones51.push(zone);
+  makeRoad51(cx,cz,bigCity?108:92,7.5,0);makeRoad51(cx,cz,bigCity?108:92,7.5,Math.PI/2);
+  makeSidewalk51(cx,cz+6,bigCity?108:92,2.2,0);makeSidewalk51(cx,cz-6,bigCity?108:92,2.2,0);
+  makeSidewalk51(cx+6,cz,bigCity?108:92,2.2,Math.PI/2);makeSidewalk51(cx-6,cz,bigCity?108:92,2.2,Math.PI/2);
+  makeUrbanBuilding51(cx-20,cz-20,bigCity?13:11,bigCity?12:10,bigCity?18:13,0,`${name} Tower A`,bigCity?7:5,true,'tower');
+  makeUrbanBuilding51(cx+22,cz+19,bigCity?12:10,bigCity?11:9,bigCity?16:12,Math.PI,`${name} Tower B`,bigCity?6:4,true,'tower');
+  if(bigCity)makeUrbanBuilding51(cx+22,cz-22,11,10,14,Math.PI/2,`${name} Heights`,5,true,'tower');
+  const homes=bigCity?10:8;
+  const spots=[[-39,-28,0],[-39,-10,Math.PI/2],[-39,12,Math.PI],[-38,31,-Math.PI/2],[-15,35,Math.PI],[10,36,0],[36,34,-Math.PI/2],[39,11,Math.PI],[39,-10,Math.PI/2],[38,-34,0],[10,-38,Math.PI],[-14,-38,0]];
+  for(let i=0;i<homes;i++){
+    const s=spots[i],w=8+(i%3),d=7+((i+1)%3),loot=1+(i%2);
+    makeUrbanBuilding51(cx+s[0],cz+s[1],w,d,3.5,s[2],`${name} House ${i+1}`,loot,false,'house');
+  }
+  makeUrbanBuilding51(cx-2,cz+25,11,8,5.6,Math.PI,`${name} Market`,3,false,'block');
+  const tg=new THREE.Group();tg.position.set(cx+3,groundY(cx+3,cz-27),cz-27);scene.add(tg);
+  for(const sx of [-1.2,1.2])for(const sz of [-1.2,1.2])um51(tg,new THREE.CylinderGeometry(.09,.14,13,6),urbanWallDark51,sx,6.5,sz);
+  for(const y of [3,6,9,12]){um51(tg,new THREE.BoxGeometry(2.6,.09,.10),urbanAccent51,0,y,0);um51(tg,new THREE.BoxGeometry(.10,.09,2.6),urbanAccent51,0,y,0);}
+  const beacon=um51(tg,new THREE.SphereGeometry(.18,8,6),new THREE.MeshStandardMaterial({color:0xffc85e,emissive:0xff9b35,emissiveIntensity:1.5}),0,13.35,0,false);beacon.castShadow=false;
+}
+if(chosenZones51[0])buildTown51(chosenZones51[0],'CENTRAL CITY',true);
+if(chosenZones51[1])buildTown51(chosenZones51[1],'NORTHGATE',false);
+
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40();
+
+// ---------------------------------------------------------------------------
+// 3. TOWN MINIMAP / PROXIMITY LABELS
+// ---------------------------------------------------------------------------
+if(typeof drawMiniMap==='function'){
+  const drawMiniBeforeTown51=drawMiniMap;
+  drawMiniMap=function(){
+    drawMiniBeforeTown51();if(!miniCtx)return;
+    miniCtx.save();miniCtx.font='700 7px system-ui';miniCtx.textAlign='center';
+    for(const z of townZones51){const p=miniWorldToPx(z.x,z.z);miniCtx.fillStyle=z.bigCity?'#f5d36a':'#d8e6ef';miniCtx.fillRect(p.x-3,p.y-3,6,6);miniCtx.fillText(z.bigCity?'CITY':'TOWN',p.x,p.y-6);}
+    miniCtx.restore();
+  };
+}
+let lastTownName51='';
+const updatePlayerBeforeTownHud51=updatePlayer;
+updatePlayer=function(dt){
+  const r=updatePlayerBeforeTownHud51(dt);let near='';
+  for(const z of townZones51)if(Math.hypot(player.pos.x-z.x,player.pos.z-z.z)<z.radius){near=z.name;break;}
+  if(near!==lastTownName51){lastTownName51=near;if(near)message(`${near} · TOWERS + HIGH-DENSITY LOOT`,2.5);}
+  return r;
+};
+
+function validateTallLoot51(){
+  for(const rec of townBuildings51){if(!rec.tall51)continue;const count=lootCrates.filter(c=>c?.town51&&c.tallBuilding51===rec&&!c.looted&&c.group?.parent).length;if(count<4){for(let i=count;i<4;i++){const p=localWorld51(rec,(i%2?-.25:.25)*rec.w,-rec.d*.20+i*.38),c=createLootCrate(p.x,p.z,`${rec.label51} Reserve Loot`);c.town51=true;c.tallBuilding51=rec;c.group.position.y=groundY(p.x,p.z)+.42;}}}
+}
+validateTallLoot51();
+
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='BIG TOWNS LIVE · TOWERS + 4–7 LOOT BOXES';
+  setTimeout(()=>graphicsBadge21.style.opacity='0',7200);
+}
+message('BIG TOWN UPDATE · wall-stuck NPC fix · towers with 4–7+ loot boxes',4.8);
