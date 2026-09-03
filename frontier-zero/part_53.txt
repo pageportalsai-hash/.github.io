@@ -1,0 +1,136 @@
+// ============================================================================
+// FRONTIER ZERO BRIGHT STYLIZED BATTLE-ROYALE VISUAL PASS
+// Original Frontier Zero assets with a cleaner, brighter, chunkier presentation:
+// vivid terrain, readable silhouettes, colorful towns, crisp shadows and low haze.
+// ============================================================================
+
+const styleDesktop53=matchMedia('(pointer:fine)').matches;
+
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.16;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+hemi.intensity=1.86;hemi.color.setHex(0xd9f1ff);hemi.groundColor.setHex(0x536743);
+sun.intensity=3.18;sun.color.setHex(0xffe0a3);sun.shadow.bias=-.00014;sun.shadow.normalBias=.020;
+if(typeof fill21!=='undefined'){fill21.intensity=.34;fill21.color.setHex(0x9ed7ff);}
+if(typeof rim29!=='undefined')rim29.intensity=.24;
+if(typeof bounce32!=='undefined')bounce32.intensity=.11;
+if(typeof coolBounce33!=='undefined')coolBounce33.intensity=.13;
+if(typeof warmBounce33!=='undefined')warmBounce33.intensity=.08;
+
+const styleRim53=new THREE.DirectionalLight(0x9fd9ff,.20);styleRim53.position.set(170,110,-210);scene.add(styleRim53);
+
+// Brighter biome palette with much less atmospheric washout.
+const stylePal53={
+  meadow:{bg:0x73c6ef,fog:0xb9def0,d:.00027},
+  pine:{bg:0x72b9dc,fog:0xb3d2dc,d:.00032},
+  marsh:{bg:0x83bdca,fog:0xb6d2d2,d:.00039},
+  alpine:{bg:0x8fd0ef,fog:0xd8e9ef,d:.00024},
+  badlands:{bg:0x83c5e4,fog:0xd9c7af,d:.00028}
+};
+function styleWorld53(){
+  let p=stylePal53.meadow;
+  if(typeof biomeAt==='function'&&typeof BIOMES!=='undefined'){
+    const b=biomeAt(player.pos.x,player.pos.z);
+    if(b===BIOMES.pine)p=stylePal53.pine;else if(b===BIOMES.marsh)p=stylePal53.marsh;else if(b===BIOMES.alpine)p=stylePal53.alpine;else if(b===BIOMES.badlands)p=stylePal53.badlands;
+  }
+  if(!scene.background?.isColor)scene.background=new THREE.Color(p.bg);else scene.background.setHex(p.bg);
+  scene.fog.color.setHex(p.fog);scene.fog.density=styleDesktop53?p.d:p.d*1.34;
+  renderer.toneMappingExposure=1.16;
+  if(typeof sky!=='undefined'&&sky)sky.visible=false;
+}
+
+// Vivid terrain while preserving the detailed procedural texture work.
+if(typeof terrainGeo!=='undefined'&&terrainGeo?.attributes?.color){
+  const a=terrainGeo.attributes.color,c=new THREE.Color(),hsl={h:0,s:0,l:0};
+  for(let i=0;i<a.count;i++){
+    c.setRGB(a.getX(i),a.getY(i),a.getZ(i));c.getHSL(hsl);
+    c.setHSL(hsl.h,clamp(hsl.s*1.18+.045,0,1),clamp(hsl.l*1.035+.018,0,1));
+    a.setXYZ(i,c.r,c.g,c.b);
+  }
+  a.needsUpdate=true;
+}
+if(terrain?.material){terrain.material.roughness=.91;terrain.material.metalness=0;terrain.material.needsUpdate=true;}
+if(water?.material){water.material.color.setHex(0x2e9bc7);water.material.opacity=.78;water.material.roughness=.14;water.material.metalness=.04;}
+if(typeof bushMat33!=='undefined')bushMat33.color.setHex(0x3f8a46);
+if(typeof grassBladeMat32!=='undefined')grassBladeMat32.color.setHex(0x58a64c);
+if(typeof grassMat!=='undefined')grassMat.color.setHex(0x58a24a);
+if(typeof reedMat!=='undefined')reedMat.color.setHex(0x78a65a);
+
+// Chunkier, brighter foliage silhouettes.
+for(const r of resources){
+  if(!r||r.dead||r.kind!=='tree'||!r.group?.children?.length)continue;
+  const trunk=r.group.children[0],crown=r.group.children[1],b=typeof biomeAt==='function'?biomeAt(r.group.position.x,r.group.position.z):null;
+  if(trunk?.material?.color)trunk.material.color.setHex(0x765038);
+  if(crown?.material?.color){
+    let col=0x2f8243;if(typeof BIOMES!=='undefined'){if(b===BIOMES.pine)col=0x24653a;else if(b===BIOMES.badlands)col=0x6c853b;else if(b===BIOMES.alpine)col=0x2f6c59;else if(b===BIOMES.marsh)col=0x2c7646;}
+    crown.material.color.setHex(col);crown.material.roughness=.84;
+    if(!crown.userData.chunky53){crown.scale.x*=1.06;crown.scale.z*=1.06;crown.userData.chunky53=true;}
+  }
+}
+
+// Warm readable legacy buildings.
+if(typeof houseWall33!=='undefined'){houseWall33.color.setHex(0xffe0aa);houseWall33.roughness=.82;}
+if(typeof woodWall33!=='undefined'){woodWall33.color.setHex(0xd6b27b);woodWall33.roughness=.84;}
+if(typeof warehouseWall33!=='undefined'){warehouseWall33.color.setHex(0x92a9b6);warehouseWall33.roughness=.61;}
+if(typeof roofMat33!=='undefined'){roofMat33.color.setHex(0x334451);roofMat33.roughness=.54;}
+if(typeof roofDark33!=='undefined'){roofDark33.color.setHex(0x293944);roofDark33.roughness=.58;}
+if(typeof glassMat33!=='undefined'){glassMat33.color.setHex(0x54a4c3);glassMat33.opacity=.62;glassMat33.roughness=.08;}
+if(typeof glass39!=='undefined'){glass39.color.setHex(0x65b6d1);glass39.opacity=.46;}
+
+// Give the new town blocks distinct readable colors rather than one grey mass.
+const townPalette53=[0xf0bf7d,0xd9896e,0x78a9a6,0xe3d197,0x86a4c6,0xb793c2,0xd4a268];
+if(typeof townBuildings51!=='undefined')for(let i=0;i<townBuildings51.length;i++){
+  const rec=townBuildings51[i],col=townPalette53[i%townPalette53.length],dark=new THREE.Color(col).multiplyScalar(.68);
+  for(const m of rec.g.children){
+    if(!m?.isMesh||!m.material?.color)continue;
+    if(m.material===urbanWall51||m.material===urbanWallDark51){m.material=m.material.clone();m.material.color.setHex(rec.tall51?0x8aa4b7:col);m.material.roughness=rec.tall51?.62:.76;}
+    else if(m.material===urbanRoof51){m.material=m.material.clone();m.material.color.copy(dark);m.material.roughness=.52;}
+  }
+}
+if(typeof urbanGlass51!=='undefined'){urbanGlass51.color.setHex(0x4aa5c8);urbanGlass51.opacity=.68;urbanGlass51.roughness=.07;}
+if(typeof roadMat51!=='undefined')roadMat51.color.setHex(0x3b4650);
+if(typeof sidewalkMat51!=='undefined')sidewalkMat51.color.setHex(0x92958f);
+if(typeof towerFloorMat52!=='undefined')towerFloorMat52.color.setHex(0x8f989b);
+if(typeof towerStairMat52!=='undefined')towerStairMat52.color.setHex(0x445866);
+
+// Existing car paint becomes a little more saturated without recoloring tires or glass.
+for(const car of cars19){
+  car.group.traverse(function(m){
+    if(!m?.isMesh||!m.material?.color||m.material.transparent)return;
+    const c=m.material.color,h={h:0,s:0,l:0};c.getHSL(h);
+    if(h.l>.16&&h.s>.08&&(m.material.metalness||0)>.16){c.setHSL(h.h,clamp(h.s*1.20+.06,0,1),clamp(h.l*1.05+.015,0,1));m.material.roughness=Math.min(m.material.roughness??.35,.30);}
+  });
+}
+
+// Clean battle-royale-style presentation: soft clouds, light atmosphere, minimal vignette.
+if(typeof cloudMat29!=='undefined')cloudMat29.opacity=.27;
+if(typeof aMat39!=='undefined')aMat39.opacity=Math.min(aMat39.opacity,.10);
+if(typeof mist39!=='undefined')for(const m of mist39)if(m?.material)m.material.opacity=.012;
+if(typeof cinematicEdge33!=='undefined')cinematicEdge33.style.background='radial-gradient(circle at 50% 48%,transparent 67%,rgba(8,16,22,.035) 89%,rgba(8,16,22,.055) 100%)';
+if(typeof glare39!=='undefined')glare39.style.background='radial-gradient(circle at 17% 13%,rgba(255,236,181,.08),rgba(255,236,181,.018) 13%,transparent 27%)';
+
+// Slightly wider camera improves movement/speed readability.
+if(typeof baseFov47!=='undefined')baseFov47=76;
+if(!activeCar19){camera.fov=76;camera.updateProjectionMatrix();}
+
+// Cleaner UI contrast over a brighter world.
+for(const p of document.querySelectorAll('.panel')){p.style.background='rgba(18,27,34,.82)';p.style.borderColor='rgba(255,255,255,.30)';p.style.boxShadow='0 4px 14px rgba(0,0,0,.16)';}
+const msg53=document.getElementById('message');if(msg53){msg53.style.background='rgba(18,27,34,.78)';msg53.style.border='1px solid rgba(255,255,255,.20)';}
+const cross53=document.getElementById('crosshair');if(cross53)cross53.style.filter='drop-shadow(0 1px 2px rgba(0,0,0,.95))';
+
+// Keep adaptive quality intact; only reapply the art direction after a quality change.
+if(typeof applyClarityQuality48==='function'){
+  const clarityQualityBeforeStyle53=applyClarityQuality48;
+  applyClarityQuality48=function(){const r=clarityQualityBeforeStyle53();styleWorld53();return r;};
+}
+const updatePlayerBeforeStyle53=updatePlayer;
+updatePlayer=function(dt){const r=updatePlayerBeforeStyle53(dt);styleWorld53();return r;};
+
+styleWorld53();
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='STYLE: BRIGHT BATTLE-ROYALE · CLEAR + COLORFUL';
+  setTimeout(()=>graphicsBadge21.style.opacity='0',7600);
+}
+message('BRIGHT STYLIZED GRAPHICS · colorful towns, crisp world, bigger towers',5.0);
