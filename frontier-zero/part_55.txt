@@ -1,0 +1,166 @@
+// ============================================================================
+// FRONTIER ZERO DOOR THRESHOLD FIX + ROUGH TERRAIN VISUAL PASS
+// Forces NPCs cleanly through real door corridors and adds lightweight rough
+// ground detail without sacrificing the 60 FPS target.
+// ============================================================================
+
+const roughDesktop55=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. WIDER / EARLIER DOOR OPENING
+// ---------------------------------------------------------------------------
+if(typeof doorShouldOpen50==='function'){
+  doorShouldOpen50=function(rec){
+    if(!rec)return false;
+    if(Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<3.65)return true;
+    for(const n of npcs){
+      if(n&&!n.dead&&Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<4.05)return true;
+    }
+    return false;
+  };
+}
+
+function doorRec55(n,target){
+  if(!n||!target||typeof buildingNav50==='undefined')return null;
+  if(typeof doorwayWaypoint50==='function'){
+    const p=doorwayWaypoint50(n,target);
+    if(p?.rec)return p.rec;
+  }
+  for(const rec of buildingNav50){
+    if(!rec?.g?.parent)continue;
+    const nl=localXZ50(rec,n.group.position.x,n.group.position.z);
+    const tl=localXZ50(rec,target.x,target.z);
+    const wall=rec.d/2;
+    const opposite=(nl.z-wall)*(tl.z-wall)<0;
+    if(!opposite)continue;
+    if(Math.abs(nl.z-wall)>3.8)continue;
+    if(Math.abs(nl.x)>Math.max(2.5,(rec.doorW||1.6)*1.35))continue;
+    return rec;
+  }
+  return null;
+}
+
+function forceDoorCross55(n,rec,target,dt){
+  const p=n.group.position,nl=localXZ50(rec,p.x,p.z),tl=localXZ50(rec,target.x,target.z),wall=rec.d/2;
+  if(Math.abs(nl.z-wall)>4.0)return false;
+
+  const targetInside=tl.z<wall;
+  const goalZ=targetInside?wall-1.72:wall+1.92;
+  const doorHalf=Math.max(1.42,(rec.doorW||1.6)*.68);
+  const centerBlend=Math.min(1,dt*8.5);
+  const centeredX=THREE.MathUtils.lerp(nl.x,0,centerBlend);
+
+  // First line up with the middle of the doorway using normal collision.
+  if(Math.abs(nl.x)>doorHalf+.34){
+    const oldX=p.x,oldZ=p.z,wp=worldXZ50(rec,centeredX,nl.z);
+    if(!blockedPosition(wp.x,wp.z)){
+      p.x=wp.x;p.z=wp.z;p.y=groundY(wp.x,wp.z);
+      const dx=p.x-oldX,dz=p.z-oldZ;
+      if(Math.hypot(dx,dz)>.001)n.group.rotation.y=Math.atan2(dx,dz)+Math.PI;
+    }
+    return true;
+  }
+
+  // Inside the doorway corridor we intentionally ignore ONLY the front-wall
+  // rectangle. This is the part that was stopping NPC capsules at the threshold.
+  const speed=(n.alert>0||(n.playerProvoked||0)>0||(n.npcEnemy&&!n.npcEnemy.dead))?3.7:2.05;
+  const dz=goalZ-nl.z,step=Math.min(Math.abs(dz),speed*dt),nextZ=nl.z+Math.sign(dz||1)*step;
+  const wp=worldXZ50(rec,THREE.MathUtils.lerp(centeredX,0,.35),nextZ);
+  const oldX=p.x,oldZ=p.z;
+  p.x=wp.x;p.z=wp.z;p.y=groundY(wp.x,wp.z);
+  const mx=p.x-oldX,mz=p.z-oldZ;
+  if(Math.hypot(mx,mz)>.001)n.group.rotation.y=Math.atan2(mx,mz)+Math.PI;
+  if(n.patrol)n.patrol.set(target.x,0,target.z);
+  if(n.lootTarget14&&n.lootTarget14.group?.parent&&target===n.lootTarget14.group.position)n.repath=Math.max(n.repath||0,1.0);
+  return true;
+}
+
+const updateNPCsBeforeDoor55=updateNPCs;
+updateNPCs=function(dt){
+  const r=updateNPCsBeforeDoor55(dt);
+  const paused=(typeof settingsOpen46!=='undefined'&&settingsOpen46)||(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24);
+  if(paused)return r;
+  for(const n of npcs){
+    if(!n||n.dead||!n.group)continue;
+    const target=typeof npcTarget50==='function'?npcTarget50(n):player.pos;
+    const rec=doorRec55(n,target);
+    if(rec)forceDoorCross55(n,rec,target,dt);
+  }
+  return r;
+};
+
+// ---------------------------------------------------------------------------
+// 2. ROUGHER TERRAIN LOOK — LIGHTWEIGHT, 60 FPS FRIENDLY
+// ---------------------------------------------------------------------------
+for(const m of [typeof terrain!=='undefined'?terrain:null,typeof worldGround500!=='undefined'?worldGround500:null,typeof terrain2k!=='undefined'?terrain2k:null]){
+  if(!m?.material)continue;
+  if(m.material.bumpMap)m.material.bumpScale=Math.max(m.material.bumpScale||0,roughDesktop55?.29:.22);
+  m.material.roughness=Math.max(m.material.roughness||0,.96);
+  m.material.needsUpdate=true;
+}
+
+function roughAllowed55(x,z){
+  if(typeof townZones51!=='undefined'){
+    for(const t of townZones51)if(t&&Math.hypot(x-t.x,z-t.z)<82)return false;
+  }
+  if(typeof outposts!=='undefined'){
+    for(const o of outposts)if(o&&Math.hypot(x-o.x,z-o.z)<28)return false;
+  }
+  if(Math.abs(x)<28&&Math.abs(z)<28)return false;
+  return true;
+}
+
+const roughCount55=roughDesktop55?190:82;
+const roughGeo55=new THREE.DodecahedronGeometry(.48,0);
+const roughMat55=new THREE.MeshStandardMaterial({color:0x667054,roughness:1,metalness:0});
+const roughClods55=new THREE.InstancedMesh(roughGeo55,roughMat55,roughCount55);
+const roughDummy55=new THREE.Object3D();
+let roughMade55=0,roughTries55=0;
+while(roughMade55<roughCount55&&roughTries55<roughCount55*22){
+  roughTries55++;
+  const x=rand(-475,475),z=rand(-475,475);
+  if(!roughAllowed55(x,z))continue;
+  const b=typeof biomeAt==='function'?biomeAt(x,z):null;
+  let sy=rand(.12,.28),sx=rand(.65,1.85),sz=rand(.65,1.85);
+  if(typeof BIOMES!=='undefined'&&b===BIOMES.badlands){sx*=1.25;sz*=1.25;sy*=1.35;}
+  if(typeof BIOMES!=='undefined'&&b===BIOMES.alpine){sx*=1.15;sz*=1.15;sy*=1.45;}
+  roughDummy55.position.set(x,groundY(x,z)+.02,z);
+  roughDummy55.rotation.set(rand(-.12,.12),rand(0,Math.PI),rand(-.12,.12));
+  roughDummy55.scale.set(sx,sy,sz);
+  roughDummy55.updateMatrix();
+  roughClods55.setMatrixAt(roughMade55++,roughDummy55.matrix);
+}
+roughClods55.count=roughMade55;
+roughClods55.castShadow=false;
+roughClods55.receiveShadow=true;
+roughClods55.frustumCulled=true;
+scene.add(roughClods55);
+
+// Smaller gravel flecks add surface breakup in one extra draw call.
+const gravelCount55=roughDesktop55?240:100;
+const gravelGeo55=new THREE.IcosahedronGeometry(.16,0);
+const gravelMat55=new THREE.MeshStandardMaterial({color:0x7b7967,roughness:1,metalness:0});
+const gravel55=new THREE.InstancedMesh(gravelGeo55,gravelMat55,gravelCount55);
+let gravelMade55=0,gravelTries55=0;
+while(gravelMade55<gravelCount55&&gravelTries55<gravelCount55*18){
+  gravelTries55++;
+  const x=rand(-475,475),z=rand(-475,475);
+  if(!roughAllowed55(x,z))continue;
+  const s=rand(.45,1.35);
+  roughDummy55.position.set(x,groundY(x,z)+.055,z);
+  roughDummy55.rotation.set(rand(0,Math.PI),rand(0,Math.PI),rand(0,Math.PI));
+  roughDummy55.scale.set(s,rand(.35,.85)*s,s);
+  roughDummy55.updateMatrix();
+  gravel55.setMatrixAt(gravelMade55++,roughDummy55.matrix);
+}
+gravel55.count=gravelMade55;
+gravel55.castShadow=false;
+gravel55.receiveShadow=true;
+scene.add(gravel55);
+
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';
+  graphicsBadge21.textContent='NPC DOOR FIX · ROUGH TERRAIN · 60 FPS FRIENDLY';
+  setTimeout(()=>graphicsBadge21.style.opacity='0',6800);
+}
+message('DOOR THRESHOLD FIXED · rougher terrain added',4.2);
