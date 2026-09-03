@@ -103,9 +103,6 @@ updateNPCs=function(dt){
   return r;
 };
 
-// ---------------------------------------------------------------------------
-// 2. BIG TOWN / CITY GENERATION
-// ---------------------------------------------------------------------------
 const townZones51=[];
 const townBuildings51=[];
 const urbanWall51=new THREE.MeshStandardMaterial({color:0x9b9a92,roughness:.82,metalness:.03});
@@ -129,9 +126,9 @@ function addTownLoot51(rec,count,label){
   for(let rz=0;rz<rows&&made<count;rz++)for(let cx=0;cx<cols&&made<count;cx++){
     const lx=((cx+.5)/cols-.5)*Math.max(2.2,rec.w-2.6),lz=((rz+.5)/rows-.5)*Math.max(2.0,rec.d-2.8)-.15;
     if(Math.abs(lx)<1.1&&lz>rec.d*.15)continue;
-    const p=localWorld51(rec,lx,lz),c=createLootCrate(p.x,p.z,`${label} Loot ${made+1}`);c.town51=true;c.tallBuilding51=rec.tall51;c.group.position.y=groundY(p.x,p.z)+.42;made++;
+    const p=localWorld51(rec,lx,lz),c=createLootCrate(p.x,p.z,`${label} Loot ${made+1}`);c.town51=true;c.tallBuilding51=rec;c.group.position.y=groundY(p.x,p.z)+.42;made++;
   }
-  while(made<count){const lx=(made%2?-.28:.28)*rec.w,lz=-rec.d*.22+(made%3)*.65,p=localWorld51(rec,lx,lz),c=createLootCrate(p.x,p.z,`${label} Loot ${made+1}`);c.town51=true;c.tallBuilding51=rec.tall51;c.group.position.y=groundY(p.x,p.z)+.42;made++;}
+  while(made<count){const lx=(made%2?-.28:.28)*rec.w,lz=-rec.d*.22+(made%3)*.65,p=localWorld51(rec,lx,lz),c=createLootCrate(p.x,p.z,`${label} Loot ${made+1}`);c.town51=true;c.tallBuilding51=rec;c.group.position.y=groundY(p.x,p.z)+.42;made++;}
 }
 function makeUrbanBuilding51(x,z,w,d,h,rot,label,lootCount,tall=false,style='block'){
   const g=new THREE.Group();g.position.set(x,groundY(x,z),z);g.rotation.y=rot;scene.add(g);
@@ -162,88 +159,29 @@ function makeUrbanBuilding51(x,z,w,d,h,rot,label,lootCount,tall=false,style='blo
   for(const side of [-1,1])for(let f=0;f<(tall?floors:1);f++){
     const y=tall?2.0+f*2.75:1.75;if(y>h-.65)continue;um51(g,new THREE.BoxGeometry(.045,.95,Math.min(2.0,d*.25)),urbanGlass51,side*(w/2+.16),y,0,false);
   }
-  if(style==='house'){
-    um51(g,new THREE.BoxGeometry(Math.min(4.4,w*.55),.18,1.3),urbanAccent51,0,.16,d/2+.70);
-  }else if(tall){
-    um51(g,new THREE.BoxGeometry(w*.42,.65,d*.30),urbanRoof51,w*.18,h+.52,-d*.12);
-    const antenna=um51(g,new THREE.CylinderGeometry(.07,.10,3.8,7),urbanWallDark51,-w*.22,h+2.0,d*.12);antenna.castShadow=false;
-  }
+  if(style==='house')um51(g,new THREE.BoxGeometry(Math.min(4.4,w*.55),.18,1.3),urbanAccent51,0,.16,d/2+.70);
+  else if(tall){um51(g,new THREE.BoxGeometry(w*.42,.65,d*.30),urbanRoof51,w*.18,h+.52,-d*.12);const antenna=um51(g,new THREE.CylinderGeometry(.07,.10,3.8,7),urbanWallDark51,-w*.22,h+2.0,d*.12);antenna.castShadow=false;}
   addTownLoot51(rec,lootCount,label);return rec;
 }
 function makeRoad51(cx,cz,w,d,rot=0){const m=new THREE.Mesh(new THREE.BoxGeometry(w,.10,d),roadMat51);m.position.set(cx,groundY(cx,cz)+.045,cz);m.rotation.y=rot;m.receiveShadow=true;scene.add(m);return m;}
 function makeSidewalk51(cx,cz,w,d,rot=0){const m=new THREE.Mesh(new THREE.BoxGeometry(w,.14,d),sidewalkMat51);m.position.set(cx,groundY(cx,cz)+.07,cz);m.rotation.y=rot;m.receiveShadow=true;scene.add(m);return m;}
-function clearNature51(cx,cz,r){
-  for(const res of resources){
-    if(!res||res.dead||!res.group?.parent)continue;const p=res.group.position;if(Math.hypot(p.x-cx,p.z-cz)>r)continue;
-    if(res.kind==='tree'||res.kind==='rock'||res.kind==='metal'){res.dead=true;scene.remove(res.group);if(typeof removeReferences==='function')removeReferences(res.group);}
-  }
-}
-function zoneScore51(c){
-  let score=0;for(const g of rebuiltBuildings33){const b=g?.userData?.bounds33;if(b&&Math.hypot(b.x-c.x,b.z-c.z)<70)score+=3;}
-  if(typeof outposts!=='undefined')for(const o of outposts)if(Math.hypot(o.x-c.x,o.z-c.z)<65)score+=4;
-  if(typeof cars19!=='undefined')for(const car of cars19)if(car?.group&&Math.hypot(car.group.position.x-c.x,car.group.position.z-c.z)<72)score+=2;
-  if(groundY(c.x,c.z)<=water.position.y+1.1)score+=100;return score;
-}
-const zoneCandidates51=[
-  {x:315,z:-315},{x:315,z:220},{x:-320,z:-300},{x:-325,z:255},{x:110,z:-335},{x:-120,z:335},{x:390,z:-175},{x:-390,z:120}
-].sort((a,b)=>zoneScore51(a)-zoneScore51(b));
+function clearNature51(cx,cz,r){for(const res of resources){if(!res||res.dead||!res.group?.parent)continue;const p=res.group.position;if(Math.hypot(p.x-cx,p.z-cz)>r)continue;if(res.kind==='tree'||res.kind==='rock'||res.kind==='metal'){res.dead=true;scene.remove(res.group);if(typeof removeReferences==='function')removeReferences(res.group);}}}
+function zoneScore51(c){let score=0;for(const g of rebuiltBuildings33){const b=g?.userData?.bounds33;if(b&&Math.hypot(b.x-c.x,b.z-c.z)<70)score+=3;}if(typeof outposts!=='undefined')for(const o of outposts)if(Math.hypot(o.x-c.x,o.z-c.z)<65)score+=4;if(typeof cars19!=='undefined')for(const car of cars19)if(car?.group&&Math.hypot(car.group.position.x-c.x,car.group.position.z-c.z)<72)score+=2;if(groundY(c.x,c.z)<=water.position.y+1.1)score+=100;return score;}
+const zoneCandidates51=[{x:315,z:-315},{x:315,z:220},{x:-320,z:-300},{x:-325,z:255},{x:110,z:-335},{x:-120,z:335},{x:390,z:-175},{x:-390,z:120}].sort((a,b)=>zoneScore51(a)-zoneScore51(b));
 const chosenZones51=[];for(const c of zoneCandidates51){if(chosenZones51.every(z=>Math.hypot(z.x-c.x,z.z-c.z)>255)){chosenZones51.push(c);if(chosenZones51.length===2)break;}}
-
 function buildTown51(center,name,bigCity){
-  const cx=center.x,cz=center.z,r=bigCity?63:55;clearNature51(cx,cz,r+8);
-  const zone={name,x:cx,z:cz,radius:r,bigCity};townZones51.push(zone);
-  makeRoad51(cx,cz,bigCity?108:92,7.5,0);makeRoad51(cx,cz,bigCity?108:92,7.5,Math.PI/2);
-  makeSidewalk51(cx,cz+6,bigCity?108:92,2.2,0);makeSidewalk51(cx,cz-6,bigCity?108:92,2.2,0);
-  makeSidewalk51(cx+6,cz,bigCity?108:92,2.2,Math.PI/2);makeSidewalk51(cx-6,cz,bigCity?108:92,2.2,Math.PI/2);
-  makeUrbanBuilding51(cx-20,cz-20,bigCity?13:11,bigCity?12:10,bigCity?18:13,0,`${name} Tower A`,bigCity?7:5,true,'tower');
-  makeUrbanBuilding51(cx+22,cz+19,bigCity?12:10,bigCity?11:9,bigCity?16:12,Math.PI,`${name} Tower B`,bigCity?6:4,true,'tower');
-  if(bigCity)makeUrbanBuilding51(cx+22,cz-22,11,10,14,Math.PI/2,`${name} Heights`,5,true,'tower');
-  const homes=bigCity?10:8;
-  const spots=[[-39,-28,0],[-39,-10,Math.PI/2],[-39,12,Math.PI],[-38,31,-Math.PI/2],[-15,35,Math.PI],[10,36,0],[36,34,-Math.PI/2],[39,11,Math.PI],[39,-10,Math.PI/2],[38,-34,0],[10,-38,Math.PI],[-14,-38,0]];
-  for(let i=0;i<homes;i++){
-    const s=spots[i],w=8+(i%3),d=7+((i+1)%3),loot=1+(i%2);
-    makeUrbanBuilding51(cx+s[0],cz+s[1],w,d,3.5,s[2],`${name} House ${i+1}`,loot,false,'house');
-  }
+  const cx=center.x,cz=center.z,r=bigCity?63:55;clearNature51(cx,cz,r+8);const zone={name,x:cx,z:cz,radius:r,bigCity};townZones51.push(zone);
+  makeRoad51(cx,cz,bigCity?108:92,7.5,0);makeRoad51(cx,cz,bigCity?108:92,7.5,Math.PI/2);makeSidewalk51(cx,cz+6,bigCity?108:92,2.2,0);makeSidewalk51(cx,cz-6,bigCity?108:92,2.2,0);makeSidewalk51(cx+6,cz,bigCity?108:92,2.2,Math.PI/2);makeSidewalk51(cx-6,cz,bigCity?108:92,2.2,Math.PI/2);
+  makeUrbanBuilding51(cx-20,cz-20,bigCity?13:11,bigCity?12:10,bigCity?18:13,0,`${name} Tower A`,bigCity?7:5,true,'tower');makeUrbanBuilding51(cx+22,cz+19,bigCity?12:10,bigCity?11:9,bigCity?16:12,Math.PI,`${name} Tower B`,bigCity?6:4,true,'tower');if(bigCity)makeUrbanBuilding51(cx+22,cz-22,11,10,14,Math.PI/2,`${name} Heights`,5,true,'tower');
+  const homes=bigCity?10:8,spots=[[-39,-28,0],[-39,-10,Math.PI/2],[-39,12,Math.PI],[-38,31,-Math.PI/2],[-15,35,Math.PI],[10,36,0],[36,34,-Math.PI/2],[39,11,Math.PI],[39,-10,Math.PI/2],[38,-34,0],[10,-38,Math.PI],[-14,-38,0]];
+  for(let i=0;i<homes;i++){const s=spots[i],w=8+(i%3),d=7+((i+1)%3),loot=1+(i%2);makeUrbanBuilding51(cx+s[0],cz+s[1],w,d,3.5,s[2],`${name} House ${i+1}`,loot,false,'house');}
   makeUrbanBuilding51(cx-2,cz+25,11,8,5.6,Math.PI,`${name} Market`,3,false,'block');
-  const tg=new THREE.Group();tg.position.set(cx+3,groundY(cx+3,cz-27),cz-27);scene.add(tg);
-  for(const sx of [-1.2,1.2])for(const sz of [-1.2,1.2])um51(tg,new THREE.CylinderGeometry(.09,.14,13,6),urbanWallDark51,sx,6.5,sz);
-  for(const y of [3,6,9,12]){um51(tg,new THREE.BoxGeometry(2.6,.09,.10),urbanAccent51,0,y,0);um51(tg,new THREE.BoxGeometry(.10,.09,2.6),urbanAccent51,0,y,0);}
-  const beacon=um51(tg,new THREE.SphereGeometry(.18,8,6),new THREE.MeshStandardMaterial({color:0xffc85e,emissive:0xff9b35,emissiveIntensity:1.5}),0,13.35,0,false);beacon.castShadow=false;
+  const tg=new THREE.Group();tg.position.set(cx+3,groundY(cx+3,cz-27),cz-27);scene.add(tg);for(const sx of [-1.2,1.2])for(const sz of [-1.2,1.2])um51(tg,new THREE.CylinderGeometry(.09,.14,13,6),urbanWallDark51,sx,6.5,sz);for(const y of [3,6,9,12]){um51(tg,new THREE.BoxGeometry(2.6,.09,.10),urbanAccent51,0,y,0);um51(tg,new THREE.BoxGeometry(.10,.09,2.6),urbanAccent51,0,y,0);}const beacon=um51(tg,new THREE.SphereGeometry(.18,8,6),new THREE.MeshStandardMaterial({color:0xffc85e,emissive:0xff9b35,emissiveIntensity:1.5}),0,13.35,0,false);beacon.castShadow=false;
 }
-if(chosenZones51[0])buildTown51(chosenZones51[0],'CENTRAL CITY',true);
-if(chosenZones51[1])buildTown51(chosenZones51[1],'NORTHGATE',false);
-
-if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
-if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40();
-
-// ---------------------------------------------------------------------------
-// 3. TOWN MINIMAP / PROXIMITY LABELS
-// ---------------------------------------------------------------------------
-if(typeof drawMiniMap==='function'){
-  const drawMiniBeforeTown51=drawMiniMap;
-  drawMiniMap=function(){
-    drawMiniBeforeTown51();if(!miniCtx)return;
-    miniCtx.save();miniCtx.font='700 7px system-ui';miniCtx.textAlign='center';
-    for(const z of townZones51){const p=miniWorldToPx(z.x,z.z);miniCtx.fillStyle=z.bigCity?'#f5d36a':'#d8e6ef';miniCtx.fillRect(p.x-3,p.y-3,6,6);miniCtx.fillText(z.bigCity?'CITY':'TOWN',p.x,p.y-6);}
-    miniCtx.restore();
-  };
-}
-let lastTownName51='';
-const updatePlayerBeforeTownHud51=updatePlayer;
-updatePlayer=function(dt){
-  const r=updatePlayerBeforeTownHud51(dt);let near='';
-  for(const z of townZones51)if(Math.hypot(player.pos.x-z.x,player.pos.z-z.z)<z.radius){near=z.name;break;}
-  if(near!==lastTownName51){lastTownName51=near;if(near)message(`${near} · TOWERS + HIGH-DENSITY LOOT`,2.5);}
-  return r;
-};
-
-function validateTallLoot51(){
-  for(const rec of townBuildings51){if(!rec.tall51)continue;const count=lootCrates.filter(c=>c?.town51&&c.tallBuilding51===rec&&!c.looted&&c.group?.parent).length;if(count<4){for(let i=count;i<4;i++){const p=localWorld51(rec,(i%2?-.25:.25)*rec.w,-rec.d*.20+i*.38),c=createLootCrate(p.x,p.z,`${rec.label51} Reserve Loot`);c.town51=true;c.tallBuilding51=rec;c.group.position.y=groundY(p.x,p.z)+.42;}}}
-}
+if(chosenZones51[0])buildTown51(chosenZones51[0],'CENTRAL CITY',true);if(chosenZones51[1])buildTown51(chosenZones51[1],'NORTHGATE',false);
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40();
+if(typeof drawMiniMap==='function'){const drawMiniBeforeTown51=drawMiniMap;drawMiniMap=function(){drawMiniBeforeTown51();if(!miniCtx)return;miniCtx.save();miniCtx.font='700 7px system-ui';miniCtx.textAlign='center';for(const z of townZones51){const p=miniWorldToPx(z.x,z.z);miniCtx.fillStyle=z.bigCity?'#f5d36a':'#d8e6ef';miniCtx.fillRect(p.x-3,p.y-3,6,6);miniCtx.fillText(z.bigCity?'CITY':'TOWN',p.x,p.y-6);}miniCtx.restore();};}
+let lastTownName51='';const updatePlayerBeforeTownHud51=updatePlayer;updatePlayer=function(dt){const r=updatePlayerBeforeTownHud51(dt);let near='';for(const z of townZones51)if(Math.hypot(player.pos.x-z.x,player.pos.z-z.z)<z.radius){near=z.name;break;}if(near!==lastTownName51){lastTownName51=near;if(near)message(`${near} · TOWERS + HIGH-DENSITY LOOT`,2.5);}return r;};
+function validateTallLoot51(){for(const rec of townBuildings51){if(!rec.tall51)continue;const count=lootCrates.filter(c=>c?.town51&&c.tallBuilding51===rec&&!c.looted&&c.group?.parent).length;if(count<4){for(let i=count;i<4;i++){const p=localWorld51(rec,(i%2?-.25:.25)*rec.w,-rec.d*.20+i*.38),c=createLootCrate(p.x,p.z,`${rec.label51} Reserve Loot`);c.town51=true;c.tallBuilding51=rec;c.group.position.y=groundY(p.x,p.z)+.42;}}}}
 validateTallLoot51();
-
-if(typeof graphicsBadge21!=='undefined'){
-  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='BIG TOWNS LIVE · TOWERS + 4–7 LOOT BOXES';
-  setTimeout(()=>graphicsBadge21.style.opacity='0',7200);
-}
-message('BIG TOWN UPDATE · wall-stuck NPC fix · towers with 4–7+ loot boxes',4.8);
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='BIG TOWNS LIVE · TOWERS + 4–7 LOOT BOXES';setTimeout(()=>graphicsBadge21.style.opacity='0',7200);}message('BIG TOWN UPDATE · wall-stuck NPC fix · towers with 4–7+ loot boxes',4.8);
