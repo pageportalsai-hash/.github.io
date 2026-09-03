@@ -1,0 +1,246 @@
+// ============================================================================
+// FRONTIER ZERO GAME POLISH PASS — SETTINGS, LANDMARKS, COMBAT REACTIONS, STATS
+// Adds finish-quality features without replacing the stabilized core systems.
+// ============================================================================
+
+const polishDesktop46=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. QUICK SETTINGS / PAUSE PANEL
+// ---------------------------------------------------------------------------
+let settingsOpen46=false;
+let quality46='auto';
+let soundOn46=true;
+try{
+  quality46=localStorage.getItem('fz_quality46')||'auto';
+  soundOn46=localStorage.getItem('fz_sound46')!=='off';
+}catch(e){}
+if(!['auto','high','performance'].includes(quality46))quality46='auto';
+
+const settingsBtn46=document.createElement('button');
+settingsBtn46.type='button';
+settingsBtn46.textContent='⚙';
+settingsBtn46.title='Settings';
+settingsBtn46.style.cssText='position:fixed;right:12px;bottom:12px;z-index:90;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(8,13,16,.82);color:#fff;font:900 20px system-ui;cursor:pointer;pointer-events:auto';
+if(!polishDesktop46){settingsBtn46.style.right='106px';settingsBtn46.style.bottom='16px';}
+document.body.appendChild(settingsBtn46);
+
+const settingsOverlay46=document.createElement('div');
+settingsOverlay46.style.cssText='position:fixed;inset:0;z-index:180;display:none;align-items:center;justify-content:center;background:rgba(4,7,9,.72);backdrop-filter:blur(7px);padding:18px;color:#fff;font-family:system-ui;pointer-events:auto';
+settingsOverlay46.innerHTML=`
+  <div style="width:min(430px,94vw);background:rgba(15,21,25,.97);border:1px solid rgba(255,255,255,.24);border-radius:18px;padding:18px;box-shadow:0 18px 55px rgba(0,0,0,.45)">
+    <div style="font-size:11px;letter-spacing:.18em;opacity:.62;font-weight:850">FRONTIER ZERO</div>
+    <div style="font-size:25px;font-weight:950;margin-top:3px">SETTINGS</div>
+    <div style="font-size:11px;opacity:.62;margin:5px 0 16px">Player and NPC movement pause while this panel is open.</div>
+    <div style="font-size:12px;font-weight:900;margin-bottom:7px">GRAPHICS</div>
+    <div id="qualityButtons46" style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px"></div>
+    <div style="font-size:12px;font-weight:900;margin:16px 0 7px">SOUND</div>
+    <button id="soundToggle46" type="button" style="width:100%;min-height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#fff;font:850 12px system-ui;cursor:pointer"></button>
+    <button id="closeSettings46" type="button" style="width:100%;min-height:48px;margin-top:18px;border:0;border-radius:11px;background:#d5b64e;color:#121517;font:950 13px system-ui;cursor:pointer">BACK TO GAME</button>
+    <div style="font-size:10px;opacity:.52;margin-top:10px;text-align:center">Mac: ESC opens/closes settings</div>
+  </div>`;
+document.body.appendChild(settingsOverlay46);
+
+const qualityButtons46=document.getElementById('qualityButtons46');
+const qualityDefs46=[['auto','AUTO'],['high','HIGH'],['performance','PERFORMANCE']];
+function renderSettings46(){
+  qualityButtons46.innerHTML='';
+  for(const pair of qualityDefs46){
+    const key=pair[0],label=pair[1],b=document.createElement('button');
+    b.type='button';b.textContent=label;
+    const active=quality46===key;
+    b.style.cssText=`min-height:44px;border-radius:10px;border:1px solid ${active?'#e4c45b':'rgba(255,255,255,.20)'};background:${active?'rgba(137,109,34,.55)':'rgba(255,255,255,.06)'};color:#fff;font:850 10px system-ui;cursor:pointer`;
+    b.addEventListener('click',function(){quality46=key;try{localStorage.setItem('fz_quality46',key);}catch(e){}applyQuality46();renderSettings46();});
+    qualityButtons46.appendChild(b);
+  }
+  const snd=document.getElementById('soundToggle46');
+  snd.textContent=soundOn46?'SOUND: ON':'SOUND: OFF';
+  snd.style.borderColor=soundOn46?'#8fcf8e':'#cf8e8e';
+}
+function setSettingsOpen46(on){
+  settingsOpen46=!!on;settingsOverlay46.style.display=settingsOpen46?'flex':'none';firing=false;
+  if(settingsOpen46&&document.pointerLockElement)document.exitPointerLock?.();
+  if(typeof engGain39!=='undefined'&&engGain39&&typeof audioCtx!=='undefined'&&audioCtx)engGain39.gain.setTargetAtTime(.0001,audioCtx.currentTime,.05);
+}
+settingsBtn46.addEventListener('click',function(e){e.stopPropagation();setSettingsOpen46(true);});
+document.getElementById('closeSettings46').addEventListener('click',function(){setSettingsOpen46(false);});
+document.getElementById('soundToggle46').addEventListener('click',function(){
+  soundOn46=!soundOn46;try{localStorage.setItem('fz_sound46',soundOn46?'on':'off');}catch(e){}
+  if(typeof audioCtx!=='undefined'&&audioCtx){if(soundOn46)audioCtx.resume?.();else audioCtx.suspend?.();}
+  renderSettings46();
+});
+addEventListener('keydown',function(e){if(e.code==='Escape'&&!e.repeat){e.preventDefault();setSettingsOpen46(!settingsOpen46);}});
+
+if(typeof applyRenderTier31==='function'){
+  const adaptiveApply46=applyRenderTier31;
+  applyRenderTier31=function(tier){let use=tier;if(quality46==='high')use=0;else if(quality46==='performance')use=2;return adaptiveApply46(use);};
+}
+function applyQuality46(){
+  if(typeof applyRenderTier31==='function'){
+    const tier=typeof qaRenderTier31!=='undefined'?qaRenderTier31:0;
+    applyRenderTier31(tier);
+  }
+}
+applyQuality46();
+
+if(typeof tone==='function'){
+  const toneBefore46=tone;
+  tone=function(){if(!soundOn46)return;return toneBefore46.apply(this,arguments);};
+}
+if(typeof audio39==='function'){
+  const audioBefore46=audio39;
+  audio39=function(){if(!soundOn46)return null;return audioBefore46();};
+}
+
+const updatePlayerBeforePolish46=updatePlayer;
+updatePlayer=function(dt){if(settingsOpen46)return;return updatePlayerBeforePolish46(dt);};
+const updateNPCsBeforePolish46=updateNPCs;
+updateNPCs=function(dt){if(settingsOpen46)return;return updateNPCsBeforePolish46(dt);};
+const doActionBeforePolish46=doAction;
+doAction=function(){if(settingsOpen46){firing=false;return;}return doActionBeforePolish46();};
+
+// ---------------------------------------------------------------------------
+// 2. MATCH STATS + BETTER VICTORY SUMMARY
+// ---------------------------------------------------------------------------
+let shots46=0,hitShots46=0,maxStreak46=0,coinsEarned46=0,matchStart46=0;
+const shootGunBeforeStats46=shootGun;
+shootGun=function(w){const before=w&&w.type==='gun'?w.mag:null;const r=shootGunBeforeStats46(w);if(w&&w.type==='gun'&&before>w.mag)shots46++;return r;};
+if(typeof showHit30==='function'){
+  const showHitBeforeStats46=showHit30;
+  showHit30=function(kill){hitShots46++;return showHitBeforeStats46(kill);};
+}
+if(typeof addCoins19==='function'){
+  const addCoinsBeforeStats46=addCoins19;
+  addCoins19=function(n){if(n>0)coinsEarned46+=n;return addCoinsBeforeStats46(n);};
+}
+if(typeof finishLobby17==='function'){
+  const finishLobbyBeforeStats46=finishLobby17;
+  finishLobby17=function(){const was=typeof lobbyActive17!=='undefined'&&lobbyActive17;const r=finishLobbyBeforeStats46();if(was&&typeof lobbyActive17!=='undefined'&&!lobbyActive17)matchStart46=performance.now();return r;};
+}
+const victoryStats46=document.createElement('div');
+victoryStats46.style.cssText='margin-top:18px;display:grid;grid-template-columns:repeat(4,minmax(70px,1fr));gap:8px;width:min(560px,92vw)';
+if(typeof replay24!=='undefined'&&replay24.parentElement)replay24.parentElement.insertBefore(victoryStats46,replay24);
+function formatTime46(ms){const sec=Math.max(0,Math.floor(ms/1000)),m=Math.floor(sec/60),s=sec%60;return m+':'+String(s).padStart(2,'0');}
+function renderVictoryStats46(){
+  const accuracy=shots46?Math.round(hitShots46/shots46*100):0,elapsed=matchStart46?performance.now()-matchStart46:0;
+  const cells=[['TIME',formatTime46(elapsed)],['ACCURACY',accuracy+'%'],['BEST STREAK',String(maxStreak46)],['COINS EARNED',String(coinsEarned46)]];
+  victoryStats46.innerHTML=cells.map(function(c){return `<div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);border-radius:11px;padding:10px 7px"><div style="font-size:9px;opacity:.58;font-weight:850">${c[0]}</div><div style="font-size:18px;font-weight:950;margin-top:3px">${c[1]}</div></div>`;}).join('');
+}
+if(typeof winMatch24==='function'){
+  const winMatchBeforeStats46=winMatch24;
+  winMatch24=function(){renderVictoryStats46();return winMatchBeforeStats46();};
+}
+
+// ---------------------------------------------------------------------------
+// 3. MILESTONE SUPPLY CACHES
+// ---------------------------------------------------------------------------
+const supplyMilestones46=new Set([10,25,45,60]);
+const supplied46=new Set();
+function freeSupplySpot46(){
+  for(let i=0;i<28;i++){
+    const a=i/28*Math.PI*2+rand(-.15,.15),r=rand(7,14),x=clamp(player.pos.x+Math.cos(a)*r,-470,470),z=clamp(player.pos.z+Math.sin(a)*r,-470,470);
+    if(typeof spawnIsDry17==='function'&&!spawnIsDry17(x,z))continue;if(!blockedPosition(x,z))return{x,z};
+  }
+  return null;
+}
+function spawnSupply46(kills){
+  if(typeof createLootCrate!=='function')return;const p=freeSupplySpot46();if(!p)return;
+  const c=createLootCrate(p.x,p.z,'Milestone Supply Cache');
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.12,.30,7.5,8),new THREE.MeshBasicMaterial({color:0xffd86d,transparent:true,opacity:.16,depthWrite:false}));beam.position.y=3.8;c.group.add(beam);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.15,.055,6,24),new THREE.MeshBasicMaterial({color:0xffd86d,transparent:true,opacity:.82}));ring.rotation.x=Math.PI/2;ring.position.y=.08;c.group.add(ring);
+  message(`${kills} KILLS · SUPPLY CACHE DROPPED NEARBY`,2.8);
+}
+const killNpcBeforePolish46=killNpc;
+killNpc=function(n){
+  const before=typeof playerKills24!=='undefined'?playerKills24:0,r=killNpcBeforePolish46(n);
+  if(typeof playerKills24!=='undefined'&&playerKills24>before){
+    if(typeof streak30!=='undefined')maxStreak46=Math.max(maxStreak46,streak30);
+    for(const milestone of supplyMilestones46)if(before<milestone&&playerKills24>=milestone&&!supplied46.has(milestone)){supplied46.add(milestone);spawnSupply46(milestone);}
+  }
+  return r;
+};
+
+// ---------------------------------------------------------------------------
+// 4. REACTIVE NPC DODGE AFTER TAKING DAMAGE
+// ---------------------------------------------------------------------------
+const npcHealth46=new WeakMap();for(const n of npcs)if(n)npcHealth46.set(n,n.health);
+const updateNPCsBeforeReaction46=updateNPCs;
+updateNPCs=function(dt){
+  if(settingsOpen46)return;updateNPCsBeforeReaction46(dt);
+  if(typeof lobbyActive17!=='undefined'&&lobbyActive17)return;if(typeof matchWon24!=='undefined'&&matchWon24)return;
+  const now=performance.now();
+  for(const n of npcs){
+    if(!n||n.dead||!n.group)continue;const prev=npcHealth46.has(n)?npcHealth46.get(n):n.health;
+    if(n.health<prev){n.dodgeUntil46=now+rand(420,760);n.dodgeSide46=Math.random()<.5?-1:1;}npcHealth46.set(n,n.health);
+    if((n.dodgeUntil46||0)>now){
+      const dx=player.pos.x-n.group.position.x,dz=player.pos.z-n.group.position.z,d=Math.hypot(dx,dz);
+      if(d>1&&d<24){const inv=1/d,sideX=-dz*inv*(n.dodgeSide46||1),sideZ=dx*inv*(n.dodgeSide46||1),nx=n.group.position.x+sideX*1.15*dt,nz=n.group.position.z+sideZ*1.15*dt;if(!blockedPosition(nx,nz)){n.group.position.x=nx;n.group.position.z=nz;n.group.position.y=groundY(nx,nz);}}
+    }
+  }
+};
+
+// ---------------------------------------------------------------------------
+// 5. THREE RECOGNIZABLE WORLD LANDMARKS + MINIMAP MARKERS
+// ---------------------------------------------------------------------------
+const landmarks46=[];
+const lmSteel46=new THREE.MeshStandardMaterial({color:0x626d72,roughness:.48,metalness:.58});
+const lmDark46=new THREE.MeshStandardMaterial({color:0x30383b,roughness:.72,metalness:.28});
+const lmRust46=new THREE.MeshStandardMaterial({color:0x81533b,roughness:.90,metalness:.18});
+const lmConcrete46=new THREE.MeshStandardMaterial({color:0x85847c,roughness:.95});
+function lmMesh46(g,geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(x||0,y||0,z||0);m.castShadow=true;m.receiveShadow=true;g.add(m);return m;}
+function findLandmarkSpot46(baseX,baseZ){
+  for(let i=0;i<32;i++){const a=i/32*Math.PI*2,r=i===0?0:8+Math.floor(i/8)*8,x=clamp(baseX+Math.cos(a)*r,-455,455),z=clamp(baseZ+Math.sin(a)*r,-455,455);if(groundY(x,z)<=water.position.y+.9||blockedPosition(x,z))continue;return{x,z};}
+  return{x:baseX,z:baseZ};
+}
+function addLandmark46(name,baseX,baseZ,kind,radius){
+  const p=findLandmarkSpot46(baseX,baseZ),g=new THREE.Group();g.position.set(p.x,groundY(p.x,p.z),p.z);scene.add(g);
+  if(kind==='radio'){
+    for(const sx of [-.95,.95])for(const sz of [-.95,.95])lmMesh46(g,new THREE.CylinderGeometry(.09,.13,8,6),lmSteel46,sx,4,sz);
+    lmMesh46(g,new THREE.CylinderGeometry(.10,.13,15,7),lmSteel46,0,10.5,0);
+    for(const y of [2,4,6,8]){lmMesh46(g,new THREE.BoxGeometry(2.2,.08,.08),lmRust46,0,y,0);lmMesh46(g,new THREE.BoxGeometry(.08,.08,2.2),lmRust46,0,y,0);}
+    for(const y of [11.5,14.5,17.2])lmMesh46(g,new THREE.BoxGeometry(3.1,.07,.07),lmSteel46,0,y,0);
+    const beacon=lmMesh46(g,new THREE.SphereGeometry(.18,8,6),new THREE.MeshBasicMaterial({color:0xe35d4d}),0,18.2,0);beacon.userData.beacon46=true;
+  }else if(kind==='water'){
+    for(const sx of [-1.2,1.2])for(const sz of [-1.2,1.2])lmMesh46(g,new THREE.CylinderGeometry(.10,.16,5.6,7),lmSteel46,sx,2.8,sz);
+    lmMesh46(g,new THREE.CylinderGeometry(2.55,2.3,3.2,16),lmConcrete46,0,7.1,0);lmMesh46(g,new THREE.ConeGeometry(2.6,1.2,16),lmDark46,0,9.25,0);lmMesh46(g,new THREE.CylinderGeometry(.11,.13,2.0,7),lmSteel46,0,10.7,0);
+  }else{
+    const s1=lmMesh46(g,new THREE.ConeGeometry(2.5,12,6),lmRust46,0,6,0);s1.rotation.z=.08;const s2=lmMesh46(g,new THREE.DodecahedronGeometry(2.4,0),lmRust46,1.2,2.2,.5);s2.scale.set(1.2,.75,.9);lmMesh46(g,new THREE.ConeGeometry(1.25,6.5,5),lmDark46,-1.7,3.25,.4).rotation.z=-.18;
+  }
+  g.userData.landmark46=name;colliders.push({obj:g,radius:radius});landmarks46.push({name,x:p.x,z:p.z,g});return g;
+}
+addLandmark46('ECHO RADIO TOWER',-300,40,'radio',2.1);
+addLandmark46('OLD RESERVOIR',120,145,'water',2.8);
+addLandmark46('RED SPIRE',330,-100,'spire',2.8);
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+
+if(typeof drawMiniMap==='function'&&typeof miniCtx!=='undefined'&&typeof miniWorldToPx==='function'){
+  const drawMiniBeforeLandmarks46=drawMiniMap;let lmMapDraw46=0;
+  drawMiniMap=function(){
+    drawMiniBeforeLandmarks46();const now=performance.now();if(now-lmMapDraw46<75)return;lmMapDraw46=now;miniCtx.save();miniCtx.font='bold 9px system-ui';miniCtx.textAlign='center';
+    for(const lm of landmarks46){const p=miniWorldToPx(lm.x,lm.z);miniCtx.fillStyle='#ffe07a';miniCtx.beginPath();miniCtx.arc(p.x,p.y,3.4,0,Math.PI*2);miniCtx.fill();miniCtx.strokeStyle='rgba(0,0,0,.65)';miniCtx.lineWidth=2;miniCtx.stroke();}
+    miniCtx.restore();
+  };
+}
+
+const areaHud46=document.createElement('div');
+areaHud46.style.cssText='position:fixed;left:50%;top:82px;transform:translateX(-50%);z-index:35;background:rgba(8,13,16,.64);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:4px 8px;color:#dce8ec;font:800 9px system-ui;letter-spacing:.05em;pointer-events:none;transition:opacity .2s';
+document.body.appendChild(areaHud46);
+function updateArea46(){
+  if(settingsOpen46){areaHud46.style.opacity='.25';return;}areaHud46.style.opacity='1';let closest=null,dist=1e9;
+  for(const lm of landmarks46){const d=Math.hypot(player.pos.x-lm.x,player.pos.z-lm.z);if(d<dist){dist=d;closest=lm;}}
+  if(closest&&dist<85)areaHud46.textContent=`LANDMARK · ${closest.name} · ${Math.round(dist)}m`;
+  else if(typeof biomeAt==='function'){const b=biomeAt(player.pos.x,player.pos.z);areaHud46.textContent=`AREA · ${b?.name||'FRONTIER'}`;}else areaHud46.textContent='AREA · FRONTIER';
+}
+setInterval(updateArea46,450);updateArea46();
+
+let beaconTick46=0;
+const updatePlayerBeforeBeacon46=updatePlayer;
+updatePlayer=function(dt){
+  if(settingsOpen46)return;const r=updatePlayerBeforeBeacon46(dt);beaconTick46+=dt;
+  for(const lm of landmarks46)lm.g.traverse(function(o){if(o.userData&&o.userData.beacon46&&o.material)o.material.color.setHex(Math.sin(beaconTick46*3)>0?0xff765f:0x9a3028);});
+  return r;
+};
+
+renderSettings46();
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='POLISH PASS · LANDMARKS + STATS + SETTINGS';setTimeout(()=>graphicsBadge21.style.opacity='0',7000);}
+message('POLISH PASS · settings, supply caches, landmarks + smarter reactions',4.2);
