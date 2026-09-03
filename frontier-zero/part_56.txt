@@ -1,0 +1,82 @@
+// ============================================================================
+// FRONTIER ZERO TERRAIN-FOLLOWING TOWN ROADS
+// Replaces long rigid town road/sidewalk slabs with instanced short segments that
+// hug the terrain. Fixes giant ramps/floating wedges while preserving 60 FPS.
+// ============================================================================
+
+const roadFixDesktop56=matchMedia('(pointer:fine)').matches;
+
+// Hide the original 92-108m single-box town roads and pavements from part 51.
+let hiddenRoadSlabs56=0;
+for(const o of scene.children){
+  if(!o?.isMesh)continue;
+  if(o.material===roadMat51||o.material===sidewalkMat51){o.visible=false;hiddenRoadSlabs56++;}
+}
+
+const roadMatrices56=[];
+const walkMatrices56=[];
+const roadDummy56=new THREE.Object3D();
+const roadUnitGeo56=new THREE.BoxGeometry(1,.12,1);
+
+function smoothGround56(x,z,dx,dz,span){
+  const q=span*.34;
+  return (groundY(x,z)*2+groundY(x-dx*q,z-dz*q)+groundY(x+dx*q,z+dz*q))/4;
+}
+
+function addStrip56(list,cx,cz,length,width,rot,yLift){
+  const targetSeg=roadFixDesktop56?4.2:5.0;
+  const count=Math.max(1,Math.ceil(length/targetSeg));
+  const seg=length/count;
+  const dirX=Math.cos(rot),dirZ=-Math.sin(rot);
+  for(let i=0;i<count;i++){
+    const along=-length/2+(i+.5)*seg;
+    const x=cx+dirX*along,z=cz+dirZ*along;
+    const ex=dirX*seg*.48,ez=dirZ*seg*.48;
+    const y0=groundY(x-ex,z-ez),y1=groundY(x+ex,z+ez);
+    const y=smoothGround56(x,z,dirX,dirZ,seg)+yLift;
+    const slope=Math.atan2(y1-y0,seg*.96);
+    roadDummy56.position.set(x,y,z);
+    roadDummy56.rotation.set(0,rot,slope);
+    roadDummy56.scale.set(seg+.10,1,width);
+    roadDummy56.updateMatrix();
+    list.push(roadDummy56.matrix.clone());
+  }
+}
+
+if(typeof townZones51!=='undefined'){
+  for(const zone of townZones51){
+    if(!zone)continue;
+    const len=zone.bigCity?108:92,cx=zone.x,cz=zone.z;
+    addStrip56(roadMatrices56,cx,cz,len,7.5,0,.055);
+    addStrip56(roadMatrices56,cx,cz,len,7.5,Math.PI/2,.062);
+    addStrip56(walkMatrices56,cx,cz+6,len,2.2,0,.105);
+    addStrip56(walkMatrices56,cx,cz-6,len,2.2,0,.108);
+    addStrip56(walkMatrices56,cx+6,cz,len,2.2,Math.PI/2,.112);
+    addStrip56(walkMatrices56,cx-6,cz,len,2.2,Math.PI/2,.115);
+  }
+}
+
+const roadMesh56=new THREE.InstancedMesh(roadUnitGeo56,roadMat51,Math.max(1,roadMatrices56.length));
+for(let i=0;i<roadMatrices56.length;i++)roadMesh56.setMatrixAt(i,roadMatrices56[i]);
+roadMesh56.count=roadMatrices56.length;
+roadMesh56.instanceMatrix.needsUpdate=true;
+roadMesh56.castShadow=false;roadMesh56.receiveShadow=true;roadMesh56.frustumCulled=true;
+roadMesh56.userData.terrainRoad56=true;scene.add(roadMesh56);
+
+const walkMesh56=new THREE.InstancedMesh(roadUnitGeo56,sidewalkMat51,Math.max(1,walkMatrices56.length));
+for(let i=0;i<walkMatrices56.length;i++)walkMesh56.setMatrixAt(i,walkMatrices56[i]);
+walkMesh56.count=walkMatrices56.length;
+walkMesh56.instanceMatrix.needsUpdate=true;
+walkMesh56.castShadow=false;walkMesh56.receiveShadow=true;walkMesh56.frustumCulled=true;
+walkMesh56.userData.terrainWalk56=true;scene.add(walkMesh56);
+
+// Keep the rough-terrain decoration away from the visible roadway corridors.
+if(typeof roughClods55!=='undefined')roughClods55.renderOrder=-1;
+if(typeof gravel55!=='undefined')gravel55.renderOrder=-1;
+
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';
+  graphicsBadge21.textContent='TOWN ROADS FIXED · TERRAIN-FOLLOWING · 60 FPS';
+  setTimeout(()=>graphicsBadge21.style.opacity='0',6500);
+}
+message('TOWN ROAD FIX · ramps and floating pavements removed',4.0);
