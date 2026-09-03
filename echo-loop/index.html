@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ECHO//LOOP</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="gameRoot">
+    <canvas id="game"></canvas>
+
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="brand">ECHO//LOOP</div>
+        <div class="loop-chip">LOOP <span id="loopCount">1</span> · <span id="timer">01:30</span></div>
+      </div>
+      <div id="objective">OBJECTIVE: Reach the reactor control room</div>
+      <div id="crosshair">+</div>
+      <div id="damageFlash"></div>
+      <div class="hud-bottom">
+        <div class="stat"><span>HEALTH</span><b id="health">100</b></div>
+        <div class="stat"><span>AMMO</span><b><span id="ammo">18</span>/<span id="reserve">90</span></b></div>
+        <div class="stat"><span>ECHOS</span><b id="echoCount">0</b></div>
+        <div class="stat"><span>ABILITY</span><b id="ability">READY</b></div>
+      </div>
+      <div id="message"></div>
+      <div id="bossBar" class="hidden"><span>THE ARCHITECT</span><div><i id="bossFill"></i></div></div>
+    </div>
+
+    <section id="menu" class="screen active">
+      <div class="panel hero">
+        <div class="eyebrow">TEMPORAL SURVIVAL PROTOCOL</div>
+        <h1>ECHO<span>//</span>LOOP</h1>
+        <p>Every 90 seconds, your past self becomes real.</p>
+        <p class="small">Fight beside your own timeline. Solve impossible rooms. Survive corrupted versions of yourself.</p>
+        <div class="buttons">
+          <button id="playBtn">PLAY</button>
+          <button id="howBtn" class="secondary">HOW TO PLAY</button>
+          <button id="settingsBtn" class="secondary">SETTINGS</button>
+        </div>
+        <div class="footer-note">Desktop keyboard + mouse recommended · ESC always releases the mouse</div>
+      </div>
+    </section>
+
+    <section id="pause" class="screen">
+      <div class="panel">
+        <div class="eyebrow">TEMPORAL STATE PAUSED</div>
+        <h2>PAUSED</h2>
+        <div class="buttons vertical">
+          <button id="resumeBtn">RESUME</button>
+          <button id="restartLoopBtn" class="secondary">RESTART CURRENT LOOP</button>
+          <button id="pauseSettingsBtn" class="secondary">SETTINGS</button>
+          <button id="mainMenuBtn" class="danger">MAIN MENU</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="screen">
+      <div class="panel wide">
+        <div class="eyebrow">OPERATIONS MANUAL</div>
+        <h2>HOW TO PLAY</h2>
+        <div class="grid2">
+          <div><b>MOVE</b><p>WASD</p></div><div><b>LOOK</b><p>Mouse</p></div>
+          <div><b>FIRE</b><p>Left click</p></div><div><b>AIM</b><p>Right click</p></div>
+          <div><b>SPRINT</b><p>Shift</p></div><div><b>JUMP</b><p>Space</p></div>
+          <div><b>CROUCH</b><p>C</p></div><div><b>RELOAD</b><p>R</p></div>
+          <div><b>INTERACT</b><p>E</p></div><div><b>TEMPORAL GRENADE</b><p>F</p></div>
+        </div>
+        <p class="small">Your actions are recorded. At the end of each 90-second loop, an Echo replays your previous movement and gunfire. Corrupted Echoes may eventually turn those habits against you.</p>
+        <button class="backBtn secondary">BACK</button>
+      </div>
+    </section>
+
+    <section id="settings" class="screen">
+      <div class="panel wide">
+        <div class="eyebrow">SYSTEM CONFIGURATION</div>
+        <h2>SETTINGS</h2>
+        <label>Mouse sensitivity <input id="sens" type="range" min="0.3" max="2.2" step="0.1" value="1" /></label>
+        <label>Graphics <select id="quality"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+        <label>FOV <input id="fov" type="range" min="65" max="95" step="1" value="78" /></label>
+        <button class="backBtn secondary">BACK</button>
+      </div>
+    </section>
+
+    <section id="gameover" class="screen">
+      <div class="panel hero">
+        <div class="eyebrow">TIMELINE FAILURE</div>
+        <h2>YOU DIED</h2>
+        <p>The facility consumed this version of you.</p>
+        <button id="retryBtn">RETRY</button>
+        <button id="deadMenuBtn" class="secondary">MAIN MENU</button>
+      </div>
+    </section>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
