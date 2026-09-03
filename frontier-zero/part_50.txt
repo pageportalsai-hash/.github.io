@@ -1,0 +1,202 @@
+// ============================================================================
+// FRONTIER ZERO DOOR NAVIGATION + VARIED HOUSE ORIENTATION
+// NPCs understand authored door portals, doors open near characters, and house
+// facades face different cardinal directions without desynchronizing collision.
+// ============================================================================
+
+const doorDesktop50=matchMedia('(pointer:fine)').matches;
+const buildingNav50=[];
+
+function quarterTurn50(a){
+  let q=Math.round(a/(Math.PI/2))%4;if(q<0)q+=4;return q;
+}
+function localXZ50(rec,x,z){
+  const dx=x-rec.x,dz=z-rec.z,a=-rec.rot,c=Math.cos(a),s=Math.sin(a);
+  return {x:dx*c-dz*s,z:dx*s+dz*c};
+}
+function worldXZ50(rec,lx,lz){
+  const c=Math.cos(rec.rot),s=Math.sin(rec.rot);
+  return {x:rec.x+lx*c-lz*s,z:rec.z+lx*s+lz*c};
+}
+function insideBuilding50(rec,x,z,margin=.18){
+  const p=localXZ50(rec,x,z);
+  return Math.abs(p.x)<rec.w/2-margin&&Math.abs(p.z)<rec.d/2-margin;
+}
+
+// Preserve interior collider local positions before any building is rotated.
+if(typeof interiorCols39!=='undefined'){
+  for(const c of interiorCols39){
+    if(!c?.root)continue;
+    c.baseW50=c.baseW50||c.w;c.baseD50=c.baseD50||c.d;
+    c.root.updateWorldMatrix(true,false);
+    const lp=c.root.worldToLocal(new THREE.Vector3(c.x,c.root.getWorldPosition(new THREE.Vector3()).y,c.z));
+    c.localX50=lp.x;c.localZ50=lp.z;
+  }
+}
+
+// Rotate actual HOUSE buildings in a deterministic, cardinal-direction pattern.
+// Rectangular homes use 180-degree flips; near-square homes can safely use 90/270.
+let houseNo50=0;
+for(let i=0;i<rebuiltBuildings33.length;i++){
+  const g=rebuiltBuildings33[i],b=g?.userData?.bounds33;if(!g||!b)continue;
+  const type=i%3;let rot=0;
+  if(type===0){
+    const pattern=houseNo50++%4,nearSquare=Math.abs(b.w-b.d)<=2.0;
+    if(pattern===1)rot=Math.PI;
+    else if(pattern===2)rot=nearSquare?Math.PI/2:Math.PI;
+    else if(pattern===3)rot=nearSquare?-Math.PI/2:Math.PI;
+    g.rotation.y=rot;
+  }
+  g.updateMatrixWorld(true);
+  const doorW=type===1?2.45:1.55;
+  const rec={g,index:i,type,x:b.x,z:b.z,w:b.w,d:b.d,doorW,rot:g.rotation.y,doorParts:[]};
+  const center=worldXZ50(rec,0,b.d/2+.22),outside=worldXZ50(rec,0,b.d/2+1.18),inside=worldXZ50(rec,0,b.d/2-1.05);
+  rec.center=center;rec.outside=outside;rec.inside=inside;
+
+  // Find visual door pieces so doors visibly open before an NPC/player enters.
+  for(const o of g.children){
+    if(!o?.isMesh||o.geometry?.type!=='BoxGeometry')continue;
+    const p=o.geometry.parameters||{},w=p.width||0,h=p.height||0,d=p.depth||0;
+    if(type!==1){
+      if(Math.abs(o.position.x)<.08&&Math.abs(o.position.z-(b.d/2+.20))<.12&&w>1.2&&w<2.0&&h>1.9&&h<2.6&&d<.09){
+        rec.doorParts.push({o,mode:'side',x:o.position.x,y:o.position.y,shift:doorW*.88});
+      }
+    }else{
+      const nearFront=Math.abs(o.position.z-(b.d/2+.16))<.12;
+      if(nearFront&&Math.abs(o.position.x)<doorW*.55&&w<=doorW+.08&&h<=2.9&&d<.09){
+        rec.doorParts.push({o,mode:'lift',x:o.position.x,y:o.position.y,shift:3.0});
+      }
+    }
+  }
+  // House/shop doorknob follows the sliding panel.
+  if(type!==1){
+    for(const o of g.children){
+      if(!o?.isMesh||o.geometry?.type!=='SphereGeometry')continue;
+      if(Math.abs(o.position.y-1.18)<.18&&Math.abs(o.position.z-(b.d/2+.25))<.18&&Math.abs(o.position.x)<doorW*.5){
+        rec.doorParts.push({o,mode:'side',x:o.position.x,y:o.position.y,shift:doorW*.88});
+      }
+    }
+  }
+  buildingNav50.push(rec);
+}
+
+// Rebuild the Phase-A wall rectangles from the final building rotations. Cardinal
+// rotations remain axis-aligned, so the fast spatial collision grid stays valid.
+function pushWall50(rec,lx,lz,lw,ld){
+  const p=worldXZ50(rec,lx,lz),q=quarterTurn50(rec.rot),swap=(q%2)===1;
+  buildingCollision33.push({x:p.x,z:p.z,w:swap?ld:lw,d:swap?lw:ld,building50:rec});
+}
+buildingCollision33.length=0;
+for(const rec of buildingNav50){
+  const t=.41,seg=Math.max(.70,(rec.w-rec.doorW)/2);
+  pushWall50(rec,-rec.w/2,0,t,rec.d+.05);
+  pushWall50(rec, rec.w/2,0,t,rec.d+.05);
+  pushWall50(rec,0,-rec.d/2,rec.w+.05,t);
+  pushWall50(rec,-(rec.doorW/2+seg/2),rec.d/2,seg,t);
+  pushWall50(rec, (rec.doorW/2+seg/2),rec.d/2,seg,t);
+}
+
+// Reproject furniture/interior collision points after parent-house rotation.
+if(typeof interiorCols39!=='undefined'){
+  for(const c of interiorCols39){
+    if(!c?.root||!Number.isFinite(c.localX50)||!Number.isFinite(c.localZ50))continue;
+    c.root.updateWorldMatrix(true,false);
+    const wp=c.root.localToWorld(new THREE.Vector3(c.localX50,0,c.localZ50));
+    c.x=wp.x;c.z=wp.z;
+    const q=quarterTurn50(c.root.parent?.rotation?.y||0),swap=(q%2)===1;
+    c.w=swap?c.baseD50:c.baseW50;c.d=swap?c.baseW50:c.baseD50;
+  }
+}
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40();
+
+function containingBuilding50(pos){
+  for(const rec of buildingNav50)if(insideBuilding50(rec,pos.x,pos.z))return rec;
+  return null;
+}
+function npcTarget50(n){
+  if(n?.npcEnemy&&!n.npcEnemy.dead)return n.npcEnemy.group.position;
+  const dp=Math.hypot(player.pos.x-n.group.position.x,player.pos.z-n.group.position.z);
+  if((n.playerProvoked||0)>0||n.alert>0||dp<=60)return player.pos;
+  if(n.lootTarget14&&!n.lootTarget14.looted&&n.lootTarget14.group?.parent)return n.lootTarget14.group.position;
+  return n.patrol;
+}
+function doorwayWaypoint50(n,target){
+  const here=containingBuilding50(n.group.position),there=containingBuilding50(target);
+  if(here){
+    if(there===here)return null;
+    const dInside=Math.hypot(n.group.position.x-here.inside.x,n.group.position.z-here.inside.z);
+    return dInside>.55?{x:here.inside.x,z:here.inside.z,rec:here}:{x:here.outside.x,z:here.outside.z,rec:here};
+  }
+  if(there){
+    const dOutside=Math.hypot(n.group.position.x-there.outside.x,n.group.position.z-there.outside.z);
+    return dOutside>.62?{x:there.outside.x,z:there.outside.z,rec:there}:{x:there.inside.x,z:there.inside.z,rec:there};
+  }
+  return null;
+}
+
+function doorShouldOpen50(rec){
+  if(Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<2.45)return true;
+  for(const n of npcs){if(n&&!n.dead&&Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<2.65)return true;}
+  return false;
+}
+function animateDoors50(dt){
+  for(const rec of buildingNav50){
+    if(!rec.doorParts.length)continue;
+    const open=doorShouldOpen50(rec),f=1-Math.exp(-dt*(open?8.5:5.0));
+    for(const p of rec.doorParts){
+      if(p.mode==='side')p.o.position.x=THREE.MathUtils.lerp(p.o.position.x,p.x+(open?p.shift:0),f);
+      else p.o.position.y=THREE.MathUtils.lerp(p.o.position.y,p.y+(open?p.shift:0),f);
+    }
+  }
+}
+
+// Final NPC wrapper: let every existing AI system run, then assist only NPCs that
+// are not making progress toward a required doorway. This avoids double-speed AI.
+const updateNPCsBeforeDoors50=updateNPCs;
+const routeState50=new WeakMap();
+updateNPCs=function(dt){
+  const paused=(typeof settingsOpen46!=='undefined'&&settingsOpen46)||(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24);
+  const beforeDist=new WeakMap();
+  if(!paused){
+    for(const n of npcs){
+      if(!n||n.dead)continue;
+      const target=npcTarget50(n),wp=doorwayWaypoint50(n,target);
+      routeState50.set(n,wp);
+      if(wp){
+        beforeDist.set(n,Math.hypot(n.group.position.x-wp.x,n.group.position.z-wp.z));
+        // Idle/loot AI follows the same doorway waypoint instead of selecting a
+        // random wall-facing patrol destination.
+        if((n.playerProvoked||0)<=0&&!(n.npcEnemy&&!n.npcEnemy.dead)){
+          n.patrol.set(wp.x,0,wp.z);n.repath=Math.max(n.repath||0,1.25);
+        }
+      }
+    }
+  }
+  const r=updateNPCsBeforeDoors50(dt);
+  if(!paused){
+    for(const n of npcs){
+      if(!n||n.dead)continue;const wp=routeState50.get(n);if(!wp)continue;
+      const p=n.group.position,current=Math.hypot(p.x-wp.x,p.z-wp.z),before=beforeDist.get(n);
+      if(before===undefined||current<before-.018)continue; // existing AI already progressed
+      if(current<.08)continue;
+      const dx=(wp.x-p.x)/current,dz=(wp.z-p.z)/current,speed=(n.alert>0||(n.playerProvoked||0)>0)?3.35:1.85;
+      const step=Math.min(current,speed*dt),nx=p.x+dx*step,nz=p.z+dz*step;
+      if(!blockedPosition(nx,nz)){
+        p.x=nx;p.z=nz;p.y=groundY(nx,nz);
+        n.group.rotation.y=Math.atan2(dx,dz)+Math.PI;
+      }
+    }
+  }
+  animateDoors50(dt);
+  return r;
+};
+
+// Periodically keep spatial collision synchronized after rotations/LOD changes.
+setInterval(function(){if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();},5000);
+
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='NPC DOOR NAV · VARIED HOUSE FACING';
+  setTimeout(()=>graphicsBadge21.style.opacity='0',6500);
+}
+message('NPCs can route through doors · houses now face different directions',4.2);
