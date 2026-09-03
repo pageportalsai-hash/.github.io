@@ -62,9 +62,9 @@ function desiredPixelRatio48(){
 function desiredShadow48(){
   const mode=clarityMode48(),tier=clarityTier48();
   if(!clarityDesktop48)return 1024;
-  if(mode==='high')return Math.min(3072,renderer.capabilities.maxTextureSize||3072);
+  if(mode==='high'){const cap=renderer.capabilities.maxTextureSize||4096;return cap>=4096?4096:cap>=2048?2048:1024;}
   if(mode==='performance'||tier>=2)return 1024;
-  return Math.min(tier===0?2048:1536,renderer.capabilities.maxTextureSize||2048);
+  return Math.min(tier===0?2048:1024,renderer.capabilities.maxTextureSize||2048);
 }
 function setShadowSize48(size){
   if(sun.shadow.mapSize.x===size&&sun.shadow.mapSize.y===size)return;
