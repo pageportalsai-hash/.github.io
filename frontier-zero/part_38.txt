@@ -1,0 +1,140 @@
+// ============================================================================
+// FRONTIER ZERO PHASE E — PERFORMANCE / LOD / STABILITY
+// Keeps the new world detail while dynamically budgeting VFX, shadows, lights,
+// interiors, raycast blockers and decorative props based on distance + frame rate.
+// ============================================================================
+
+const perfDesktop38=matchMedia('(pointer:fine)').matches;
+let fxBudget38=perfDesktop38?1:.62,perfTier38=0,perfFrames38=0,perfStart38=performance.now(),perfGood38=0;
+
+// ---------------------------------------------------------------------------
+// 1. OPTIMIZED INTERIOR COLLISION
+// ---------------------------------------------------------------------------
+for(const c of interiorCollision37){
+  const p=c.root.localToWorld(new THREE.Vector3(c.x,0,c.z));c.wx38=p.x;c.wz38=p.z;
+}
+// Replace the Phase-37 collision wrapper with a precomputed version. Buildings are
+// static, so recalculating localToWorld for every furniture collider every frame
+// was unnecessary work.
+blockedPosition=function(x,z){
+  if(blockedPositionBeforeInterior37(x,z))return true;
+  for(const c of interiorCollision37){
+    if(!c.root?.visible||!c.root?.parent?.visible)continue;
+    if(Math.abs(x-c.wx38)<c.w/2+.18&&Math.abs(z-c.wz38)<c.d/2+.18)return true;
+  }
+  return false;
+};
+
+// ---------------------------------------------------------------------------
+// 2. VFX QUALITY BUDGET
+// ---------------------------------------------------------------------------
+const spawnParticlesBeforePerf38=spawnParticles37;
+spawnParticles37=function(point,color,count=8,power=1,normal=null){
+  const n=Math.max(1,Math.round(count*fxBudget38));return spawnParticlesBeforePerf38(point,color,n,power,normal);
+};
+function applyPerfTier38(tier){
+  perfTier38=clamp(tier,0,2);fxBudget38=perfTier38===0?(perfDesktop38?1:.62):perfTier38===1?.58:.32;
+  atmo37.visible=perfTier38<2;
+  atmoMat37.opacity*=1;
+  if(typeof cinematicEdge33!=='undefined')cinematicEdge33.style.opacity=perfTier38===2?'.72':'1';
+  if(typeof sunGlare37!=='undefined')sunGlare37.style.opacity=perfTier38===2?'.55':perfTier38===1?'.78':'1';
+}
+applyPerfTier38(0);
+
+// ---------------------------------------------------------------------------
+// 3. SHADOW + DETAIL LOD
+// ---------------------------------------------------------------------------
+const shadowState38=new WeakMap();
+function setGroupShadow38(g,on){
+  if(!g)return;const last=shadowState38.get(g);if(last===on)return;shadowState38.set(g,on);
+  g.traverse(o=>{if(o.isMesh){o.castShadow=on;o.receiveShadow=true;}});
+}
+function visibleAncestor38(o){let p=o;while(p){if(p.visible===false)return false;p=p.parent;}return true;}
+let lodTick38=0;
+function updateLOD38(){
+  if((lodTick38++%24)!==0)return;
+  const px=player.pos.x,pz=player.pos.z;
+
+  // NPCs: near rigs keep dynamic shadows; distant combatants remain fully active
+  // but no longer cost dozens of shadow draw calls each.
+  for(const n of npcs){
+    if(!n?.group||n.dead)continue;const d=Math.hypot(n.group.position.x-px,n.group.position.z-pz);
+    setGroupShadow38(n.group,d<(perfDesktop38?(perfTier38===0?62:48):34));
+  }
+  // Cars: only nearby vehicles cast shadows. Detailed geometry stays visible.
+  for(const c of cars19){
+    const d=Math.hypot(c.group.position.x-px,c.group.position.z-pz);setGroupShadow38(c.group,d<(perfDesktop38?(perfTier38===0?92:68):48));
+  }
+  // Authored buildings keep receiving light, but only nearby structures cast.
+  for(const g of rebuiltBuildings33){
+    const b=g.userData?.bounds33;if(!b)continue;const d=Math.hypot(b.x-px,b.z-pz);
+    setGroupShadow38(g,d<(perfDesktop38?(perfTier38===0?115:86):58));
+  }
+
+  // Interior distance and actual point lights get progressively tighter under load.
+  const interiorRange=perfDesktop38?(perfTier38===0?92:perfTier38===1?70:52):(perfTier38===0?58:44);
+  const lightRange=perfTier38===0?32:perfTier38===1?22:0;
+  for(const root of interiorRoots37){
+    const b=root.userData.bounds37,d=Math.hypot(b.x-px,b.z-pz);root.visible=d<interiorRange;
+    if(root.userData.light37)root.userData.light37.visible=lightRange>0&&d<lightRange;
+    // Dynamically keep raycast panes active only while their visual interior is active.
+    root.traverse(o=>{if(!o.isMesh||!o.userData?.breakable37)return;const br=o.userData.breakable37,idx=blockers.indexOf(o);if(root.visible&&!br.broken&&idx<0)blockers.push(o);else if((!root.visible||br.broken)&&idx>=0)blockers.splice(idx,1);});
+  }
+
+  // Decorative exterior groups disappear individually instead of hiding the entire
+  // prop layer, avoiding both empty towns and distant draw-call waste.
+  for(const g of worldDress37.children){
+    const wp=g.getWorldPosition(new THREE.Vector3()),d=Math.hypot(wp.x-px,wp.z-pz);g.visible=d<(perfDesktop38?(perfTier38===0?150:110):82);
+  }
+
+  // Low-priority atmospheric extras are the first thing cut at the lowest tier.
+  for(const m of mist37)if(perfTier38===2)m.visible=false;
+}
+
+// ---------------------------------------------------------------------------
+// 4. RAYCAST / DESTROYED OBJECT HYGIENE
+// ---------------------------------------------------------------------------
+let cleanTimer38=0;
+function cleanupWorld38(dt){
+  cleanTimer38+=dt;if(cleanTimer38<2.2)return;cleanTimer38=0;
+  const seen=new Set();
+  for(let i=blockers.length-1;i>=0;i--){
+    const o=blockers[i];
+    if(!o||!o.parent||o.userData?.destroyed37||seen.has(o)){blockers.splice(i,1);continue;}
+    if(!visibleAncestor38(o)&&!o.userData?.carHit37){blockers.splice(i,1);continue;}
+    seen.add(o);
+  }
+  if(typeof colliders!=='undefined')for(let i=colliders.length-1;i>=0;i--){const o=colliders[i]?.obj;if(!o||!o.parent||!visibleAncestor38(o))colliders.splice(i,1);}
+  if(typeof playerStructures!=='undefined')for(let i=playerStructures.length-1;i>=0;i--){const o=playerStructures[i];if(!o||!o.parent||!visibleAncestor38(o))playerStructures.splice(i,1);}
+}
+
+// ---------------------------------------------------------------------------
+// 5. ADAPTIVE EFFECT QUALITY — DOES NOT FIGHT THE EXISTING DPR QUALITY SYSTEM
+// ---------------------------------------------------------------------------
+function samplePerf38(now){
+  perfFrames38++;
+  if(now-perfStart38<4200)return;
+  const fps=perfFrames38*1000/(now-perfStart38);perfFrames38=0;perfStart38=now;
+  const baseTier=typeof qaRenderTier31!=='undefined'?qaRenderTier31:0;
+  if(fps<30&&perfTier38<2){applyPerfTier38(perfTier38+1);perfGood38=0;}
+  else if(fps<40&&perfTier38<1){applyPerfTier38(1);perfGood38=0;}
+  else if(fps>53&&baseTier<2){perfGood38++;if(perfGood38>=3&&perfTier38>0){applyPerfTier38(perfTier38-1);perfGood38=0;}}
+  else perfGood38=0;
+}
+
+// Audio is intentionally scaled down on mobile and under performance pressure.
+function updateAudioBudget38(){
+  if(ambientGain37&&audioCtx){const target=perfTier38===2?.0012:perfDesktop38?.0032:.0020;ambientGain37.gain.setTargetAtTime(target,audioCtx.currentTime,.4);}
+}
+
+const updateNPCsBeforePerf38=updateNPCs;
+updateNPCs=function(dt){
+  updateNPCsBeforePerf38(dt);updateLOD38();cleanupWorld38(dt);updateAudioBudget38();
+};
+(function perfLoop38(now){samplePerf38(now);requestAnimationFrame(perfLoop38);})(performance.now());
+
+// Keep texture filtering useful but bounded. This catches new Phase-C materials too.
+const maxAniso38=Math.min(renderer.capabilities.getMaxAnisotropy?.()||1,perfDesktop38?12:5);
+scene.traverse(o=>{if(!o.isMesh||!o.material)return;const mats=Array.isArray(o.material)?o.material:[o.material];for(const m of mats){for(const key of ['map','normalMap','roughnessMap','bumpMap'])if(m[key]){m[key].anisotropy=Math.min(m[key].anisotropy||1,maxAniso38);m[key].needsUpdate=true;}}});
+
+message('PERFORMANCE PHASE COMPLETE · adaptive FX, shadows, interiors + cleanup',3.8);
