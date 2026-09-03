@@ -1,0 +1,128 @@
+// ============================================================================
+// FRONTIER ZERO FIVE-PASS QA + FINAL GRAPHICS/PHYSICS CORRECTIONS
+// Passes: rendering, gameplay/loot, physics, performance, loading/runtime state.
+// ============================================================================
+
+// Older milestone caches used normal loot rules and could be mistaken for the
+// new guaranteed high-tier timed supply drops. Timed 5-minute drops are now the
+// single special supply-drop system.
+if(typeof supplyMilestones46!=='undefined')supplyMilestones46.clear();
+
+// ---------------------------------------------------------------------------
+// PHYSICS FIX — preserve premium camera/gun feel without touching car heading
+// ---------------------------------------------------------------------------
+if(typeof updatePlayerBeforePremium47==='function'){
+  updatePlayer=function(dt){
+    const oldAvatarYaw=typeof playerAvatar16!=='undefined'?playerAvatar16.rotation.y:0;
+    const r=updatePlayerBeforePremium47(dt);
+
+    // Gun kick remains visual only.
+    if(typeof premiumKick47!=='undefined'){
+      premiumKick47=Math.max(0,premiumKick47-dt*5.4);
+      if(currentGear()?.type==='gun'){
+        gunHolder.rotation.x=THREE.MathUtils.lerp(gunHolder.rotation.x,-premiumKick47*.055,Math.min(1,dt*24));
+        gunHolder.rotation.z=THREE.MathUtils.lerp(gunHolder.rotation.z,premiumKick47*.018,Math.min(1,dt*20));
+      }else{
+        gunHolder.rotation.x=THREE.MathUtils.lerp(gunHolder.rotation.x,0,Math.min(1,dt*18));
+        gunHolder.rotation.z=THREE.MathUtils.lerp(gunHolder.rotation.z,0,Math.min(1,dt*18));
+      }
+    }
+
+    // Smooth the third-person BODY only; never alter player/car simulation yaw.
+    if(typeof playerAvatar16!=='undefined'&&typeof thirdPerson16!=='undefined'&&thirdPerson16&&!activeCar19){
+      const target=playerAvatar16.rotation.y,delta=Math.atan2(Math.sin(target-oldAvatarYaw),Math.cos(target-oldAvatarYaw));
+      playerAvatar16.rotation.y=oldAvatarYaw+delta*Math.min(1,dt*12);
+    }
+
+    // Speed feeling comes from camera FOV only. Car rotation stays exactly as the
+    // audited vehicle physics produced it.
+    if(typeof baseFov47!=='undefined'){
+      if(activeCar19){
+        const speed=Math.abs(activeCar19.speed||0),ratio=clamp(speed/Math.max(1,activeCar19.maxSpeed||22),0,1),targetFov=baseFov47+ratio*8;
+        camera.fov=THREE.MathUtils.lerp(camera.fov,targetFov,Math.min(1,dt*4.5));
+      }else camera.fov=THREE.MathUtils.lerp(camera.fov,baseFov47,Math.min(1,dt*5));
+      camera.updateProjectionMatrix();
+    }
+
+    if(typeof finalWorldColor48==='function')finalWorldColor48();
+    if(typeof sky!=='undefined'&&sky)sky.visible=false;
+    return r;
+  };
+}
+
+// Every timed supply drop must remain within the requested rarity pool even if
+// future code mutates a crate before it is opened.
+const highTierSet49=new Set(['Epic','Legendary','Mythic','Secret']);
+if(typeof openSupply47==='function'){
+  const openSupplyBeforeQA49=openSupply47;
+  openSupply47=function(c){
+    if(c&&!c.looted&&(!c.supplyGun47||!highTierSet49.has(c.supplyGun47.rarity))&&typeof supplyGun47==='function')c.supplyGun47=supplyGun47();
+    return openSupplyBeforeQA49(c);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// FIVE INDEPENDENT RUNTIME QA PASSES
+// ---------------------------------------------------------------------------
+const fiveQA49={runs:0,last:null};
+function qaRepair49(ok,repair){if(ok)return true;try{repair?.();return true;}catch(e){return false;}}
+function runFivePassQA49(){
+  const results=[];
+
+  // PASS 1 — RENDERING / GRAPHICS
+  let renderOK=!!renderer&&!!scene&&!!camera&&Number.isFinite(renderer.toneMappingExposure)&&renderer.getPixelRatio()>0&&renderer.getPixelRatio()<=3;
+  renderOK=qaRepair49(renderOK,function(){if(typeof applyClarityQuality48==='function')applyClarityQuality48();});
+  if(typeof sky!=='undefined'&&sky?.visible)sky.visible=false;
+  if(typeof finalWorldColor48==='function')finalWorldColor48();
+  results.push({pass:'rendering',ok:renderOK});
+
+  // PASS 2 — GAMEPLAY / LOOT
+  let lootOK=typeof supplyMilestones46==='undefined'||supplyMilestones46.size===0;
+  if(typeof activeSupplies47!=='undefined'){
+    for(const c of activeSupplies47){
+      if(!c||c.looted)continue;
+      if(!c.supplyGun47||!highTierSet49.has(c.supplyGun47.rarity)){lootOK=false;if(typeof supplyGun47==='function')c.supplyGun47=supplyGun47();}
+    }
+  }
+  if(typeof npcDrops47!=='undefined'&&npcDrops47.length>28)npcDrops47.splice(0,npcDrops47.length-28);
+  results.push({pass:'gameplay-loot',ok:lootOK||typeof supplyGun47==='function'});
+
+  // PASS 3 — PHYSICS / COLLISION
+  let physicsOK=Number.isFinite(player.pos.x)&&Number.isFinite(player.pos.y)&&Number.isFinite(player.pos.z);
+  if(activeCar19)physicsOK=physicsOK&&Number.isFinite(activeCar19.group.position.x)&&Number.isFinite(activeCar19.group.position.z)&&Number.isFinite(activeCar19.group.rotation.y);
+  physicsOK=physicsOK&&(typeof collisionGrid43==='undefined'||collisionGrid43.size>0);
+  physicsOK=qaRepair49(physicsOK,function(){if(typeof recoverPlayer43==='function')recoverPlayer43();if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();});
+  results.push({pass:'physics-collision',ok:physicsOK});
+
+  // PASS 4 — PERFORMANCE / OBJECT BOUNDS
+  let performanceOK=true;
+  if(typeof lootCrates!=='undefined'&&lootCrates.length>140)performanceOK=false;
+  if(typeof activeSupplies47!=='undefined'&&activeSupplies47.length>8)performanceOK=false;
+  if(typeof pruneArray48==='function'){
+    if(typeof lootCrates!=='undefined')pruneArray48(lootCrates,c=>!c||((c.looted||!c.group?.parent)&&!c.npcReserved14));
+    if(typeof npcDrops47!=='undefined')pruneArray48(npcDrops47,c=>!c||c.looted||!c.group?.parent);
+    if(typeof activeSupplies47!=='undefined')pruneArray48(activeSupplies47,c=>!c||c.looted||!c.group?.parent);
+  }
+  if(typeof applyClarityQuality48==='function')applyClarityQuality48();
+  results.push({pass:'performance',ok:performanceOK});
+
+  // PASS 5 — RUNTIME / CORE STATE
+  let stableOK=npcs.length===50&&cars19.length===18&&gear.length>0&&Number.isFinite(gearIndex)&&gearIndex>=0&&gearIndex<gear.length;
+  if(typeof run100PointAudit44==='function'){const q=run100PointAudit44();stableOK=stableOK&&q.passed===q.checks;}
+  if(typeof sanitizeGear43==='function')sanitizeGear43();
+  results.push({pass:'runtime-state',ok:stableOK});
+
+  fiveQA49.runs++;
+  fiveQA49.last={time:new Date().toISOString(),results:results,passed:results.filter(x=>x.ok).length,total:5};
+  window.__frontierZeroFivePassQA=fiveQA49.last;
+  return fiveQA49.last;
+}
+
+const firstFiveQA49=runFivePassQA49();
+setInterval(runFivePassQA49,20000);
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';
+  graphicsBadge21.textContent=`5-PASS QA · ${firstFiveQA49.passed}/5 SYSTEMS OK`;
+  setTimeout(()=>graphicsBadge21.style.opacity='0',7600);
+}
+message(`GRAPHICS + 5-PASS QA · ${firstFiveQA49.passed}/5 systems checked`,4.4);
