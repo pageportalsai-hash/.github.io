@@ -1,0 +1,272 @@
+// ============================================================================
+// FRONTIER ZERO MASTER CODE AUDIT + REPAIR
+// Final structural pass after the layered build history. Focuses on correctness,
+// predictable input/collision, lower CPU cost and self-healing runtime state.
+// ============================================================================
+
+const auditDesktop43=matchMedia('(pointer:fine)').matches;
+const WORLD_LIMIT43=493;
+
+function finite43(v){return Number.isFinite(v);}
+function finitePos43(p){return !!p&&finite43(p.x)&&finite43(p.y)&&finite43(p.z);}
+function worldVisible43(o){let p=o;while(p){if(p.visible===false)return false;p=p.parent;}return true;}
+function broken43(o){return !!(o&&o.userData&&o.userData.break39&&o.userData.break39.broken);}
+
+// ---------------------------------------------------------------------------
+// 1. STARTUP SANITIZATION — remove duplicate references and invalid state
+// ---------------------------------------------------------------------------
+function dedupeArray43(arr,valid){
+  const seen=new Set();
+  for(let i=arr.length-1;i>=0;i--){const v=arr[i];if(!v||seen.has(v)||(valid&&!valid(v))){arr.splice(i,1);continue;}seen.add(v);}
+}
+dedupeArray43(blockers,o=>!!o.parent&&!broken43(o));
+dedupeArray43(playerStructures,o=>!!o.parent);
+dedupeArray43(npcHitMeshes,o=>!!o.parent);
+if(typeof colliders!=='undefined'){
+  const seen=new Set();
+  for(let i=colliders.length-1;i>=0;i--){const c=colliders[i];if(!c||!c.obj||!c.obj.parent||seen.has(c.obj)){colliders.splice(i,1);continue;}seen.add(c.obj);}
+}
+
+// Remove the older extra circular car contact shadow. The newer shadow system and
+// real soft shadows already ground the cars, so stacking both only darkens/flickers.
+if(typeof cars19!=='undefined')for(const car of cars19){
+  if(car&&car.shadow21&&car.shadow21.parent){car.shadow21.parent.remove(car.shadow21);car.shadow21.geometry?.dispose?.();car.shadow21.material?.dispose?.();car.shadow21=null;}
+}
+
+// Keep obsolete direct viewmodel pieces hidden permanently.
+function hideLegacyGun43(){
+  if(typeof gunHolder==='undefined')return;
+  for(const o of gunHolder.children){if(o&&o.isMesh)o.visible=false;}
+  if(typeof scope13!=='undefined')scope13.visible=false;
+  if(typeof foregrip13!=='undefined')foregrip13.visible=false;
+  if(typeof suppressor13!=='undefined')suppressor13.visible=false;
+}
+hideLegacyGun43();
+
+function sanitizeGear43(){
+  if(typeof gear==='undefined')return;
+  for(const w of gear){
+    if(!w)continue;
+    if(w.type==='gun'){
+      w.magSize=Math.max(1,Math.round(finite43(w.magSize)?w.magSize:1));
+      w.mag=clamp(Math.round(finite43(w.mag)?w.mag:w.magSize),0,w.magSize);
+      w.reserve=Math.max(0,Math.round(finite43(w.reserve)?w.reserve:0));
+      w.damage=Math.max(1,finite43(w.damage)?w.damage:10);
+      w.rate=clamp(finite43(w.rate)?w.rate:.15,.035,2.0);
+      w.spread=clamp(finite43(w.spread)?w.spread:.015,0,.20);
+      w.pellets=clamp(Math.round(finite43(w.pellets)?w.pellets:1),1,16);
+    }
+  }
+  if(typeof gearIndex!=='undefined'&&gear.length)gearIndex=clamp(Math.round(finite43(gearIndex)?gearIndex:0),0,gear.length-1);
+}
+sanitizeGear43();
+
+// ---------------------------------------------------------------------------
+// 2. SPATIAL COLLISION GRID — replaces repeated full-array scans
+// ---------------------------------------------------------------------------
+const CELL43=28;
+const collisionGrid43=new Map();
+let collisionSig43='';
+function cellKey43(x,z){return Math.floor(x/CELL43)+','+Math.floor(z/CELL43);}
+function addGridItem43(item,minX,maxX,minZ,maxZ){
+  const ax=Math.floor(minX/CELL43),bx=Math.floor(maxX/CELL43),az=Math.floor(minZ/CELL43),bz=Math.floor(maxZ/CELL43);
+  for(let gx=ax;gx<=bx;gx++)for(let gz=az;gz<=bz;gz++){const k=gx+','+gz;let a=collisionGrid43.get(k);if(!a){a=[];collisionGrid43.set(k,a);}a.push(item);}
+}
+function collisionSignature43(){
+  return [colliders.length,playerStructures.length,typeof buildingCollision33!=='undefined'?buildingCollision33.length:0,typeof interiorCols39!=='undefined'?interiorCols39.length:0,typeof propCols39!=='undefined'?propCols39.length:0].join('|');
+}
+function rebuildCollisionGrid43(){
+  collisionGrid43.clear();collisionSig43=collisionSignature43();
+  // Static radial resources/props.
+  for(const c of colliders){
+    if(!c||!c.obj||!c.obj.parent)continue;const p=new THREE.Vector3();c.obj.getWorldPosition(p),r=Math.max(.1,c.radius||0);
+    addGridItem43({kind:'circle',obj:c.obj,x:p.x,z:p.z,r},p.x-r-.6,p.x+r+.6,p.z-r-.6,p.z+r+.6);
+  }
+  // World boundaries and player-built structures.
+  for(const s of playerStructures){
+    if(!s||!s.parent)continue;s.updateWorldMatrix(true,false);const b=new THREE.Box3().setFromObject(s).expandByScalar(.31);
+    addGridItem43({kind:'box',obj:s,minX:b.min.x,maxX:b.max.x,minZ:b.min.z,maxZ:b.max.z},b.min.x,b.max.x,b.min.z,b.max.z);
+  }
+  // Authored building wall rectangles.
+  if(typeof buildingCollision33!=='undefined')for(const r of buildingCollision33){
+    const minX=r.x-r.w/2-.52,maxX=r.x+r.w/2+.52,minZ=r.z-r.d/2-.52,maxZ=r.z+r.d/2+.52;
+    addGridItem43({kind:'rect',minX,maxX,minZ,maxZ},minX,maxX,minZ,maxZ);
+  }
+  // Interior furniture.
+  if(typeof interiorCols39!=='undefined')for(const c of interiorCols39){
+    const minX=c.x-c.w/2-.17,maxX=c.x+c.w/2+.17,minZ=c.z-c.d/2-.17,maxZ=c.z+c.d/2+.17;
+    addGridItem43({kind:'interior',c,minX,maxX,minZ,maxZ},minX,maxX,minZ,maxZ);
+  }
+  // Exterior props keep their live group reference because visibility/destruction changes.
+  if(typeof propCols39!=='undefined')for(const c of propCols39){
+    if(!c||!c.g)continue;const p=c.g.position,minX=p.x-c.w/2-.20,maxX=p.x+c.w/2+.20,minZ=p.z-c.d/2-.20,maxZ=p.z+c.d/2+.20;
+    addGridItem43({kind:'prop',c,minX,maxX,minZ,maxZ},minX,maxX,minZ,maxZ);
+  }
+}
+function ensureCollisionGrid43(){const sig=collisionSignature43();if(sig!==collisionSig43)rebuildCollisionGrid43();}
+function staticBlocked43(x,z){
+  ensureCollisionGrid43();const list=collisionGrid43.get(cellKey43(x,z));if(!list)return false;
+  for(const item of list){
+    if(item.kind==='circle'){
+      if(!item.obj.parent||!worldVisible43(item.obj))continue;if(Math.hypot(x-item.x,z-item.z)<item.r+.53)return true;
+    }else if(item.kind==='box'){
+      if(!item.obj.parent||!worldVisible43(item.obj))continue;if(x>item.minX&&x<item.maxX&&z>item.minZ&&z<item.maxZ)return true;
+    }else if(item.kind==='rect'){
+      if(x>item.minX&&x<item.maxX&&z>item.minZ&&z<item.maxZ)return true;
+    }else if(item.kind==='interior'){
+      const c=item.c;if(!c.root||!c.root.parent||!worldVisible43(c.root))continue;if(c.owner&&broken43(c.owner))continue;
+      if(x>item.minX&&x<item.maxX&&z>item.minZ&&z<item.maxZ)return true;
+    }else if(item.kind==='prop'){
+      const c=item.c;if(!c.g||!c.g.parent||!worldVisible43(c.g))continue;if(c.owner40&&broken43(c.owner40))continue;
+      if(x>item.minX&&x<item.maxX&&z>item.minZ&&z<item.maxZ)return true;
+    }
+  }
+  return false;
+}
+function parkedCarBlocked43(x,z,ignore){
+  if(typeof cars19==='undefined')return false;
+  for(const car of cars19){
+    if(!car||car===ignore||!car.group||!car.group.parent||!car.group.visible)continue;
+    const dx=x-car.group.position.x,dz=z-car.group.position.z,a=-car.group.rotation.y,ca=Math.cos(a),sa=Math.sin(a);
+    const lx=dx*ca-dz*sa,lz=dx*sa+dz*ca,sx=Math.max(.82,Math.abs(car.group.scale.x||1)),sz=Math.max(.82,Math.abs(car.group.scale.z||1));
+    if(Math.abs(lx)<1.62*sx&&Math.abs(lz)<2.62*sz)return true;
+  }
+  return false;
+}
+rebuildCollisionGrid43();
+
+blockedPosition=function(x,z){
+  if(!finite43(x)||!finite43(z))return true;
+  const driving=typeof qaCarMovement31!=='undefined'&&qaCarMovement31&&activeCar19;
+  if(!driving)return staticBlocked43(x,z)||parkedCarBlocked43(x,z,null);
+  const car=activeCar19,g=car.group,a=g.rotation.y,fx=-Math.sin(a),fz=-Math.cos(a),rx=Math.cos(a),rz=-Math.sin(a),sx=Math.max(.86,Math.abs(g.scale.x||1)),sz=Math.max(.86,Math.abs(g.scale.z||1));
+  const probes=[[0,0],[1.20*sx,2.02*sz],[-1.20*sx,2.02*sz],[1.20*sx,-2.02*sz],[-1.20*sx,-2.02*sz],[0,2.32*sz],[0,-2.32*sz]];
+  for(const q of probes){const px=x+rx*q[0]+fx*q[1],pz=z+rz*q[0]+fz*q[1];if(staticBlocked43(px,pz)||parkedCarBlocked43(px,pz,car))return true;}
+  return false;
+};
+
+// ---------------------------------------------------------------------------
+// 3. FIX NORMAL-FRAMERATE DOUBLE SIMULATION FROM THE PREVIOUS CAR SUBSTEP PASS
+// ---------------------------------------------------------------------------
+const playerCore43=typeof playerBeforeStable42==='function'?playerBeforeStable42:updatePlayer;
+const camOld43=new THREE.Vector3(),camTarget43=new THREE.Vector3();
+const quatOld43=new THREE.Quaternion(),quatTarget43=new THREE.Quaternion();
+let camMode43='';
+function recoverPlayer43(){
+  if(finitePos43(player.pos))return;
+  const s=typeof randomSafeSpawn==='function'?randomSafeSpawn():{x:0,z:0};player.pos.set(s.x,groundY(s.x,s.z)+player.height,s.z);camera.position.copy(player.pos);firing=false;
+}
+updatePlayer=function(dt){
+  dt=clamp(finite43(dt)?dt:.016,.001,.033);
+  camOld43.copy(camera.position);quatOld43.copy(camera.quaternion);const beforeX=player.pos.x,beforeZ=player.pos.z;
+  // Only split genuinely slow frames. The previous pass split ordinary 60fps frames
+  // and caused every visual/audio wrapper to execute twice.
+  if(activeCar19&&dt>.025){const half=dt*.5;playerCore43(half);playerCore43(half);}else playerCore43(dt);
+  recoverPlayer43();
+  if(activeCar19&&(!finitePos43(activeCar19.group.position)||Math.abs(activeCar19.group.position.x)>WORLD_LIMIT43+8||Math.abs(activeCar19.group.position.z)>WORLD_LIMIT43+8)){
+    activeCar19.group.position.set(clamp(beforeX,-WORLD_LIMIT43,WORLD_LIMIT43),groundY(clamp(beforeX,-WORLD_LIMIT43,WORLD_LIMIT43),clamp(beforeZ,-WORLD_LIMIT43,WORLD_LIMIT43))+.08,clamp(beforeZ,-WORLD_LIMIT43,WORLD_LIMIT43));activeCar19.speed=0;
+  }
+  // Reset animation samplers after teleports so one frame does not look like a huge sprint.
+  if(Math.hypot(player.pos.x-beforeX,player.pos.z-beforeZ)>14){
+    if(typeof playerRig35!=='undefined'&&playerRig35?.prev)playerRig35.prev.copy(player.pos);
+    if(typeof bobPrev36!=='undefined')bobPrev36.copy(player.pos);
+    if(typeof footPrev39!=='undefined')footPrev39.copy(player.pos);
+  }
+  hideLegacyGun43();
+  if(typeof cloud29!=='undefined'&&cloud29)cloud29.visible=auditDesktop43&&(typeof perfTier39==='undefined'||perfTier39===0);
+
+  const mode=activeCar19?'car':((typeof thirdPerson16!=='undefined'&&thirdPerson16)?'third':'first');camTarget43.copy(camera.position);quatTarget43.copy(camera.quaternion);
+  if(mode!==camMode43){camMode43=mode;if(typeof stableLod42==='function')stableLod42(true);return;}
+  if(mode==='car'&&camOld43.distanceTo(camTarget43)<14){const f=1-Math.exp(-dt*10);camera.position.copy(camOld43).lerp(camTarget43,f);camera.quaternion.copy(quatOld43).slerp(quatTarget43,f);}
+  else if(mode==='third'){
+    const oldD=camOld43.distanceTo(player.pos),newD=camTarget43.distanceTo(player.pos);if(newD>=oldD-.15&&camOld43.distanceTo(camTarget43)<7){const f=1-Math.exp(-dt*12);camera.position.copy(camOld43).lerp(camTarget43,f);camera.quaternion.copy(quatOld43).slerp(quatTarget43,f);}
+  }
+  if(typeof stableLod42==='function')stableLod42(false);
+};
+
+// ---------------------------------------------------------------------------
+// 4. NPC POST-SIM REPAIR — water, NaNs, overlap, LOD flicker and death-pose residue
+// ---------------------------------------------------------------------------
+const npcCore43=typeof npcBeforeStable42==='function'?npcBeforeStable42:updateNPCs;
+const npcPrevX43=new Float32Array(Math.max(64,npcs.length+4));
+const npcPrevZ43=new Float32Array(Math.max(64,npcs.length+4));
+const npcLodState43=new WeakMap();
+let npcSepFrame43=0,maintenance43=0;
+function setNpcRigLod43(r,dist){
+  if(!r||!r.rig)return;let near=npcLodState43.has(r.rig)?npcLodState43.get(r.rig):dist<(auditDesktop43?102:60);
+  const onD=auditDesktop43?102:60,offD=auditDesktop43?128:80;if(near&&dist>offD)near=false;else if(!near&&dist<onD)near=true;npcLodState43.set(r.rig,near);r.rig.visible=near;for(const o of r.legacy)if(o&&o!==r.rig)o.visible=!near;
+}
+updateNPCs=function(dt){
+  dt=clamp(finite43(dt)?dt:.016,.001,.033);
+  for(let i=0;i<npcs.length;i++){npcPrevX43[i]=npcs[i].group.position.x;npcPrevZ43[i]=npcs[i].group.position.z;}
+  npcCore43(dt);
+  const px=player.pos.x,pz=player.pos.z;
+  for(let i=0;i<npcs.length;i++){
+    const n=npcs[i];if(!n||n.dead||!n.group)continue;let x=n.group.position.x,z=n.group.position.z;
+    const bad=!finite43(x)||!finite43(z)||Math.abs(x)>WORLD_LIMIT43+2||Math.abs(z)>WORLD_LIMIT43+2||groundY(x,z)<=water.position.y+.65;
+    if(bad){x=npcPrevX43[i];z=npcPrevZ43[i];if(!finite43(x)||!finite43(z)){x=rand(-420,420);z=rand(-420,420);}n.group.position.set(clamp(x,-WORLD_LIMIT43,WORLD_LIMIT43),groundY(clamp(x,-WORLD_LIMIT43,WORLD_LIMIT43),clamp(z,-WORLD_LIMIT43,WORLD_LIMIT43)),clamp(z,-WORLD_LIMIT43,WORLD_LIMIT43));n.patrol.set(n.group.position.x+rand(-12,12),0,n.group.position.z+rand(-12,12));}
+    const target=n.group.rotation.y;let prev=n.stableYaw43;if(prev===undefined)prev=target;let delta=Math.atan2(Math.sin(target-prev),Math.cos(target-prev));prev+=delta*Math.min(1,dt*8.2);n.group.rotation.y=prev;n.stableYaw43=prev;
+    if(n.phaseBRec35){setNpcRigLod43(n.phaseBRec35,Math.hypot(n.group.position.x-px,n.group.position.z-pz));n.phaseBRec35.head.rotation.z=THREE.MathUtils.lerp(n.phaseBRec35.head.rotation.z,0,Math.min(1,dt*7));}
+  }
+  // Gentle separation every third frame prevents NPC bodies occupying the exact same spot.
+  if((npcSepFrame43++%3)===0){
+    for(let i=0;i<npcs.length;i++){const a=npcs[i];if(!a||a.dead)continue;for(let j=i+1;j<npcs.length;j++){const b=npcs[j];if(!b||b.dead)continue;const dx=b.group.position.x-a.group.position.x,dz=b.group.position.z-a.group.position.z,d2=dx*dx+dz*dz;if(d2>.001&&d2<.58*.58){const d=Math.sqrt(d2),push=(.58-d)*.20,nx=dx/d,nz=dz/d;const ax=a.group.position.x-nx*push,az=a.group.position.z-nz*push,bx=b.group.position.x+nx*push,bz=b.group.position.z+nz*push;if(!blockedPosition(ax,az)){a.group.position.x=ax;a.group.position.z=az;}if(!blockedPosition(bx,bz)){b.group.position.x=bx;b.group.position.z=bz;}}}}
+  }
+  if((maintenance43++%120)===0)runMaintenance43();
+};
+
+// Reset articulated animation state when an enemy respawns.
+const respawnBeforeAudit43=respawnNpc24;
+respawnNpc24=function(n){
+  respawnBeforeAudit43(n);if(!n||n.dead)return;
+  // Avoid water/marsh respawns if the older ring sampler found one.
+  if(typeof spawnIsDry17==='function'&&!spawnIsDry17(n.group.position.x,n.group.position.z)){
+    for(let tries=0;tries<60;tries++){const a=rand(0,Math.PI*2),r=rand(65,135),x=clamp(player.pos.x+Math.cos(a)*r,-455,455),z=clamp(player.pos.z+Math.sin(a)*r,-455,455);if(spawnIsDry17(x,z)&&!blockedPosition(x,z)){n.group.position.set(x,groundY(x,z),z);n.patrol.set(x+rand(-16,16),0,z+rand(-16,16));break;}}
+  }
+  const r=n.phaseBRec35;if(r){r.prev.copy(n.group.position);r.hit=0;r.head.rotation.set(0,0,0);r.lArm.rotation.z=0;r.rArm.rotation.z=0;r.lLeg.rotation.z=0;r.rLeg.rotation.z=0;}
+  n.stableYaw43=n.group.rotation.y;
+};
+
+// ---------------------------------------------------------------------------
+// 5. SINGLE E-KEY INTERACTION — stop car and loot handlers both firing together
+// ---------------------------------------------------------------------------
+addEventListener('keydown',function interaction43(e){
+  if(e.code!=='KeyE'||e.repeat)return;if(typeof lobbyActive17!=='undefined'&&lobbyActive17)return;
+  const car=activeCar19||(typeof nearestCar19==='function'?nearestCar19(4.4):null);
+  if(car){e.preventDefault();e.stopImmediatePropagation();toggleCar19();return;}
+  if(typeof nearbyLoot!=='undefined'&&nearbyLoot){e.preventDefault();e.stopImmediatePropagation();lootCrate(nearbyLoot);}
+},true);
+
+// Fine-pointer Macs can support touch APIs; use the actual pointer type rather than
+// the old ontouchstart test for pointer lock.
+if(auditDesktop43&&renderer?.domElement){renderer.domElement.addEventListener('click',function(){if(typeof lobbyActive17!=='undefined'&&lobbyActive17)return;if(document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock?.();});}
+
+// ---------------------------------------------------------------------------
+// 6. PERIODIC SELF-HEAL / VALIDATION
+// ---------------------------------------------------------------------------
+function runMaintenance43(){
+  sanitizeGear43();
+  dedupeArray43(blockers,o=>!!o.parent&&!broken43(o));dedupeArray43(playerStructures,o=>!!o.parent);
+  dedupeArray43(npcHitMeshes,o=>!!o.parent&&worldVisible43(o));
+  // Restore missing hit meshes for living NPCs without adding duplicates.
+  const hitSet=new Set(npcHitMeshes);for(const n of npcs){if(!n||n.dead)continue;for(const m of n.hitMeshes||[]){if(m&&m.parent&&!hitSet.has(m)){npcHitMeshes.push(m);hitSet.add(m);}}}
+  // Clear dead crate reservations.
+  if(typeof lootCrates!=='undefined')for(const c of lootCrates){if(c&&c.npcReserved14&&c.npcReserved14.dead)c.npcReserved14=null;}
+  // Clamp core state rather than letting one invalid value poison later wrappers.
+  player.health=clamp(finite43(player.health)?player.health:100,0,100);
+  if(typeof armor19!=='undefined'&&armor19){armor19.value=clamp(finite43(armor19.value)?armor19.value:0,0,Math.max(0,armor19.max||0));}
+  if(typeof cars19!=='undefined')for(const c of cars19){if(!c)continue;c.speed=clamp(finite43(c.speed)?c.speed:0,-10,Math.max(1,c.maxSpeed||22));if(finite43(c.hp39))c.hp39=clamp(c.hp39,0,c.maxHp39||260);}
+  ensureCollisionGrid43();hideLegacyGun43();
+}
+runMaintenance43();
+setInterval(runMaintenance43,2200);
+
+// Prevent giant resume-frame deltas and stuck fire/audio after tab switching.
+document.addEventListener('visibilitychange',function(){
+  firing=false;
+  if(document.hidden){if(typeof engGain39!=='undefined'&&engGain39&&typeof audioCtx!=='undefined'&&audioCtx)engGain39.gain.setTargetAtTime(.0001,audioCtx.currentTime,.05);}
+  else {try{clock.getDelta();}catch(e){}if(typeof playerRig35!=='undefined'&&playerRig35?.prev)playerRig35.prev.copy(player.pos);}
+});
+
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='MASTER AUDIT · STABLE COLLISION + SELF-HEAL';setTimeout(()=>graphicsBadge21.style.opacity='0',7000);}
+message('MASTER CODE AUDIT APPLIED · core glitches and conflicts repaired',4.2);
