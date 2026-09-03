@@ -1,0 +1,238 @@
+// ============================================================================
+// FRONTIER ZERO PREMIUM FEEL + PHYSICAL LOOT + 5-MINUTE SUPPLY DROPS
+// Keeps the stabilized core intact while improving combat feel, vehicles, NPC
+// chest behavior, world density and the physical reward loop.
+// ============================================================================
+
+const premiumDesktop47=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. PHYSICAL NPC LOOT — coins remain instant; gear/resources drop in world
+// ---------------------------------------------------------------------------
+if(typeof rewardNpcKill19==='function'){
+  rewardNpcKill19=function(n){
+    if(!n||n.rewarded19)return;
+    n.rewarded19=true;
+    const gainedCoins=8+((Math.random()*23)|0);
+    addCoins19(gainedCoins);
+    updateCoinHud19();
+    message(`HOSTILE DOWN · +${gainedCoins} COINS · LOOT DROPPED`,1.8);
+  };
+}
+
+const npcDrops47=[];
+const dropBagMat47=new THREE.MeshStandardMaterial({color:0x3d352c,roughness:.94});
+const dropMetalMat47=new THREE.MeshStandardMaterial({color:0x343b3f,roughness:.38,metalness:.65});
+function cloneDroppedGun47(w){
+  if(!w)return null;
+  if(typeof cloneNpcGun19==='function')return cloneNpcGun19(w);
+  const src=typeof gunCatalog!=='undefined'?gunCatalog.find(g=>g.name===w.name):null;
+  if(src)return {...src,type:'gun',mag:src.magSize,reserve:src.reserve,skin:w.skin||randomGunSkin(src.rarity||'Common')};
+  return {name:w.name||'Field Rifle',type:'gun',rarity:w.rarity||'Common',magSize:30,mag:30,reserve:90,damage:w.damage||20,rate:w.rate||.12,spread:w.spread||.014,pellets:w.pellets||1,skin:w.skin||randomGunSkin(w.rarity||'Common')};
+}
+function spawnNpcDrop47(n,pos){
+  if(!n||n.dropSpawned47)return;
+  n.dropSpawned47=true;
+  const g=new THREE.Group();
+  const bag=new THREE.Mesh(new THREE.BoxGeometry(.82,.38,.64),dropBagMat47);bag.position.y=.22;bag.rotation.y=rand(-.35,.35);bag.castShadow=true;g.add(bag);
+  const strap=new THREE.Mesh(new THREE.TorusGeometry(.29,.035,6,14,Math.PI),dropMetalMat47);strap.rotation.x=Math.PI/2;strap.rotation.z=Math.PI;strap.position.set(0,.42,.03);g.add(strap);
+  const gun=new THREE.Mesh(new THREE.BoxGeometry(.10,.10,.92),dropMetalMat47);gun.position.set(.05,.58,-.03);gun.rotation.set(.06,rand(-.25,.25),-.08);gun.castShadow=true;g.add(gun);
+  const weapon=cloneDroppedGun47(n.weapon14);
+  const rarity=weapon?.rarity||'Common',rarityInfo=typeof RARITY!=='undefined'?(RARITY[rarity]||RARITY.Common):null;
+  const beamMat=new THREE.MeshBasicMaterial({color:rarityInfo?.color||0xffffff,transparent:true,opacity:.20,depthWrite:false});
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.045,.16,3.2,8),beamMat);beam.position.y=1.9;g.add(beam);
+  g.position.set(pos.x,groundY(pos.x,pos.z)+.03,pos.z);scene.add(g);
+  const c={group:g,looted:false,label:`${rarity} NPC Drop`,npcDrop47:true,weapon47:weapon,wood47:2+((Math.random()*8)|0),stone47:1+((Math.random()*5)|0),metal47:(Math.random()*4)|0,ammo47:10+((Math.random()*24)|0),expires47:performance.now()+90000};
+  lootCrates.push(c);npcDrops47.push(c);
+  while(npcDrops47.length>24){const old=npcDrops47.shift();if(old&&!old.looted){old.looted=true;if(old.group?.parent)scene.remove(old.group);}}
+}
+
+const killNpcBeforeDrops47=killNpc;
+killNpc=function(n){
+  const wasAlive=!!(n&&!n.dead),credited=typeof playerGunKillWindow20!=='undefined'&&playerGunKillWindow20;
+  const pos=wasAlive?n.group.position.clone():null;
+  const r=killNpcBeforeDrops47(n);
+  if(wasAlive&&credited&&n?.dead&&pos)spawnNpcDrop47(n,pos);
+  return r;
+};
+if(typeof respawnNpc24==='function'){
+  const respawnBeforeDrops47=respawnNpc24;
+  respawnNpc24=function(n){const r=respawnBeforeDrops47(n);if(n&&!n.dead)n.dropSpawned47=false;return r;};
+}
+
+// Final loot handler: special drops and 5-minute supply crates are resolved here.
+const lootCrateBeforePremium47=lootCrate;
+lootCrate=function(c){
+  if(!c||c.looted)return;
+  if(c.npcDrop47){
+    c.looted=true;c.npcReserved14=null;
+    player.inventory.wood+=(c.wood47||0);player.inventory.stone+=(c.stone47||0);player.inventory.metal+=(c.metal47||0);
+    for(const w of gear)if(w?.type==='gun')w.reserve+=(c.ammo47||0);
+    let text=`+${c.wood47||0} WOOD · +${c.stone47||0} STONE · +${c.ammo47||0} AMMO`;
+    if(c.weapon47){
+      const w=c.weapon47,duplicate=gear.some(g=>g?.type==='gun'&&g.name===w.name&&g.rarity===w.rarity);
+      if(duplicate){const same=gear.find(g=>g?.type==='gun'&&g.name===w.name&&g.rarity===w.rarity);if(same)same.reserve+=Math.max(20,w.magSize||20);text+=` · ${w.rarity} ${w.name} AMMO`;}
+      else {gear.push(w);if(typeof ownedGunKeys!=='undefined')ownedGunKeys.add((w.rarity||'Common')+'|'+w.name);text+=` · PICKED UP ${w.rarity} ${w.name}`;if(typeof showGunPickup13==='function')showGunPickup13(w);}
+    }
+    if(c.group?.parent)scene.remove(c.group);updateHUD();message(text,3.0);if(typeof tone==='function')tone(180,.09,.025,'triangle');return;
+  }
+  if(c.supply47){openSupply47(c);return;}
+  return lootCrateBeforePremium47(c);
+};
+
+// ---------------------------------------------------------------------------
+// 2. NPCs ACTIVELY SEEK NEARBY NORMAL CHESTS
+// ---------------------------------------------------------------------------
+if(typeof nearestNpcLoot14==='function'){
+  nearestNpcLoot14=function(n,maxDist=58){
+    let best=null,bestD=maxDist;
+    for(const c of lootCrates){
+      if(!c||c.looted||c.supply47||c.npcDrop47||!c.group?.parent)continue;
+      if(c.npcReserved14&&c.npcReserved14!==n)continue;
+      const d=Math.hypot(c.group.position.x-n.group.position.x,c.group.position.z-n.group.position.z);
+      if(d<bestD){best=c;bestD=d;}
+    }
+    return best;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 3. FIVE-MINUTE HIGH-TIER SUPPLY DROP SYSTEM
+// ---------------------------------------------------------------------------
+const SUPPLY_INTERVAL47=300000;
+let supplyClock47=0,nextSupply47=0,supplyNumber47=0;
+const activeSupplies47=[];
+const supplyHud47=document.createElement('div');
+supplyHud47.style.cssText='position:fixed;left:50%;top:82px;transform:translateX(-50%);z-index:35;background:rgba(8,13,16,.68);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:4px 8px;color:#e9eef1;font:800 9px system-ui;pointer-events:none;letter-spacing:.04em';
+document.body.appendChild(supplyHud47);
+function supplyGun47(){
+  const r=Math.random()*100;const rarity=r<55?'Epic':r<82?'Legendary':r<96?'Mythic':'Secret';
+  const pool=gunCatalog.filter(g=>g.rarity===rarity);const src=pool[(Math.random()*pool.length)|0]||gunCatalog.find(g=>g.rarity==='Epic');
+  return {...src,type:'gun',mag:src.magSize,reserve:src.reserve,skin:typeof randomGunSkin==='function'?randomGunSkin(src.rarity):undefined};
+}
+function supplySpot47(){
+  for(let tries=0;tries<90;tries++){
+    const x=rand(-445,445),z=rand(-445,445);if(Math.hypot(x-player.pos.x,z-player.pos.z)<75)continue;
+    if(typeof spawnIsDry17==='function'&&!spawnIsDry17(x,z))continue;if(blockedPosition(x,z))continue;
+    return{x,z};
+  }
+  for(let tries=0;tries<40;tries++){
+    const a=rand(0,Math.PI*2),rr=rand(90,170),x=clamp(player.pos.x+Math.cos(a)*rr,-440,440),z=clamp(player.pos.z+Math.sin(a)*rr,-440,440);
+    if((typeof spawnIsDry17!=='function'||spawnIsDry17(x,z))&&!blockedPosition(x,z))return{x,z};
+  }
+  return null;
+}
+function spawnTimedSupply47(){
+  const p=supplySpot47();if(!p||typeof createLootCrate!=='function')return false;
+  const c=createLootCrate(p.x,p.z,'HIGH-TIER SUPPLY DROP');c.supply47=true;c.supplyGun47=supplyGun47();c.supplyNumber47=++supplyNumber47;
+  const col=RARITY[c.supplyGun47.rarity]?.color||'#a966ff';
+  c.group.traverse(o=>{if(o.isMesh&&o.material?.color){o.material=o.material.clone();o.material.color.lerp(new THREE.Color(col),.34);}});
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.10,.24,16,10),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,depthWrite:false}));beam.position.y=8;c.group.add(beam);c.beam47=beam;
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.35,.07,7,28),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9}));ring.rotation.x=Math.PI/2;ring.position.y=.08;c.group.add(ring);c.ring47=ring;
+  activeSupplies47.push(c);
+  message(`SUPPLY DROP #${c.supplyNumber47} LANDED · ${c.supplyGun47.rarity.toUpperCase()}+ LOOT`,4.0);
+  if(typeof tone==='function'){tone(220,.15,.035,'triangle');setTimeout(()=>tone(330,.17,.032,'triangle'),160);}
+  return true;
+}
+function openSupply47(c){
+  if(!c||c.looted)return;c.looted=true;c.npcReserved14=null;
+  const w=c.supplyGun47||supplyGun47(),wood=30+((Math.random()*31)|0),stone=22+((Math.random()*29)|0),ammo=50+((Math.random()*51)|0);
+  player.inventory.wood+=wood;player.inventory.stone+=stone;
+  for(const g of gear)if(g?.type==='gun')g.reserve+=ammo;
+  gear.push(w);if(typeof ownedGunKeys!=='undefined')ownedGunKeys.add((w.rarity||'Epic')+'|'+w.name);
+  if(c.group?.parent)scene.remove(c.group);updateHUD();if(typeof showGunPickup13==='function')showGunPickup13(w);
+  message(`SUPPLY: ${w.rarity.toUpperCase()} ${w.name} · +${wood} WOOD · +${stone} STONE · +${ammo} AMMO`,4.2);
+  if(typeof noise39==='function')noise39(.09,.025,500);if(typeof tone==='function')tone(520,.18,.045,'triangle');
+}
+function startSupplyClock47(){if(supplyClock47)return;supplyClock47=performance.now();nextSupply47=supplyClock47+SUPPLY_INTERVAL47;}
+if(typeof finishLobby17==='function'){
+  const finishLobbyBeforeSupply47=finishLobby17;
+  finishLobby17=function(){const was=typeof lobbyActive17!=='undefined'&&lobbyActive17;const r=finishLobbyBeforeSupply47();if(was&&typeof lobbyActive17!=='undefined'&&!lobbyActive17)startSupplyClock47();return r;};
+}
+function formatCountdown47(ms){const s=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(s/60),ss=s%60;return m+':'+String(ss).padStart(2,'0');}
+setInterval(function(){
+  if(typeof lobbyActive17!=='undefined'&&lobbyActive17){supplyHud47.textContent='SUPPLY DROPS START AFTER DEPLOYMENT';return;}
+  if(typeof matchWon24!=='undefined'&&matchWon24){supplyHud47.textContent='MATCH COMPLETE';return;}
+  if(!supplyClock47)startSupplyClock47();supplyHud47.textContent='NEXT HIGH-TIER SUPPLY · '+formatCountdown47(nextSupply47-performance.now());
+},500);
+
+// Show supply drops on the minimap.
+if(typeof drawMiniMap==='function'){
+  const drawMiniBeforeSupply47=drawMiniMap;
+  drawMiniMap=function(){drawMiniBeforeSupply47();if(!miniCtx)return;for(const c of activeSupplies47){if(!c||c.looted||!c.group?.parent)continue;const p=miniWorldToPx(c.group.position.x,c.group.position.z);miniCtx.save();miniCtx.strokeStyle='#ffe27a';miniCtx.lineWidth=3;miniCtx.beginPath();miniCtx.arc(p.x,p.y,5,0,Math.PI*2);miniCtx.stroke();miniCtx.restore();}};
+}
+
+// ---------------------------------------------------------------------------
+// 4. PREMIUM GUN FEEL, PLAYER TURNING, CAR FEEL, NPC AIM POLISH
+// ---------------------------------------------------------------------------
+let premiumKick47=0;
+const shootGunBeforeFeel47=shootGun;
+shootGun=function(w){const before=w?.type==='gun'?w.mag:null;const r=shootGunBeforeFeel47(w);if(w?.type==='gun'&&before>w.mag){const fam=typeof weaponFamily27==='function'?weaponFamily27(w):'rifle';premiumKick47=Math.min(1,premiumKick47+(fam==='shotgun'?.95:fam==='revolver'?.75:fam==='pistol'?.48:fam==='smg'?.24:.38));}return r;};
+
+let baseFov47=camera.fov||72;
+const updatePlayerBeforePremium47=updatePlayer;
+updatePlayer=function(dt){
+  const oldAvatarYaw=typeof playerAvatar16!=='undefined'?playerAvatar16.rotation.y:0;
+  const oldCarYaw=activeCar19?activeCar19.group.rotation.y:0;
+  const r=updatePlayerBeforePremium47(dt);
+  premiumKick47=Math.max(0,premiumKick47-dt*5.4);
+  if(currentGear()?.type==='gun'){
+    gunHolder.rotation.x=THREE.MathUtils.lerp(gunHolder.rotation.x,-premiumKick47*.055,Math.min(1,dt*24));
+    gunHolder.rotation.z=THREE.MathUtils.lerp(gunHolder.rotation.z,premiumKick47*.018,Math.min(1,dt*20));
+  }else {gunHolder.rotation.x=THREE.MathUtils.lerp(gunHolder.rotation.x,0,Math.min(1,dt*18));gunHolder.rotation.z=THREE.MathUtils.lerp(gunHolder.rotation.z,0,Math.min(1,dt*18));}
+  if(typeof playerAvatar16!=='undefined'&&thirdPerson16&&!activeCar19){const target=playerAvatar16.rotation.y,delta=Math.atan2(Math.sin(target-oldAvatarYaw),Math.cos(target-oldAvatarYaw));playerAvatar16.rotation.y=oldAvatarYaw+delta*Math.min(1,dt*12);}
+  if(activeCar19){
+    const speed=Math.abs(activeCar19.speed||0),ratio=clamp(speed/Math.max(1,activeCar19.maxSpeed||22),0,1),targetFov=baseFov47+ratio*8;
+    camera.fov=THREE.MathUtils.lerp(camera.fov,targetFov,Math.min(1,dt*4.5));
+    const raw=activeCar19.group.rotation.y,delta=Math.atan2(Math.sin(raw-oldCarYaw),Math.cos(raw-oldCarYaw));activeCar19.group.rotation.y=oldCarYaw+delta*(1-ratio*.16);
+  }else camera.fov=THREE.MathUtils.lerp(camera.fov,baseFov47,Math.min(1,dt*5));
+  camera.updateProjectionMatrix();return r;
+};
+
+// Chest seeking runs before existing NPC logic; aim polish and supply timing after it.
+const updateNPCsBeforePremium47=updateNPCs;
+let dropCleanup47=0;
+updateNPCs=function(dt){
+  if(!(typeof settingsOpen46!=='undefined'&&settingsOpen46)&&!(typeof lobbyActive17!=='undefined'&&lobbyActive17)&&!(typeof matchWon24!=='undefined'&&matchWon24)){
+    for(const n of npcs){
+      if(!n||n.dead)continue;n.chestThink47=(n.chestThink47??rand(.05,.45))-dt;
+      if(n.chestThink47<=0){n.chestThink47=rand(.35,.75);const inCombat=(n.playerProvoked||0)>0||(n.npcEnemy&&!n.npcEnemy.dead);if(!inCombat){const c=nearestNpcLoot14(n,58);if(c){if(n.lootTarget14&&n.lootTarget14!==c&&n.lootTarget14.npcReserved14===n)n.lootTarget14.npcReserved14=null;n.lootTarget14=c;c.npcReserved14=n;n.patrol.set(c.group.position.x,0,c.group.position.z);n.repath=Math.max(n.repath||0,1.3);}}}
+    }
+  }
+  const r=updateNPCsBeforePremium47(dt);
+  if(!(typeof settingsOpen46!=='undefined'&&settingsOpen46)&&!(typeof lobbyActive17!=='undefined'&&lobbyActive17)&&!(typeof matchWon24!=='undefined'&&matchWon24)){
+    if(!supplyClock47)startSupplyClock47();const now=performance.now();if(now>=nextSupply47){if(spawnTimedSupply47())nextSupply47=now+SUPPLY_INTERVAL47;else nextSupply47=now+15000;}
+    for(const n of npcs){if(!n||n.dead||!n.phaseBRec35)continue;const rec=n.phaseBRec35,dx=player.pos.x-n.group.position.x,dz=player.pos.z-n.group.position.z,d=Math.hypot(dx,dz);if(d<28&&((n.playerProvoked||0)>0||n.alert>0)){const worldYaw=Math.atan2(dx,dz)+Math.PI,local=Math.atan2(Math.sin(worldYaw-n.group.rotation.y),Math.cos(worldYaw-n.group.rotation.y));rec.torso.rotation.y=THREE.MathUtils.lerp(rec.torso.rotation.y,clamp(local,-.22,.22),Math.min(1,dt*7));}else rec.torso.rotation.y=THREE.MathUtils.lerp(rec.torso.rotation.y,0,Math.min(1,dt*4));}
+  }
+  dropCleanup47+=dt;if(dropCleanup47>2.5){dropCleanup47=0;const now=performance.now();for(const c of npcDrops47){if(!c.looted&&c.expires47<now){c.looted=true;if(c.group?.parent)scene.remove(c.group);}}}
+  return r;
+};
+
+// ---------------------------------------------------------------------------
+// 5. IMPACT SPARK POP + DENser BUT CHEAP WORLD DETAIL
+// ---------------------------------------------------------------------------
+const impactFlashes47=[];for(let i=0;i<8;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.055,6,5),new THREE.MeshBasicMaterial({color:0xffd18a,transparent:true,opacity:0,depthWrite:false}));m.visible=false;scene.add(m);impactFlashes47.push({m,life:0});}
+let impactCursor47=0;
+const impactBeforePremium47=impact;
+impact=function(point,color){const r=impactBeforePremium47(point,color);const f=impactFlashes47[impactCursor47++%impactFlashes47.length];f.m.position.copy(point);f.m.material.color.setHex(color||0xffd18a);f.m.material.opacity=.9;f.m.scale.setScalar(1);f.m.visible=true;f.life=.09;return r;};
+
+// Add small non-colliding rubble/detail using one instanced draw call.
+const clutterCount47=premiumDesktop47?100:48,clutterGeo47=new THREE.DodecahedronGeometry(.18,0),clutterMat47=new THREE.MeshStandardMaterial({color:0x5c5c54,roughness:.96});
+const clutter47=new THREE.InstancedMesh(clutterGeo47,clutterMat47,clutterCount47),clutterDummy47=new THREE.Object3D();
+for(let i=0;i<clutterCount47;i++){const x=rand(-470,470),z=rand(-470,470),s=rand(.45,1.7);clutterDummy47.position.set(x,groundY(x,z)+.06,z);clutterDummy47.rotation.set(rand(0,1),rand(0,6.28),rand(0,1));clutterDummy47.scale.set(s,rand(.35,.9)*s,s);clutterDummy47.updateMatrix();clutter47.setMatrixAt(i,clutterDummy47.matrix);}clutter47.receiveShadow=true;scene.add(clutter47);
+
+// A little extra authored clutter inside existing interiors, without new collision.
+if(typeof interiors39!=='undefined')for(let i=0;i<Math.min(12,interiors39.length);i++){
+  const root=interiors39[i],b=root.userData?.bounds39;if(!b)continue;
+  const mat=i%2?dropBagMat47:dropMetalMat47;
+  for(let k=0;k<2;k++){const box=new THREE.Mesh(new THREE.BoxGeometry(rand(.28,.55),rand(.18,.42),rand(.28,.55)),mat);box.position.set(rand(-Math.max(1,b.w*.28),Math.max(1,b.w*.28)),.20,rand(-Math.max(1,b.d*.28),Math.max(1,b.d*.28)));box.rotation.y=rand(0,Math.PI);box.castShadow=premiumDesktop47;root.add(box);}
+}
+
+// Animate pooled impact flashes and supply markers without spawning timers.
+const updateNPCsBeforeFx47=updateNPCs;
+updateNPCs=function(dt){const r=updateNPCsBeforeFx47(dt);for(const f of impactFlashes47){if(f.life>0){f.life-=dt;f.m.material.opacity=Math.max(0,f.life/.09);f.m.scale.multiplyScalar(1+dt*8);if(f.life<=0)f.m.visible=false;}}const t=performance.now()*.001;for(const c of activeSupplies47){if(!c||c.looted||!c.group?.parent)continue;if(c.ring47)c.ring47.rotation.z=t*.55;if(c.beam47)c.beam47.material.opacity=.14+Math.sin(t*2+c.supplyNumber47)*.04;}return r;};
+
+// Cleaner HUD: rarity legend teaches the system, then gets out of the way.
+if(typeof rarityLegend!=='undefined'&&rarityLegend)setTimeout(function(){rarityLegend.style.transition='opacity .6s';rarityLegend.style.opacity='.16';},12000);
+
+message('PREMIUM LOOT LIVE · NPC DROPS · CHEST-SEEKING AI · 5-MIN HIGH-TIER SUPPLIES',4.8);
