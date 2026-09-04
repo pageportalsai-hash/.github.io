@@ -1,0 +1,71 @@
+// ============================================================================
+// FRONTIER ZERO SNIPER COIN SHOP 59
+// Makes every sniper rarity purchasable from the pre-match lobby coin shop.
+// ============================================================================
+
+const sniperShop59=[
+  {name:'Scout Sniper',rarity:'Common',price:40},
+  {name:'Pathfinder Sniper',rarity:'Uncommon',price:80},
+  {name:'Longshot Sniper',rarity:'Rare',price:140},
+  {name:'Nightglass Sniper',rarity:'Epic',price:280},
+  {name:'Suncrest Sniper',rarity:'Legendary',price:550},
+  {name:'Warden-X Sniper',rarity:'Mythic',price:950},
+  {name:'Voidpiercer Sniper',rarity:'Secret',price:1900}
+];
+
+// Put the sniper family first in the shop without duplicating entries on reload.
+for(let i=sniperShop59.length-1;i>=0;i--){
+  const item=sniperShop59[i];
+  if(!shopWeapons19.some(w=>w.name===item.name))shopWeapons19.unshift(item);
+}
+
+// Give the sniper section a clear heading while retaining all existing weapons
+// and armor purchasing behavior.
+renderShop19=function(){
+  if(!shopPanel19)return;
+  shopPanel19.innerHTML=`<div style="font-weight:950;font-size:16px">COIN SHOP · ${coins19} COINS</div><div style="font-size:10px;opacity:.68;margin:4px 0 9px">Buy weapons or armor before deployment. Bought guns count toward your 2 weapon slots.</div>`;
+
+  const sniperHeading=document.createElement('div');
+  sniperHeading.style.cssText='font-weight:950;font-size:12px;margin:8px 0 6px;color:#dceeff;letter-spacing:.05em';
+  sniperHeading.textContent='SNIPER RIFLES';
+  shopPanel19.appendChild(sniperHeading);
+
+  const sg=document.createElement('div');
+  sg.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
+  for(const item of sniperShop59){
+    const b=document.createElement('button');b.type='button';
+    b.style.cssText='border:1px solid rgba(160,205,255,.34);border-radius:9px;background:rgba(90,130,165,.10);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';
+    b.textContent=`${item.rarity} ${item.name} · ${item.price}c`;
+    b.disabled=boughtLobbyGuns19.includes(item.name);
+    b.addEventListener('click',e=>{e.stopPropagation();buyLobbyGun19(item);});
+    sg.appendChild(b);
+  }
+  shopPanel19.appendChild(sg);
+
+  const weaponHeading=document.createElement('div');
+  weaponHeading.style.cssText='font-weight:900;font-size:12px;margin:11px 0 5px';weaponHeading.textContent='OTHER WEAPONS';shopPanel19.appendChild(weaponHeading);
+  const wg=document.createElement('div');wg.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
+  for(const item of shopWeapons19){
+    if(sniperShop59.some(s=>s.name===item.name))continue;
+    const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.rarity} ${item.name} · ${item.price}c`;b.disabled=boughtLobbyGuns19.includes(item.name);b.addEventListener('click',e=>{e.stopPropagation();buyLobbyGun19(item);});wg.appendChild(b);
+  }
+  shopPanel19.appendChild(wg);
+
+  const ah=document.createElement('div');ah.style.cssText='font-weight:900;font-size:12px;margin:10px 0 5px';ah.textContent='ARMOR';shopPanel19.appendChild(ah);
+  const ag=document.createElement('div');ag.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
+  for(const item of armorShop19){const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.name} ${item.max} armor · ${item.price}c`;b.addEventListener('click',e=>{e.stopPropagation();buyArmor19(item);});ag.appendChild(b);}
+  shopPanel19.appendChild(ag);
+};
+
+// Part 59 loads after the sniper catalog expansion, so all seven purchase
+// buttons can resolve their actual gun definitions immediately.
+renderShop19();
+
+// Small QA diagnostic for the lobby shop.
+window.__frontierZeroSniperShop59={
+  count:sniperShop59.length,
+  allInCatalog:sniperShop59.every(s=>gunCatalog.some(g=>g.name===s.name)),
+  allInShop:sniperShop59.every(s=>shopWeapons19.some(g=>g.name===s.name))
+};
+
+message('COIN SHOP UPDATED · ALL 7 SNIPER RARITIES AVAILABLE BEFORE DEPLOYMENT',4.2);
