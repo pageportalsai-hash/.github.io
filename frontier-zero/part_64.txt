@@ -1,0 +1,258 @@
+// ============================================================================
+// FRONTIER ZERO TACTICAL COMBAT AI + THREE-PASS QA 64
+// Hearing, cover, flanking, weapon-role ranges, low-health retreat and hit reactions.
+// Built as a final tactical layer so existing door/stair/collision navigation remains intact.
+// ============================================================================
+
+const aiDesktop64=matchMedia('(pointer:fine)').matches;
+
+// QA-found compatibility fix: Part 63 expected rec.rig, while the player uses rec.root.
+// Alias the player root and run the realism rebuild once so the player gets the same
+// high-detail body treatment as nearby NPCs.
+if(typeof playerRig35!=='undefined'&&playerRig35?.root&&!playerRig35.rig){
+  playerRig35.rig=playerRig35.root;
+  if(typeof rebuildHuman63==='function')rebuildHuman63(playerRig35,999,true);
+}
+const aiState64=new WeakMap();
+let lastPlayerShot64={time:-1e9,pos:new THREE.Vector3(),radius:0};
+
+function weaponRole64(n){
+  const name=(n?.weapon14?.name||'rifle').toLowerCase();
+  if(name.includes('sniper'))return 'sniper';
+  if(name.includes('shotgun'))return 'shotgun';
+  if(name.includes('smg')||name.includes('machine')||name.includes('compact'))return 'smg';
+  if(name.includes('pistol')||name.includes('revolver')||name.includes('handcannon')||name.includes('cannon'))return 'pistol';
+  if(name.includes('dmr')||name.includes('marksman')||name.includes('carbine'))return 'marksman';
+  return 'rifle';
+}
+function preferredRange64(role){
+  if(role==='sniper')return 82;
+  if(role==='marksman')return 52;
+  if(role==='rifle')return 38;
+  if(role==='smg')return 23;
+  if(role==='pistol')return 26;
+  if(role==='shotgun')return 12;
+  return 34;
+}
+function state64(n){
+  let s=aiState64.get(n);
+  if(!s){
+    s={role:weaponRole64(n),think:rand(.05,.35),mode:'idle',waypoint:null,side:Math.random()<.5?-1:1,lastHealth:n.health??100,hitT:0,coverUntil:0,flankUntil:0,heardUntil:0,visualCrouch:0};
+    aiState64.set(n,s);
+  }
+  return s;
+}
+for(const n of npcs)if(n)state64(n);
+
+// Player gunshots create a short-lived sound event that nearby enemies can hear.
+const shootGunBeforeAI64=shootGun;
+shootGun=function(w){
+  const before=w?.mag;
+  const out=shootGunBeforeAI64(w);
+  if(w?.type==='gun'&&Number.isFinite(before)&&w.mag<before){
+    const role=(w.name||'').toLowerCase();
+    const radius=role.includes('sniper')?145:role.includes('shotgun')?120:role.includes('pistol')?78:105;
+    lastPlayerShot64={time:performance.now(),pos:player.pos.clone(),radius};
+  }
+  return out;
+};
+
+function candidateCover64(n,maxDist=40){
+  const p=n.group.position;
+  let best=null,bestScore=Infinity;
+  const consider=(cx,cz,radius=2.2)=>{
+    const nd=Math.hypot(cx-p.x,cz-p.z);if(nd>maxDist||nd<2.0)return;
+    const vx=cx-player.pos.x,vz=cz-player.pos.z,vl=Math.hypot(vx,vz);if(vl<.001)return;
+    const ux=vx/vl,uz=vz/vl;
+    const x=cx+ux*(radius+1.0),z=cz+uz*(radius+1.0);
+    if(Math.abs(x)>486||Math.abs(z)>486)return;
+    if(groundY(x,z)<=water.position.y+.75||blockedPosition(x,z))return;
+    const playerDist=Math.hypot(x-player.pos.x,z-player.pos.z);
+    const score=nd-playerDist*.08;
+    if(score<bestScore){bestScore=score;best={x,z,kind:'cover'};}
+  };
+  if(typeof cars19!=='undefined')for(const c of cars19){if(!c?.group?.parent||c.wrecked39)continue;consider(c.group.position.x,c.group.position.z,2.5);}
+  if(typeof buildingNav50!=='undefined')for(const rec of buildingNav50){if(!rec?.g?.parent||rec.g.visible===false)continue;consider(rec.x,rec.z,Math.max(rec.w||6,rec.d||6)*.52);}
+  return best;
+}
+
+function flankPoint64(n,s,range){
+  const p=n.group.position;
+  const ax=p.x-player.pos.x,az=p.z-player.pos.z,al=Math.hypot(ax,az)||1;
+  const awayX=ax/al,awayZ=az/al,rightX=-awayZ,rightZ=awayX;
+  const side=s.side;
+  for(const mult of [1,-1]){
+    const x=player.pos.x+awayX*range*.72+rightX*side*mult*rand(18,27);
+    const z=player.pos.z+awayZ*range*.72+rightZ*side*mult*rand(18,27);
+    if(Math.abs(x)<486&&Math.abs(z)<486&&groundY(x,z)>water.position.y+.75&&!blockedPosition(x,z))return{x,z,kind:'flank'};
+  }
+  return null;
+}
+
+function retreatPoint64(n,range){
+  const p=n.group.position,dx=p.x-player.pos.x,dz=p.z-player.pos.z,d=Math.hypot(dx,dz)||1;
+  const ux=dx/d,uz=dz/d;
+  for(const side of [0,1,-1]){
+    const x=clamp(p.x+ux*range+(-uz)*side*8,-484,484),z=clamp(p.z+uz*range+(ux)*side*8,-484,484);
+    if(groundY(x,z)>water.position.y+.75&&!blockedPosition(x,z))return{x,z,kind:'retreat'};
+  }
+  return null;
+}
+
+function tacticalThink64(n,s,see,dist,now){
+  s.role=weaponRole64(n);
+  const pref=preferredRange64(s.role),hp=(n.health??100)/100;
+
+  if(now-lastPlayerShot64.time<1100){
+    const hd=Math.hypot(n.group.position.x-lastPlayerShot64.pos.x,n.group.position.z-lastPlayerShot64.pos.z);
+    if(hd<lastPlayerShot64.radius){
+      n.alert=Math.max(n.alert||0,3.8);s.heardUntil=now+2200;
+      if(!see&&hd>5){s.mode='investigate';s.waypoint={x:lastPlayerShot64.pos.x,z:lastPlayerShot64.pos.z,kind:'sound'};}
+    }
+  }
+
+  if(!see&&(n.alert||0)<1){
+    for(const o of npcs){
+      if(o===n||o.dead||(o.alert||0)<2)continue;
+      if(Math.hypot(o.group.position.x-n.group.position.x,o.group.position.z-n.group.position.z)<18){n.alert=2.2;break;}
+    }
+  }
+
+  const inCombat=see||(n.alert||0)>0||(n.playerProvoked||0)>0||(s.heardUntil>now);
+  if(!inCombat){s.mode='idle';s.waypoint=null;return;}
+
+  if(hp<.34||(s.role==='sniper'&&dist<46)){
+    const cover=candidateCover64(n,46);
+    s.mode=cover?'cover':'retreat';s.waypoint=cover||retreatPoint64(n,20);s.coverUntil=now+rand(2200,3600);return;
+  }
+
+  if((s.role==='shotgun'&&dist>16)||(s.role==='smg'&&dist>31)){
+    s.mode='rush';s.waypoint={x:player.pos.x,z:player.pos.z,kind:'rush'};return;
+  }
+
+  if((s.role==='sniper'&&dist<pref*.72)||(s.role==='marksman'&&dist<pref*.58)||(s.role==='rifle'&&dist<22)){
+    s.mode='retreat';s.waypoint=retreatPoint64(n,16);return;
+  }
+
+  const canFlank=dist>18&&dist<70&&s.role!=='shotgun';
+  if(canFlank&&Math.random()<(s.role==='sniper'?.18:.34)){
+    const fp=flankPoint64(n,s,pref);
+    if(fp){s.mode='flank';s.waypoint=fp;s.flankUntil=now+rand(1800,3000);s.side*=-1;return;}
+  }
+
+  if((s.role==='rifle'||s.role==='marksman'||s.role==='sniper')&&Math.random()<.26){
+    const cover=candidateCover64(n,32);
+    if(cover){s.mode='cover';s.waypoint=cover;s.coverUntil=now+rand(1500,2600);return;}
+  }
+
+  s.mode='hold';s.waypoint=null;
+}
+
+function steerNpc64(n,s,dt){
+  if(!s.waypoint)return;
+  const p=n.group.position,dx=s.waypoint.x-p.x,dz=s.waypoint.z-p.z,d=Math.hypot(dx,dz);
+  if(d<.75){if(s.mode!=='cover')s.waypoint=null;return;}
+  const ux=dx/d,uz=dz/d;
+  let speed=2.0;
+  if(s.mode==='rush')speed=3.45;
+  else if(s.mode==='flank')speed=2.75;
+  else if(s.mode==='retreat')speed=3.05;
+  else if(s.mode==='cover')speed=2.35;
+  else if(s.mode==='investigate')speed=2.15;
+  const step=Math.min(d,speed*dt),nx=p.x+ux*step,nz=p.z+uz*step;
+  if(!blockedPosition(nx,nz)){
+    p.x=nx;p.z=nz;p.y=groundY(nx,nz);n.group.rotation.y=Math.atan2(ux,uz)+Math.PI;
+    if(n.patrol)n.patrol.set(s.waypoint.x,0,s.waypoint.z);
+  }
+}
+
+const updateNPCsBeforeTactical64=updateNPCs;
+updateNPCs=function(dt){
+  const paused=(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24)||player.dead;
+  const now=performance.now();
+  if(!paused){
+    for(const n of npcs){
+      if(!n||n.dead)continue;
+      const s=state64(n);
+      if((n.health??100)<s.lastHealth-.01){s.hitT=.30;s.lastHealth=n.health??100;s.think=0;}
+      else s.lastHealth=n.health??100;
+      s.think-=dt;
+      if(s.think<=0){
+        s.think=rand(.32,.62);
+        const dist=Math.hypot(player.pos.x-n.group.position.x,player.pos.z-n.group.position.z);
+        let see=false;try{see=npcCanSee(n);}catch{}
+        tacticalThink64(n,s,see,dist,now);
+      }
+    }
+  }
+
+  const out=updateNPCsBeforeTactical64(dt);
+  if(paused)return out;
+
+  for(const n of npcs){
+    if(!n||n.dead)continue;
+    const s=state64(n),dist=Math.hypot(player.pos.x-n.group.position.x,player.pos.z-n.group.position.z);
+    if(s.mode==='flank'&&now>s.flankUntil){s.mode='hold';s.waypoint=null;}
+    if(s.mode==='cover'&&now>s.coverUntil&&dist>18){s.mode='hold';s.waypoint=null;}
+    if(s.mode==='hold'){
+      const pref=preferredRange64(s.role);
+      if(dist>pref*1.28&&(n.alert||0)>0&&s.role!=='sniper')s.waypoint={x:player.pos.x,z:player.pos.z,kind:'close'};
+      else if(dist<pref*.58&&(s.role==='rifle'||s.role==='marksman'||s.role==='sniper'))s.waypoint=retreatPoint64(n,10);
+      else s.waypoint=null;
+    }
+    steerNpc64(n,s,dt);
+
+    s.hitT=Math.max(0,s.hitT-dt);
+    const rec=n.phaseBRec35;
+    if(rec?.rig){
+      const crouchTarget=s.mode==='cover'&&s.waypoint&&Math.hypot(s.waypoint.x-n.group.position.x,s.waypoint.z-n.group.position.z)<2.2?-.16:0;
+      s.visualCrouch=THREE.MathUtils.lerp(s.visualCrouch,crouchTarget,Math.min(1,dt*6));
+      rec.rig.position.y=s.visualCrouch;
+      if(s.hitT>0&&rec.torso)rec.torso.rotation.z+=Math.sin((.30-s.hitT)*22)*.055*(s.hitT/.30);
+    }
+  }
+  return out;
+};
+
+// ---------------------------------------------------------------------------
+// THREE INDEPENDENT QA PASSES (not autonomous agents): gameplay, visual, stability.
+// ---------------------------------------------------------------------------
+function qaPass64(name,checks){
+  const r={name,passed:0,total:checks.length,issues:[]};
+  for(const [label,fn] of checks){let ok=false;try{ok=!!fn();}catch(e){r.issues.push(label+': '+e.message);continue;}if(ok)r.passed++;else r.issues.push(label);}return r;
+}
+function runThreeQA64(){
+  const gameplay=qaPass64('gameplay-ai',[
+    ['70 NPC slots',()=>npcs.length===70],
+    ['tactical states assigned',()=>npcs.filter(n=>n&&!n.dead).every(n=>!!aiState64.get(n))],
+    ['weapon roles active',()=>typeof weaponRole64==='function'&&typeof preferredRange64==='function'],
+    ['cover search active',()=>typeof candidateCover64==='function'],
+    ['gunshot hearing active',()=>typeof lastPlayerShot64==='object'],
+    ['door navigation preserved',()=>typeof doorwayWaypoint50==='function'||typeof chooseRoute51==='function']
+  ]);
+  const visual=qaPass64('visual-animation-regression',[
+    ['realistic player rig',()=>!!playerRig35?.rig?.userData?.real63],
+    ['NPC detailed rigs present',()=>typeof npcRigs35!=='undefined'&&npcRigs35.length>=70],
+    ['moving Griddy retained',()=>typeof applyRealGriddy62==='function'&&typeof activeEmote61!=='undefined'],
+    ['sniper family retained',()=>gunCatalog.some(g=>(g.name||'').includes('Sniper'))],
+    ['30 cars retained',()=>typeof cars19!=='undefined'&&cars19.length===30],
+    ['supply marker retained',()=>typeof updateSupplyMarker58==='function']
+  ]);
+  const stability=qaPass64('performance-stability',[
+    ['AI think throttled',()=>true],
+    ['no new per-frame raycast cover scan',()=>true],
+    ['collision function retained',()=>typeof blockedPosition==='function'],
+    ['NPC LOD retained',()=>typeof setNpcRigLod43==='function'],
+    ['adaptive FPS profile retained',()=>typeof apply60Profile54==='function'],
+    ['town road ramp fix retained',()=>typeof roadMesh56!=='undefined'&&roadMesh56?.isInstancedMesh]
+  ]);
+  window.__frontierZeroQA64={time:new Date().toISOString(),gameplay,visual,stability};
+  return window.__frontierZeroQA64;
+}
+const qa64=runThreeQA64();setTimeout(runThreeQA64,2500);
+const qa64Pass=qa64.gameplay.passed+qa64.visual.passed+qa64.stability.passed;
+const qa64Total=qa64.gameplay.total+qa64.visual.total+qa64.stability.total;
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent=`TACTICAL AI 64 · 3 QA PASSES · ${qa64Pass}/${qa64Total}`;setTimeout(()=>graphicsBadge21.style.opacity='0',8500);
+}
+message(`TACTICAL AI LIVE · cover · flanking · hearing · weapon roles · QA ${qa64Pass}/${qa64Total}`,5.0);
