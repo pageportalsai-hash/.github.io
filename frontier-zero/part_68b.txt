@@ -1,0 +1,40 @@
+// FRONTIER ZERO INTERIORS 68B — indoor lights, room routing, cover combat and indoor echoes
+const indoorNpc68=new WeakMap();
+const indoorLights68=[];for(let i=0;i<(indoorDesktop68?4:2);i++){const l=new THREE.PointLight(0xffd8a0,.58,12,2);l.visible=false;l.castShadow=false;scene.add(l);indoorLights68.push(l);}
+let indoorLightThink68=0;
+function interiorAt68(pos){for(const rec of interiorRecords68)if(insideBuilding50(rec,pos.x,pos.z,.14))return rec;return null;}
+function roomPortal68(rec,aPos,bPos){
+  if(!rec?.interior68)return null;const a=localXZ50(rec,aPos.x,aPos.z),b=localXZ50(rec,bPos.x,bPos.z),z=rec.interior68.partitionZ;if((a.z-z)*(b.z-z)>=0)return null;const p=worldXZ50(rec,0,z);return{x:p.x,z:p.z};
+}
+function freeIndoorPoint68(x,z){if(!blockedPosition(x,z))return{x,z};for(const r of [.35,.65,.95])for(let i=0;i<10;i++){const a=i/10*Math.PI*2,nx=x+Math.cos(a)*r,nz=z+Math.sin(a)*r;if(!blockedPosition(nx,nz))return{x:nx,z:nz};}return null;}
+function steerIndoor68(n,target,dt,speed=2.7){const p=n.group.position,dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);if(d<.22)return true;const ux=dx/d,uz=dz/d,step=Math.min(d,speed*dt);for(const [sx,sz] of [[ux,uz],[-uz,ux],[uz,-ux]]){const nx=p.x+sx*step,nz=p.z+sz*step;if(blockedPosition(nx,nz))continue;p.x=nx;p.z=nz;p.y=groundY(nx,nz);n.group.rotation.y=Math.atan2(sx,sz)+Math.PI;return false;}return false;}
+function chooseIndoorCover68(n,rec){
+  let best=null,score=Infinity;for(const c of interiorCover68){if(c.rec!==rec)continue;const q=freeIndoorPoint68(c.x,c.z);if(!q)continue;const nd=Math.hypot(q.x-n.group.position.x,q.z-n.group.position.z),pd=Math.hypot(q.x-player.pos.x,q.z-player.pos.z);if(nd>16||pd<4.5)continue;const s=nd-pd*.05;if(s<score){score=s;best=q;}}
+  return best;
+}
+function updateInteriorLights68(dt){
+  indoorLightThink68-=dt;if(indoorLightThink68>0)return;indoorLightThink68=.25;const rec=interiorAt68(player.pos);for(const l of indoorLights68)l.visible=false;if(!rec?.interior68)return;
+  const pts=rec.interior68.lightLocal;for(let i=0;i<Math.min(pts.length,indoorLights68.length);i++){const q=pts[i],p=worldXZ50(rec,q[0],q[2]),l=indoorLights68[i];l.position.set(p.x,rec.g.position.y+q[1],p.z);l.visible=true;}
+}
+function indoorEcho68(w){
+  if(!interiorAt68(player.pos)||typeof ensureAudio65!=='function'||typeof gunLayer65!=='function'||typeof soundProfile65!=='function')return;const ctx=ensureAudio65();if(!ctx)return;const fam=weaponFamily27(w),p=soundProfile65(fam);gunLayer65(ctx,p,.055,.18,true);gunLayer65(ctx,p,.125,.10,true);
+}
+if(typeof playGunSound65==='function'){
+  const playGunSoundBeforeIndoor68=playGunSound65;playGunSound65=function(w){const out=playGunSoundBeforeIndoor68(w);indoorEcho68(w);return out;};
+}
+
+const updateNPCsBeforeIndoor68=updateNPCs;
+updateNPCs=function(dt){
+  const out=updateNPCsBeforeIndoor68(dt);const playerRec=interiorAt68(player.pos),now=performance.now();if(!playerRec)return out;
+  for(const n of npcs){if(!n||n.dead||!n.group?.parent)continue;let s=indoorNpc68.get(n);if(!s){s={think:0,cover:null};indoorNpc68.set(n,s);}const nRec=interiorAt68(n.group.position);
+    if(nRec!==playerRec){const wp=typeof doorwayWaypoint50==='function'?doorwayWaypoint50(n,player.pos):null;if(wp&&Math.hypot(n.group.position.x-wp.x,n.group.position.z-wp.z)<24)steerIndoor68(n,wp,dt,(n.alert||0)>0?3.0:2.2);continue;}
+    const portal=roomPortal68(playerRec,n.group.position,player.pos);if(portal){steerIndoor68(n,portal,dt,(n.alert||0)>0?3.0:2.25);continue;}
+    s.think-=dt;if(s.think<=0){s.think=.65+Math.random()*.65;const dist=Math.hypot(n.group.position.x-player.pos.x,n.group.position.z-player.pos.z),tactical=typeof aiState64!=='undefined'?aiState64.get(n):null;if(dist>5&&dist<28&&(n.alert||0)>0&&Math.random()<.48){s.cover=chooseIndoorCover68(n,playerRec);if(s.cover&&tactical){tactical.mode='cover';tactical.waypoint={x:s.cover.x,z:s.cover.z,kind:'indoor-cover'};tactical.coverUntil=now+1800+Math.random()*1400;}}else s.cover=null;}
+    if(s.cover){const reached=steerIndoor68(n,s.cover,dt,2.45);if(reached)s.cover=null;}
+  }
+  return out;
+};
+
+const updatePlayerBeforeIndoor68=updatePlayer;
+updatePlayer=function(dt){const out=updatePlayerBeforeIndoor68(dt);updateInteriorLights68(dt);return out;};
+window.__frontierZeroInteriors68B={loaded:true,pooledLights:indoorLights68.length,indoorCover:true,roomRouting:true,indoorEcho:true};
