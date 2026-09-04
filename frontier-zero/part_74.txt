@@ -1,0 +1,94 @@
+// ============================================================================
+// FRONTIER ZERO STEP 2 — WEAPON POLISH + SAFE PERFORMANCE CLEANUP (Build 76)
+// Visual/item-only. Does not wrap updatePlayer/updateNPCs or alter movement/camera.
+// ============================================================================
+const weaponPolishDesktop74=matchMedia('(pointer:fine)').matches;
+
+// --- Stability cleanup that does NOT touch movement authority ---
+// Reduce simultaneous actors a little more because the user is still seeing frame/jitter issues.
+const LIVE_NPCS74=30;
+if(typeof npcs!=='undefined')for(let i=LIVE_NPCS74;i<npcs.length;i++){
+  const n=npcs[i];if(!n)continue;n.dead=true;n.health=0;n.alert=0;n.playerProvoked=0;n.npcEnemy=null;
+  if(n.group){n.group.visible=false;if(n.group.parent)n.group.parent.remove(n.group);}
+  for(const m of n.hitMeshes||[])for(let j=npcHitMeshes.length-1;j>=0;j--)if(npcHitMeshes[j]===m)npcHitMeshes.splice(j,1);
+}
+// Keep twelve cars active; this is enough variety without the extra physics/render load.
+if(typeof cars19!=='undefined')while(cars19.length>12){
+  const c=cars19.pop();if(!c)continue;
+  if(c.proxy39)for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===c.proxy39)blockers.splice(i,1);
+  if(c.group?.parent)c.group.parent.remove(c.group);
+}
+// Lower only render cost; gameplay geometry stays unchanged.
+renderer.setPixelRatio(Math.min(devicePixelRatio,weaponPolishDesktop74?.90:.76));
+renderer.shadowMap.enabled=false;if(typeof sun!=='undefined')sun.castShadow=false;
+if(typeof detail24!=='undefined'&&detail24)detail24.count=Math.min(detail24.count,72);
+if(typeof roughClods55!=='undefined'&&roughClods55)roughClods55.count=Math.min(roughClods55.count,26);
+if(typeof gravel55!=='undefined'&&gravel55)gravel55.count=Math.min(gravel55.count,34);
+// The minimap used to repaint every animation frame. Keep the same information at 8 Hz.
+if(typeof drawMiniMap==='function'){
+  const drawMiniMapReal74=drawMiniMap;let miniAt74=-1e9;
+  drawMiniMap=function(){const now=performance.now();if(now-miniAt74<125)return;miniAt74=now;return drawMiniMapReal74();};
+}
+// Extra-close articulated humans; far fallback bodies still render.
+if(typeof setNpcRigLod43==='function'&&typeof npcLodState43!=='undefined')setNpcRigLod43=function(rec,dist){
+  if(!rec?.rig)return;const onD=weaponPolishDesktop74?25:17,offD=weaponPolishDesktop74?34:24;
+  let near=npcLodState43.has(rec.rig)?npcLodState43.get(rec.rig):dist<onD;if(near&&dist>offD)near=false;else if(!near&&dist<onD)near=true;
+  npcLodState43.set(rec.rig,near);rec.rig.visible=near;for(const o of rec.legacy||[])if(o&&o!==rec.rig)o.visible=!near;
+};
+
+// --- Weapon model detail ---
+const weaponAnim74={shot:0,reload:0,phase:0,lastFam:'rifle'};
+const weaponMechanisms74=new Map();
+function addMechanism74(fam,model){
+  if(!model||weaponMechanisms74.has(fam))return;
+  const steel=new THREE.MeshStandardMaterial({color:0x171c20,roughness:.31,metalness:.72});
+  const accent=new THREE.MeshStandardMaterial({color:0x343b3f,roughness:.58,metalness:.28});
+  const mech={model,slide:null,bolt:null,mag:null,pump:null,port:null};
+  mech.port=new THREE.Mesh(new THREE.BoxGeometry(.075,.04,.19),steel);mech.port.position.set(.105,.07,-.22);model.add(mech.port);
+  if(fam==='pistol'||fam==='revolver'){
+    mech.slide=new THREE.Group();
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(.205,.045,.42),steel);mech.slide.add(rail);mech.slide.position.set(0,.12,-.28);model.add(mech.slide);
+  } else if(fam==='shotgun'){
+    mech.pump=new THREE.Group();const p=new THREE.Mesh(new THREE.BoxGeometry(.22,.16,.34),accent);mech.pump.add(p);mech.pump.position.set(0,-.06,-.72);model.add(mech.pump);
+  } else {
+    mech.bolt=new THREE.Group();const b=new THREE.Mesh(new THREE.BoxGeometry(.055,.055,.20),steel);mech.bolt.add(b);const h=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.12,7),steel);h.rotation.z=Math.PI/2;h.position.set(.07,0,.02);mech.bolt.add(h);mech.bolt.position.set(.105,.08,-.12);model.add(mech.bolt);
+  }
+  mech.mag=new THREE.Group();const mg=new THREE.Mesh(new THREE.BoxGeometry(.14,.29,.16),accent);mech.mag.add(mg);mech.mag.position.set(0,-.25,-.02);model.add(mech.mag);
+  weaponMechanisms74.set(fam,mech);
+}
+if(typeof models27!=='undefined')for(const [fam,model] of Object.entries(models27))addMechanism74(fam,model);
+
+const shootBeforeWeapon74=shootGun;
+shootGun=function(w){
+  const before=w?.type==='gun'?w.mag:null;const out=shootBeforeWeapon74(w);
+  if(w?.type==='gun'&&before>w.mag){weaponAnim74.shot=1;weaponAnim74.phase=0;weaponAnim74.lastFam=typeof weaponFamily27==='function'?weaponFamily27(w):'rifle';}
+  return out;
+};
+const reloadBeforeWeapon74=reload;
+reload=function(){
+  const w=currentGear(),can=!!w&&w.type==='gun'&&!reloading&&w.mag<w.magSize&&w.reserve>0;const out=reloadBeforeWeapon74();
+  if(can){weaponAnim74.reload=1;weaponAnim74.phase=0;weaponAnim74.lastFam=typeof weaponFamily27==='function'?weaponFamily27(w):'rifle';}
+  return out;
+};
+
+let weaponLastFrame74=performance.now();
+(function animateWeapon74(now){
+  requestAnimationFrame(animateWeapon74);const dt=Math.min(.04,Math.max(.001,(now-weaponLastFrame74)/1000));weaponLastFrame74=now;
+  const w=currentGear();if(!w||w.type!=='gun'||typeof weaponFamily27!=='function')return;
+  const fam=weaponFamily27(w),mech=weaponMechanisms74.get(fam);if(!mech)return;
+  weaponAnim74.phase+=dt;
+  weaponAnim74.shot=Math.max(0,weaponAnim74.shot-dt*(fam==='shotgun'||fam==='sniper'?5.2:9.0));
+  weaponAnim74.reload=Math.max(0,weaponAnim74.reload-dt/0.78);
+  const s=weaponAnim74.shot,r=weaponAnim74.reload;
+  if(mech.slide)mech.slide.position.z=-.28+s*.10;
+  if(mech.bolt)mech.bolt.position.z=-.12+s*(fam==='sniper'?.18:.09);
+  if(mech.pump)mech.pump.position.z=-.72+s*.22;
+  if(mech.mag){const rr=Math.sin(Math.min(1,r)*Math.PI);mech.mag.position.y=-.25-rr*.19;mech.mag.rotation.z=rr*.18;}
+  if(typeof weaponModels27!=='undefined'){
+    const rr=Math.sin(Math.min(1,r)*Math.PI);weaponModels27.rotation.z=-.015+rr*.12;weaponModels27.rotation.x=-.02-s*.055+rr*.05;
+  }
+})(performance.now());
+
+window.__frontierZeroStep2_74={loaded:true,build:76,liveNPCs:LIVE_NPCS74,cars:typeof cars19!=='undefined'?cars19.length:null,features:['lower frame load','8Hz minimap','closer NPC LOD','weapon slides/bolts/pumps','reload magazine animation'],movementTouched:false,aiTouched:false,cameraTouched:false};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='STEP 2 · WEAPON POLISH + GLITCH LOAD CUT';setTimeout(()=>graphicsBadge21.style.opacity='0',7000);}
+message('STEP 2 LIVE · weapon mechanisms + lower runtime load',4.2);
