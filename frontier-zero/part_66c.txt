@@ -1,0 +1,11 @@
+// FRONTIER ZERO MOVEMENT QA 66C — final compatibility checks
+function motionCheck66(name,checks){const r={name,passed:0,total:checks.length,issues:[]};for(const [label,fn] of checks){let ok=false;try{ok=!!fn();}catch(e){r.issues.push(label+': '+e.message);continue;}if(ok)r.passed++;else r.issues.push(label);}return r;}
+window.__frontierZeroMovementQA66={
+  locomotion:motionCheck66('locomotion',[['smooth velocity',()=>moveVel66?.isVector3],['sprint state',()=>typeof sprinting66==='boolean'],['crouch state',()=>typeof crouching66==='boolean'],['jump system retained',()=>typeof jumpOffset==='number'&&typeof requestJump==='function'],['tower movement guard',()=>typeof movementFree66==='function']]),
+  animation:motionCheck66('animation',[['player articulated rig',()=>!!playerRig35?.root],['gait animation',()=>typeof motionPhase66==='number'],['weapon aim profiles',()=>typeof aimProfile66==='function'],['sniper bolt cycle',()=>typeof boltCycle66==='number'],['NPC turn smoothing',()=>npcMotion66 instanceof WeakMap]]),
+  regression:motionCheck66('regression',[['Griddy retained',()=>typeof applyRealGriddy62==='function'],['tactical AI retained',()=>typeof weaponRole64==='function'],['headshots retained',()=>typeof isHeadshot65==='function'],['combat audio retained',()=>typeof playGunSound65==='function'],['30 cars retained',()=>cars19.length===30],['70 NPC slots retained',()=>npcs.length===70]])
+};
+const q=window.__frontierZeroMovementQA66,total=q.locomotion.total+q.animation.total+q.regression.total,passed=q.locomotion.passed+q.animation.passed+q.regression.passed;
+window.__frontierZeroMovement66={loaded:true,build:67,features:['smooth acceleration/deceleration','walk-jog-sprint transitions','crouch/crouch-walk','jump/landing animation','surface footsteps','third-person camera smoothing','first-person sway','weapon-specific aim poses','reload pose','sniper bolt cycle','sprint weapon lowering','NPC turn smoothing'],qa:{passed,total}};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent=`MOVEMENT 66 · ${passed}/${total} CHECKS`;setTimeout(()=>graphicsBadge21.style.opacity='0',8500);}
+message(`MOVEMENT OVERHAUL LIVE · SPRINT · CROUCH · JUMP/LAND · FOOTSTEPS · QA ${passed}/${total}`,5);
