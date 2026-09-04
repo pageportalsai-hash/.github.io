@@ -1,16 +1,15 @@
 // ============================================================================
 // FRONTIER ZERO EMOTE HOTFIX 61
 // Definitive in-bundle emote control. Works in the lobby and in-match.
-// 1 = Griddy-style dance. Overrides any older part-60 trigger if present.
+// 1 = Griddy-style dance. Player can move normally while emoting.
 // ============================================================================
 
 let activeEmote61=null,emoteStart61=0,emotePrevThird61=false;
 const EMOTE_DURATION61=8200;
-const emoteAnchor61=new THREE.Vector3();
 
 const emoteHud61=document.createElement('div');
 emoteHud61.style.cssText='position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:90;display:none;padding:8px 13px;border-radius:10px;background:rgba(7,11,14,.84);border:1px solid rgba(255,255,255,.26);color:#fff;font:900 11px system-ui;letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 2px #000';
-emoteHud61.textContent='1 · GRIDDY';document.body.appendChild(emoteHud61);
+emoteHud61.textContent='1 · GRIDDY · MOVE WITH WASD';document.body.appendChild(emoteHud61);
 
 function resetPose61(){
   if(typeof playerRig35==='undefined'||!playerRig35)return;
@@ -36,12 +35,12 @@ function toggleGriddy61(){
   if(activeCar19||player.dead||(typeof matchWon24!=='undefined'&&matchWon24)){message('CAN’T EMOTE RIGHT NOW',1.1);return;}
   if(typeof activeEmote60!=='undefined')activeEmote60=null;
   if(typeof emoteHud60!=='undefined'&&emoteHud60)emoteHud60.style.display='none';
-  activeEmote61='griddy';emoteStart61=performance.now();emoteAnchor61.copy(player.pos);
+  activeEmote61='griddy';emoteStart61=performance.now();
   emotePrevThird61=typeof thirdPerson16!=='undefined'?!!thirdPerson16:false;
   if(typeof thirdPerson16!=='undefined')thirdPerson16=true;
   if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=true;
   firing=false;emoteHud61.style.display='block';
-  message('GRIDDY · PRESS 1 AGAIN TO STOP',1.5);
+  message('GRIDDY · MOVE WITH WASD · PRESS 1 TO STOP',1.7);
 }
 
 if(typeof startGriddy60==='function')startGriddy60=toggleGriddy61;
@@ -58,11 +57,13 @@ doAction=function(){if(activeEmote61){firing=false;return;}return doActionBefore
 
 const updatePlayerBefore61=updatePlayer;
 updatePlayer=function(dt){
+  // Keep the normal movement/physics simulation running first. The emote then
+  // overrides only the character pose/camera, not the player's position.
   updatePlayerBefore61(dt);
   if(!activeEmote61)return;
   if(activeCar19||player.dead||(typeof matchWon24!=='undefined'&&matchWon24)){stopGriddy61(true);return;}
 
-  player.pos.x=emoteAnchor61.x;player.pos.z=emoteAnchor61.z;firing=false;
+  firing=false;
   if(typeof playerAvatar16!=='undefined'){
     playerAvatar16.visible=true;
     playerAvatar16.position.x=player.pos.x;playerAvatar16.position.z=player.pos.z;
@@ -89,6 +90,7 @@ updatePlayer=function(dt){
   if(r.lFore)r.lFore.rotation.x=-.98+Math.max(0,left)*.25;
   if(r.rFore)r.rFore.rotation.x=-.98+Math.max(0,right)*.25;
 
+  // Follow the moving player in third person while the dance continues.
   if(typeof playerAvatar16!=='undefined'){
     const av=playerAvatar16.position,target=new THREE.Vector3(av.x,av.y+1.45,av.z);
     const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
@@ -102,6 +104,6 @@ updatePlayer=function(dt){
   }
 };
 
-if(hud?.desktop)hud.desktop.textContent='MacBook: WASD move · mouse look · 1 Griddy emote · F sniper scope · E car/loot · L view · R reload · Q gear · SPACE jump';
-window.__frontierZeroEmote61={loaded:true,lobby:true,key:'1',durationMs:EMOTE_DURATION61};
-message('EMOTE HOTFIX · PRESS 1 FOR GRIDDY (WORKS IN LOBBY + MATCH)',3.8);
+if(hud?.desktop)hud.desktop.textContent='MacBook: WASD move · mouse look · 1 Griddy emote (move while dancing) · F sniper scope · E car/loot · L view · R reload · Q gear · SPACE jump';
+window.__frontierZeroEmote61={loaded:true,lobby:true,movement:true,key:'1',durationMs:EMOTE_DURATION61};
+message('GRIDDY UPDATED · YOU CAN MOVE WHILE EMOTING',3.5);
