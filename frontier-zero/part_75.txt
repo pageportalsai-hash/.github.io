@@ -1,0 +1,64 @@
+// ============================================================================
+// FRONTIER ZERO STEP 3 — STATIC GRAPHICS / MATERIAL POLISH (Build 77)
+// One-time material tuning only. No movement, AI or camera wrappers.
+// ============================================================================
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.02;
+scene.background?.isColor&&scene.background.setHex(0x90b4c5);
+if(scene.fog){scene.fog.color.setHex(0xb9c9cc);scene.fog.density=Math.min(scene.fog.density||.0007,.00060);}
+if(typeof hemi!=='undefined'){hemi.intensity=1.38;hemi.color.setHex(0xdbe7ea);hemi.groundColor.setHex(0x4d554b);}
+if(typeof sun!=='undefined'){sun.intensity=2.55;sun.color.setHex(0xffdfbd);}
+
+function polishMat75(m){
+  if(!m)return;const mats=Array.isArray(m)?m:[m];
+  for(const x of mats){
+    if(!x)continue;
+    if('roughness' in x)x.roughness=THREE.MathUtils.clamp(x.roughness??.75,.36,.96);
+    if('metalness' in x)x.metalness=THREE.MathUtils.clamp(x.metalness??0,0,.84);
+    if(x.map){x.map.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy?.()||1,4);x.map.needsUpdate=true;}
+    if('envMapIntensity' in x)x.envMapIntensity=.42;
+    x.needsUpdate=true;
+  }
+}
+for(const m of [typeof terrain!=='undefined'?terrain:null,typeof worldGround500!=='undefined'?worldGround500:null,typeof terrain2k!=='undefined'?terrain2k:null]){
+  if(!m?.material)continue;polishMat75(m.material);m.material.roughness=.94;m.material.metalness=0;
+  if(m.material.bumpMap)m.material.bumpScale=Math.min(Math.max(m.material.bumpScale||0,.12),.22);
+}
+if(typeof water!=='undefined'&&water?.material){water.material.color.setHex(0x4d7c8e);water.material.roughness=.20;water.material.metalness=.02;water.material.opacity=Math.min(water.material.opacity??.72,.74);water.material.needsUpdate=true;}
+
+const buildingMats75=[
+  typeof houseWall33!=='undefined'?houseWall33:null,
+  typeof woodWall33!=='undefined'?woodWall33:null,
+  typeof warehouseWall33!=='undefined'?warehouseWall33:null,
+  typeof roofMat33!=='undefined'?roofMat33:null,
+  typeof roofDark33!=='undefined'?roofDark33:null,
+  typeof urbanGlass51!=='undefined'?urbanGlass51:null
+].filter(Boolean);
+for(const m of buildingMats75)polishMat75(m);
+if(typeof houseWall33!=='undefined')houseWall33.color.setHex(0xc9bea9);
+if(typeof woodWall33!=='undefined')woodWall33.color.setHex(0x8d7255);
+if(typeof warehouseWall33!=='undefined')warehouseWall33.color.setHex(0x748289);
+if(typeof roofMat33!=='undefined')roofMat33.color.setHex(0x3a4348);
+if(typeof roofDark33!=='undefined')roofDark33.color.setHex(0x2d3539);
+if(typeof urbanGlass51!=='undefined'){urbanGlass51.color.setHex(0x547789);urbanGlass51.opacity=.48;urbanGlass51.roughness=.12;urbanGlass51.needsUpdate=true;}
+
+if(typeof townBuildings51!=='undefined')for(const rec of townBuildings51){
+  rec?.g?.traverse(o=>{
+    if(!o?.isMesh||!o.material)return;const mats=Array.isArray(o.material)?o.material:[o.material];
+    for(const m of mats){if(!m?.color)continue;const h={h:0,s:0,l:0};m.color.getHSL(h);m.color.setHSL(h.h,THREE.MathUtils.clamp(h.s*.80,0,1),THREE.MathUtils.clamp(h.l*.94+.018,0,1));polishMat75(m);}
+  });
+}
+
+if(typeof cars19!=='undefined')for(const c of cars19){
+  c?.group?.traverse(o=>{
+    if(!o?.isMesh||!o.material)return;const mats=Array.isArray(o.material)?o.material:[o.material];
+    for(const m of mats){polishMat75(m);if(m.transparent){m.roughness=Math.min(m.roughness??.18,.18);m.opacity=Math.max(.28,Math.min(m.opacity??.65,.72));}else if((m.metalness??0)>.35){m.roughness=Math.min(m.roughness??.32,.30);if('clearcoat' in m)m.clearcoat=Math.max(m.clearcoat||0,.58);}}
+  });
+}
+
+if(typeof weaponModels27!=='undefined')weaponModels27.traverse(o=>{if(o?.isMesh&&o.material)polishMat75(o.material);});
+if(typeof npcRigs35!=='undefined')for(const r of npcRigs35){r?.rig?.traverse(o=>{if(o?.isMesh&&o.material)polishMat75(o.material);});}
+
+window.__frontierZeroStep3_75={loaded:true,build:77,staticOnly:true,addedDrawCalls:0,movementTouched:false,aiTouched:false,cameraTouched:false};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='STEP 3 · STATIC MATERIAL POLISH';setTimeout(()=>graphicsBadge21.style.opacity='0',6500);}
+message('STEP 3 LIVE · cleaner materials, terrain, buildings, cars and weapons',4.0);
