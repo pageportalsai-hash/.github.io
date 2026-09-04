@@ -1,0 +1,209 @@
+// ============================================================================
+// FRONTIER ZERO CHARACTER FIDELITY 63
+// High-detail articulated player/NPC body rebuild using the existing skeleton.
+// Better proportions, anatomy joints, head/face, clothing layers and materials
+// while preserving 70-NPC LOD, movement, aiming and Griddy choreography.
+// ============================================================================
+
+const characterDesktop63=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. SHARED MICRO-MATERIAL DETAIL — cheap procedural fabric grain
+// ---------------------------------------------------------------------------
+function fabricTexture63(){
+  const c=document.createElement('canvas');c.width=64;c.height=64;const x=c.getContext('2d');
+  x.fillStyle='#888';x.fillRect(0,0,64,64);
+  for(let yy=0;yy<64;yy++)for(let xx=0;xx<64;xx++){
+    const weave=((xx&3)===0?10:0)+((yy&3)===0?-8:0)+(Math.random()-.5)*10;
+    const v=Math.max(90,Math.min(175,136+weave));x.fillStyle=`rgb(${v},${v},${v})`;x.fillRect(xx,yy,1,1);
+  }
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(5,5);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const fabricBump63=fabricTexture63();
+const materialCache63=new Map();
+function realisticMat63(src,type='cloth',fallback=0x666666){
+  const col=src?.color?.isColor?src.color.getHex():fallback,key=type+'_'+col;
+  if(materialCache63.has(key))return materialCache63.get(key);
+  const spec=type==='skin'?{roughness:.62,metalness:0}:type==='hair'?{roughness:.88,metalness:0}:type==='boot'?{roughness:.58,metalness:.03}:type==='gear'?{roughness:.66,metalness:.10}:{roughness:.86,metalness:.01};
+  const m=new THREE.MeshStandardMaterial({color:col,...spec});
+  if(type==='cloth'){m.bumpMap=fabricBump63;m.bumpScale=.015;}
+  else if(type==='boot'){m.bumpMap=fabricBump63;m.bumpScale=.007;}
+  materialCache63.set(key,m);return m;
+}
+function darker63(mat,f=.72,type='cloth'){
+  const c=mat?.color?.clone?.()||new THREE.Color(0x555555);c.multiplyScalar(f);
+  const key=type+'_dark_'+c.getHex();if(materialCache63.has(key))return materialCache63.get(key);
+  const m=realisticMat63({color:c},type,c.getHex());materialCache63.set(key,m);return m;
+}
+
+// ---------------------------------------------------------------------------
+// 2. SHARED HIGH-DETAIL GEOMETRY
+// ---------------------------------------------------------------------------
+function torsoGeo63(scale=1){
+  const s=new THREE.Shape();
+  s.moveTo(-.245*scale,-.36);s.quadraticCurveTo(-.275*scale,-.15,-.292*scale,.02);
+  s.quadraticCurveTo(-.315*scale,.23,-.285*scale,.36);s.quadraticCurveTo(-.20*scale,.43,0,.435);
+  s.quadraticCurveTo(.20*scale,.43,.285*scale,.36);s.quadraticCurveTo(.315*scale,.23,.292*scale,.02);
+  s.quadraticCurveTo(.275*scale,-.15,.245*scale,-.36);s.closePath();
+  const g=new THREE.ExtrudeGeometry(s,{depth:.31,steps:1,bevelEnabled:true,bevelSegments:3,bevelSize:.026,bevelThickness:.022});g.translate(0,0,-.155);g.computeVertexNormals();return g;
+}
+const torsoGeos63=[torsoGeo63(.94),torsoGeo63(1),torsoGeo63(1.055)];
+const upperArmGeo63=new THREE.CapsuleGeometry(.095,.30,6,12);
+const foreArmGeo63=new THREE.CapsuleGeometry(.078,.245,6,12);
+const handGeo63=new THREE.CapsuleGeometry(.066,.055,5,10);
+const thighGeo63=new THREE.CapsuleGeometry(.122,.31,6,12);
+const calfGeo63=new THREE.CapsuleGeometry(.098,.235,6,12);
+const shoulderGeo63=new THREE.SphereGeometry(.118,12,9);
+const elbowGeo63=new THREE.SphereGeometry(.082,10,8);
+const kneeGeo63=new THREE.SphereGeometry(.104,10,8);
+const headGeo63=new THREE.CapsuleGeometry(.238,.115,7,16);
+const jawGeo63=new THREE.SphereGeometry(.205,14,10);
+const earGeo63=new THREE.SphereGeometry(.052,9,7);
+const eyeWhiteGeo63=new THREE.SphereGeometry(.026,9,7);
+const pupilGeo63=new THREE.SphereGeometry(.012,8,6);
+const noseGeo63=new THREE.ConeGeometry(.038,.095,6);
+const browGeo63=new THREE.BoxGeometry(.085,.017,.018);
+const mouthGeo63=new THREE.BoxGeometry(.095,.014,.012);
+const bootGeo63=new THREE.CapsuleGeometry(.105,.145,5,10);
+const soleGeo63=new THREE.BoxGeometry(.21,.045,.36);
+const packGeo63=new THREE.CapsuleGeometry(.155,.255,5,10);
+const buckleGeo63=new THREE.BoxGeometry(.10,.075,.035);
+
+function sourceMaterial63(group,predicate){
+  if(!group)return null;
+  for(const o of group.children){if(o?.isMesh&&(!predicate||predicate(o)))return o.material;}
+  return null;
+}
+function hideDirectMeshes63(g){if(g)for(const o of g.children)if(o?.isMesh)o.visible=false;}
+function addMesh63(parent,geo,mat,x=0,y=0,z=0,rx=0,ry=0,rz=0){
+  const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=true;m.receiveShadow=true;m.userData.real63=true;parent.add(m);return m;
+}
+function hideOldPack63(rec){
+  for(const o of rec?.rig?.children||[]){
+    if(!o?.isMesh||o.userData.real63)continue;const p=o.geometry?.parameters||{};
+    if(o.geometry?.type==='BoxGeometry'&&(p.width||0)>.40&&(p.width||0)<.58&&(p.height||0)>.50&&(p.height||0)<.70&&(p.depth||0)<.28)o.visible=false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. REALISTIC BODY REBUILD ON EXISTING ARTICULATED SKELETON
+// ---------------------------------------------------------------------------
+function rebuildHuman63(rec,i,isPlayer=false){
+  if(!rec?.rig||rec.rig.userData.real63)return;rec.rig.userData.real63=true;
+
+  const shirtSrc=sourceMaterial63(rec.torso,o=>o.material?.color);
+  const pantsSrc=sourceMaterial63(rec.lLeg,o=>o.material?.color);
+  const skinSrc=sourceMaterial63(rec.lFore,o=>o.material?.color)||sourceMaterial63(rec.head,o=>o.material?.color);
+  const bootSrc=sourceMaterial63(rec.lShin,o=>o.geometry?.type==='BoxGeometry')||pantsSrc;
+  const shirt=realisticMat63(shirtSrc,'cloth',isPlayer?0x536675:clothPal35[i%clothPal35.length]);
+  const pants=realisticMat63(pantsSrc,'cloth',isPlayer?0x303c4a:pantsPal35[i%pantsPal35.length]);
+  const skin=realisticMat63(skinSrc,'skin',isPlayer?0xe2b38e:skinPal35[i%skinPal35.length]);
+  const boot=realisticMat63(bootSrc,'boot',0x1d2022);
+  const outer=darker63(shirt,isPlayer ? .70 : (i%2 ? .68 : .76),'cloth');
+  const gear=realisticMat63({color:new THREE.Color(isPlayer?0x31393c:(i%2?0x3c342f:0x303a37))},'gear');
+  const hairCol=isPlayer?0x493125:hairPal35[(i*3)%hairPal35.length];
+  const hair=realisticMat63({color:new THREE.Color(hairCol)},'hair',hairCol);
+  const eyeWhite=realisticMat63({color:new THREE.Color(0xe9e6df)},'skin',0xe9e6df),eye=realisticMat63({color:new THREE.Color(i%5===0?0x5c4632:0x202326)},'skin',0x202326);
+
+  for(const g of [rec.torso,rec.hips,rec.lArm,rec.rArm,rec.lFore,rec.rFore,rec.lLeg,rec.rLeg,rec.lShin,rec.rShin,rec.head])hideDirectMeshes63(g);
+  hideOldPack63(rec);
+  if(rec.head)rec.head.scale.set(1,1,1);
+
+  const bodyType=isPlayer?1:i%3;
+  addMesh63(rec.torso,torsoGeos63[bodyType],shirt,0,.075,0);
+  const chestPanel=addMesh63(rec.torso,torsoGeos63[bodyType],outer,0,.09,-.018);chestPanel.scale.set(.96,.72,1.08);chestPanel.position.y=.16;
+  addMesh63(rec.torso,new THREE.BoxGeometry(.18,.055,.025),outer,-.085,.45,-.174,0,0,-.28);
+  addMesh63(rec.torso,new THREE.BoxGeometry(.18,.055,.025),outer,.085,.45,-.174,0,0,.28);
+  addMesh63(rec.torso,new THREE.BoxGeometry(.018,.46,.018),gear,0,.13,-.181);
+  addMesh63(rec.torso,new THREE.BoxGeometry(.51,.065,.335),gear,0,-.31,0);
+  addMesh63(rec.torso,buckleGeo63,realisticMat63({color:new THREE.Color(0x70777a)},'gear'),0,-.31,-.19);
+
+  addMesh63(rec.torso,new THREE.CylinderGeometry(.105,.12,.19,12),skin,0,.54,0);
+  for(const [arm,side] of [[rec.lArm,-1],[rec.rArm,1]]){
+    if(!arm)continue;arm.position.set(side*.375,1.57,0);
+    const sh=addMesh63(arm,shoulderGeo63,outer,0,0,0);sh.scale.set(1.02,1.05,.92);
+    const up=addMesh63(arm,upperArmGeo63,outer,0,-.205,0);up.scale.set(1,1,.93);
+  }
+  for(const fore of [rec.lFore,rec.rFore]){
+    if(!fore)continue;fore.position.set(0,-.455,0);
+    addMesh63(fore,elbowGeo63,skin,0,0,0);
+    const lo=addMesh63(fore,foreArmGeo63,skin,0,-.17,0);lo.scale.set(1,.98,.91);
+    const hand=addMesh63(fore,handGeo63,skin,0,-.365,-.005);hand.scale.set(.90,1.02,.78);
+  }
+
+  if(rec.hips){const hip=addMesh63(rec.hips,new THREE.CapsuleGeometry(.198,.105,6,12),pants,0,.015,0,0,0,Math.PI/2);hip.scale.set(.80,1.17,.76);}
+  for(const [leg,shin,side] of [[rec.lLeg,rec.lShin,-1],[rec.rLeg,rec.rShin,1]]){
+    if(!leg||!shin)continue;leg.position.set(side*.155,.76,0);
+    const thigh=addMesh63(leg,thighGeo63,pants,0,-.215,0);thigh.scale.set(1.02,1,.94);
+    shin.position.set(0,-.455,0);addMesh63(shin,kneeGeo63,pants,0,0,-.005);
+    const calf=addMesh63(shin,calfGeo63,pants,0,-.16,.008);calf.scale.set(.96,1,.90);
+    const b=addMesh63(shin,bootGeo63,boot,0,-.355,-.055,Math.PI/2,0,0);b.scale.set(1.02,1.06,.90);
+    addMesh63(shin,soleGeo63,darker63(boot,.55,'boot'),0,-.405,-.08);
+  }
+
+  if(rec.head){
+    const h=addMesh63(rec.head,headGeo63,skin,0,.105,0);h.scale.set(.96,1.00,.92);
+    const jaw=addMesh63(rec.head,jawGeo63,skin,0,-.005,-.012);jaw.scale.set(.88,.72,.88);
+    addMesh63(rec.head,earGeo63,skin,-.238,.11,.005);addMesh63(rec.head,earGeo63,skin,.238,.11,.005);
+    for(const x of [-.086,.086]){
+      const w=addMesh63(rec.head,eyeWhiteGeo63,eyeWhite,x,.165,-.219);w.scale.set(1.15,.82,.50);
+      addMesh63(rec.head,pupilGeo63,eye,x,.165,-.238);
+      const br=addMesh63(rec.head,browGeo63,hair,x,.222,-.225);br.rotation.z=x<0?.07:-.07;
+    }
+    const nose=addMesh63(rec.head,noseGeo63,skin,0,.105,-.245,-Math.PI/2,0,0);nose.scale.set(.82,1,.78);
+    addMesh63(rec.head,mouthGeo63,realisticMat63({color:new THREE.Color(0x704842)},'skin'),0,.005,-.238);
+    const cap=addMesh63(rec.head,new THREE.SphereGeometry(.252,14,10,0,Math.PI*2,0,Math.PI*.55),hair,0,.285,.015);cap.scale.set(1.02,.68,.98);
+    const style=isPlayer?1:i%4;
+    if(style===1){const fringe=addMesh63(rec.head,new THREE.BoxGeometry(.29,.075,.14),hair,-.055,.276,-.198);fringe.rotation.z=-.10;}
+    else if(style===2){for(const x of [-.12,0,.12]){const tuft=addMesh63(rec.head,new THREE.ConeGeometry(.055,.16,7),hair,x,.355,-.02);tuft.rotation.z=x*.45;}}
+    else if(style===3){const side=addMesh63(rec.head,new THREE.CapsuleGeometry(.045,.20,4,8),hair,-.205,.16,.015);side.rotation.z=.10;}
+  }
+
+  if(rec.rig){
+    const pack=addMesh63(rec.rig,packGeo63,gear,0,1.40,.255);pack.scale.set(1.42,1.02,.72);
+    for(const x of [-.23,.23]){const strap=addMesh63(rec.torso,new THREE.BoxGeometry(.045,.55,.025),gear,x,.10,-.185);strap.rotation.z=x<0?.06:-.06;}
+  }
+
+  rec.rig.userData.realisticMaterials63={shirt,pants,skin,boot,outer,hair};
+}
+
+if(typeof npcRigs35!=='undefined')for(let i=0;i<npcRigs35.length;i++)rebuildHuman63(npcRigs35[i],i,false);
+if(typeof playerRig35!=='undefined'&&playerRig35)rebuildHuman63(playerRig35,999,true);
+
+if(typeof setNpcRigLod43==='function'){
+  setNpcRigLod43=function(rec,dist){
+    if(!rec?.rig)return;
+    const onD=characterDesktop63?105:58,offD=characterDesktop63?132:76;
+    let near=npcLodState43.has(rec.rig)?npcLodState43.get(rec.rig):dist<onD;
+    if(near&&dist>offD)near=false;else if(!near&&dist<onD)near=true;
+    npcLodState43.set(rec.rig,near);rec.rig.visible=near;
+    for(const o of rec.legacy||[])if(o&&o!==rec.rig)o.visible=!near;
+  };
+}
+
+const updatePlayerBeforeCharacter63=updatePlayer;
+updatePlayer=function(dt){
+  const out=updatePlayerBeforeCharacter63(dt);
+  if(typeof playerRig35!=='undefined'&&playerRig35&&!(typeof activeEmote61!=='undefined'&&activeEmote61==='griddy')){
+    const r=playerRig35,t=performance.now()*.001;
+    const moving=Math.min(1,Math.hypot(player.pos.x-r.prev.x,player.pos.z-r.prev.z)/Math.max(.001,dt)/2.0);
+    if(r.torso)r.torso.position.y=1.34+Math.sin(t*1.8)*.004*(1-moving*.7);
+    if(r.head&&!activeCar19)r.head.rotation.z+=Math.sin(t*1.15)*.006*(1-moving);
+  }
+  return out;
+};
+
+const updateNPCsBeforeCharacter63=updateNPCs;
+updateNPCs=function(dt){
+  const out=updateNPCsBeforeCharacter63(dt),t=performance.now()*.001;
+  if(typeof npcRigs35!=='undefined')for(const r of npcRigs35){
+    if(!r?.n||r.n.dead||!r.rig?.visible)continue;
+    if(r.torso)r.torso.position.y=1.33+Math.sin(t*1.65+r.phase)*.004;
+    if(r.head&&!(r.n.alert>0))r.head.rotation.z+=Math.sin(t*.9+r.phase)*.004;
+  }
+  return out;
+};
+
+window.__frontierZeroCharacters63={loaded:true,player:!!playerRig35,npcs:npcRigs35?.length||0,lod:true,materials:'procedural fabric + realistic skin/boot response'};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='CHARACTERS 63 · HIGH-FIDELITY HUMAN BODY + FACE + CLOTHING';setTimeout(()=>graphicsBadge21.style.opacity='0',7500);}
+message('CHARACTER OVERHAUL · MORE REALISTIC BODY, FACE, CLOTHING + MATERIALS',4.5);
