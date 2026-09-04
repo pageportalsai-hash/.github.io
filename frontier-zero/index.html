@@ -50,7 +50,7 @@
       <div id="stats" class="panel">
         <div><b>FRONTIER ZERO</b></div>
         <div id="weaponText">Common Rifle · 30 / 120</div>
-        <div id="npcText">Hostiles: 70</div>
+        <div id="npcText">Hostiles: 40</div>
         <div id="healthOuter"><div id="healthInner"></div></div>
       </div>
       <div id="inventory" class="panel">WOOD 0<br>STONE 0<br>METAL 0<br>BUILD Wall</div>
@@ -62,10 +62,10 @@
     <div id="rotateBtn" class="button">ROTATE</div><div id="buildTypeBtn" class="button">TYPE</div>
   </div>
   <script type="module">
-    const parts=['part_00.txt','part_01.txt','part_02c.txt','part_03.txt','part_04.txt','part_05.txt','part_06.txt','part_07.txt','part_08.txt','part_09.txt','part_10.txt','part_11.txt','part_12.txt','part_13.txt','part_14.txt','part_15.txt','part_16.txt','part_17.txt','part_18.txt','part_19.txt','part_20.txt','part_21.txt','part_22.txt','part_23.txt','part_24.txt','part_25.txt','part_26.txt','part_27.txt','part_28.txt','part_29.txt','part_30.txt','part_31.txt','part_32.txt','part_33.txt','part_34.txt','part_35.txt','part_36.txt','part_39.txt','part_40.txt','part_42.txt','part_45.txt','part_44.txt','part_46.txt','part_47.txt','part_48.txt','part_49.txt','part_50.txt','part_51.txt','part_52.txt','part_53.txt','part_54.txt','part_55.txt','part_56.txt','part_57.txt','part_58a.txt','part_58b.txt','part_58c.txt','part_71.txt'];
+    const parts=['part_00.txt','part_01.txt','part_02c.txt','part_03.txt','part_04.txt','part_05.txt','part_06.txt','part_07.txt','part_08.txt','part_09.txt','part_10.txt','part_11.txt','part_12.txt','part_13.txt','part_14.txt','part_15.txt','part_16.txt','part_17.txt','part_18.txt','part_19.txt','part_20.txt','part_21.txt','part_22.txt','part_23.txt','part_24.txt','part_25.txt','part_26.txt','part_27.txt','part_28.txt','part_29.txt','part_30.txt','part_31.txt','part_32.txt','part_33.txt','part_34.txt','part_35.txt','part_36.txt','part_39.txt','part_40.txt','part_42.txt','part_45.txt','part_44.txt','part_46.txt','part_47.txt','part_48.txt','part_49.txt','part_50.txt','part_51.txt','part_52.txt','part_53.txt','part_54.txt','part_55.txt','part_56.txt','part_57.txt','part_58a.txt','part_58b.txt','part_58c.txt','part_72.txt'];
     try {
       const loading=document.getElementById('loading');let loaded=0;
-      const texts=await Promise.all(parts.map(async p=>{const r=await fetch(p+'?build=73');if(!r.ok)throw new Error(p);const text=await r.text();loaded++;loading.textContent=`Loading Frontier Zero… ${Math.round(loaded/parts.length*100)}%`;return text;}));
+      const texts=await Promise.all(parts.map(async p=>{const r=await fetch(p+'?build=74');if(!r.ok)throw new Error(p);const text=await r.text();loaded++;loading.textContent=`Loading Frontier Zero… ${Math.round(loaded/parts.length*100)}%`;return text;}));
       const code=texts.join('');
       const blob=new Blob([code],{type:'text/javascript'});
       await import(URL.createObjectURL(blob));
