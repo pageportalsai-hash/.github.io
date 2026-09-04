@@ -1,0 +1,72 @@
+// FRONTIER ZERO ENVIRONMENT REALISM 67A — vegetation density, road paint, distant terrain
+const envDesktop67=matchMedia('(pointer:fine)').matches;
+const envRand67=(a,b)=>a+Math.random()*(b-a);
+function nearTown67(x,z,pad=0){
+  if(typeof townZones51==='undefined')return false;
+  for(const zone of townZones51){if(!zone)continue;if(Math.hypot(x-zone.x,z-zone.z)<(zone.radius||46)+pad)return true;}
+  return false;
+}
+function makeInstances67(geo,mat,matrices,name){
+  const m=new THREE.InstancedMesh(geo,mat,Math.max(1,matrices.length));
+  for(let i=0;i<matrices.length;i++)m.setMatrixAt(i,matrices[i]);
+  m.count=matrices.length;m.instanceMatrix.needsUpdate=true;m.castShadow=false;m.receiveShadow=true;m.frustumCulled=true;m.name=name;scene.add(m);return m;
+}
+
+// Cheap low-poly undergrowth makes empty ground read as natural without hundreds of draw calls.
+const grassGeo67=new THREE.ConeGeometry(.13,.72,4,1),grassMat67=new THREE.MeshStandardMaterial({color:0x596e48,roughness:1,metalness:0});
+const shrubGeo67=new THREE.IcosahedronGeometry(.48,0),shrubMat67=new THREE.MeshStandardMaterial({color:0x455d3d,roughness:1,metalness:0});
+const pebbleGeo67=new THREE.TetrahedronGeometry(.12,0),pebbleMat67=new THREE.MeshStandardMaterial({color:0x77756c,roughness:1,metalness:0});
+const grassMatrices67=[],shrubMatrices67=[],pebbleMatrices67=[],dummy67=new THREE.Object3D();
+const grassCount67=envDesktop67?760:320,shrubCount67=envDesktop67?180:75,pebbleCount67=envDesktop67?360:150;
+for(let i=0;i<grassCount67;i++){
+  let x=envRand67(-475,475),z=envRand67(-475,475);if(nearTown67(x,z,7)||groundY(x,z)<=water.position.y+.65){i--;continue;}
+  const s=envRand67(.55,1.35);dummy67.position.set(x,groundY(x,z)+.34*s,z);dummy67.rotation.set(envRand67(-.10,.10),envRand67(0,Math.PI*2),envRand67(-.08,.08));dummy67.scale.set(envRand67(.72,1.15)*s,s,envRand67(.72,1.15)*s);dummy67.updateMatrix();grassMatrices67.push(dummy67.matrix.clone());
+}
+for(let i=0;i<shrubCount67;i++){
+  let x=envRand67(-470,470),z=envRand67(-470,470);if(nearTown67(x,z,4)||groundY(x,z)<=water.position.y+.8){i--;continue;}
+  const s=envRand67(.55,1.28);dummy67.position.set(x,groundY(x,z)+.34*s,z);dummy67.rotation.set(0,envRand67(0,Math.PI*2),0);dummy67.scale.set(envRand67(.9,1.35)*s,envRand67(.65,1.0)*s,envRand67(.9,1.35)*s);dummy67.updateMatrix();shrubMatrices67.push(dummy67.matrix.clone());
+}
+for(let i=0;i<pebbleCount67;i++){
+  let x=envRand67(-478,478),z=envRand67(-478,478);if(nearTown67(x,z,-6)||groundY(x,z)<=water.position.y+.5){i--;continue;}
+  const s=envRand67(.32,1.15);dummy67.position.set(x,groundY(x,z)+.04,z);dummy67.rotation.set(envRand67(0,2),envRand67(0,Math.PI*2),envRand67(0,2));dummy67.scale.set(s,envRand67(.28,.60)*s,s);dummy67.updateMatrix();pebbleMatrices67.push(dummy67.matrix.clone());
+}
+const grassDetail67=makeInstances67(grassGeo67,grassMat67,grassMatrices67,'grassDetail67');
+const shrubDetail67=makeInstances67(shrubGeo67,shrubMat67,shrubMatrices67,'shrubDetail67');
+const pebbleDetail67=makeInstances67(pebbleGeo67,pebbleMat67,pebbleMatrices67,'pebbleDetail67');
+
+// Terrain-following dashed lane markings through every generated town.
+const lineGeo67=new THREE.BoxGeometry(2.4,.022,.11),lineMat67=new THREE.MeshStandardMaterial({color:0xd9d6c8,roughness:.78,metalness:0});
+const lineMatrices67=[];
+function laneDash67(x,z,rot){
+  dummy67.position.set(x,groundY(x,z)+.125,z);dummy67.rotation.set(0,rot,0);dummy67.scale.set(1,1,1);dummy67.updateMatrix();lineMatrices67.push(dummy67.matrix.clone());
+}
+if(typeof townZones51!=='undefined')for(const zone of townZones51){
+  if(!zone)continue;const len=zone.bigCity?108:92;
+  for(let a=-len/2+6;a<=len/2-6;a+=6.2){if(Math.abs(a)<5)continue;laneDash67(zone.x+a,zone.z,0);laneDash67(zone.x,zone.z+a,Math.PI/2);}
+}
+const roadLines67=makeInstances67(lineGeo67,lineMat67,lineMatrices67,'roadLines67');roadLines67.renderOrder=3;
+
+// Intersection edge blocks / curbstones improve road readability from third person and cars.
+const curbGeo67=new THREE.BoxGeometry(1.8,.10,.22),curbMat67=new THREE.MeshStandardMaterial({color:0xa9aaa4,roughness:.96});
+const curbMatrices67=[];
+if(typeof townZones51!=='undefined')for(const zone of townZones51){
+  if(!zone)continue;const len=zone.bigCity?108:92;
+  for(let a=-len/2+3;a<len/2-3;a+=5.2){
+    for(const side of [-1,1]){
+      dummy67.position.set(zone.x+a,groundY(zone.x+a,zone.z+side*5.05)+.10,zone.z+side*5.05);dummy67.rotation.set(0,0,0);dummy67.scale.set(1,1,1);dummy67.updateMatrix();curbMatrices67.push(dummy67.matrix.clone());
+      dummy67.position.set(zone.x+side*5.05,groundY(zone.x+side*5.05,zone.z+a)+.10,zone.z+a);dummy67.rotation.set(0,Math.PI/2,0);dummy67.updateMatrix();curbMatrices67.push(dummy67.matrix.clone());
+    }
+  }
+}
+const curbDetail67=makeInstances67(curbGeo67,curbMat67,curbMatrices67,'curbDetail67');
+
+// Decorative low-poly ridge ring beyond the playable boundary gives the horizon depth.
+const hillGeo67=new THREE.ConeGeometry(1,1,10),hillMat67=new THREE.MeshStandardMaterial({color:0x66756c,roughness:1,metalness:0});
+const hillMatrices67=[];
+for(let i=0;i<14;i++){
+  const a=i/14*Math.PI*2+envRand67(-.08,.08),r=envRand67(555,610),x=Math.cos(a)*r,z=Math.sin(a)*r,w=envRand67(55,105),h=envRand67(38,92);
+  dummy67.position.set(x,groundY(x,z)+h*.5-5,z);dummy67.rotation.set(0,envRand67(0,Math.PI*2),0);dummy67.scale.set(w,h,w*envRand67(.65,1.15));dummy67.updateMatrix();hillMatrices67.push(dummy67.matrix.clone());
+}
+const distantHills67=makeInstances67(hillGeo67,hillMat67,hillMatrices67,'distantHills67');distantHills67.receiveShadow=false;
+
+window.__frontierZeroEnv67A={loaded:true,grass:grassMatrices67.length,shrubs:shrubMatrices67.length,pebbles:pebbleMatrices67.length,roadDashes:lineMatrices67.length,curbs:curbMatrices67.length,hills:hillMatrices67.length};
