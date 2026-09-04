@@ -69,13 +69,3 @@ window.__frontierZeroSniperShop59={
 };
 
 message('COIN SHOP UPDATED · ALL 7 SNIPER RARITIES AVAILABLE BEFORE DEPLOYMENT',4.2);
-
-// Load the emote control layer after the existing final release layer.
-(async()=>{
-  try{
-    const r=await fetch(new URL('part_60.txt?v=60',location.href));
-    if(!r.ok)throw new Error('part_60.txt');
-    const code=await r.text();
-    await import(URL.createObjectURL(new Blob([code],{type:'text/javascript'})));
-  }catch(e){console.error('Emote layer failed to load',e);}
-})();
