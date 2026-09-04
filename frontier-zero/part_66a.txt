@@ -1,0 +1,145 @@
+// FRONTIER ZERO MOVEMENT CORE 66A — smooth locomotion, sprint/crouch, landing, footsteps, camera
+const BASE_HEIGHT66=1.72,CROUCH_HEIGHT66=1.20;
+const moveVel66=new THREE.Vector3();
+const inputDir66=new THREE.Vector3();
+let actualSpeed66=0,sprinting66=false,crouching66=false,crouchToggle66=false,crouchAlpha66=0;
+let motionPhase66=0,turnRate66=0,lastYaw66=player.yaw,stepDistance66=0,landingKick66=0,wasAirborne66=!onGround;
+let lastThird66=!!thirdPerson16;
+const smoothCamPos66=camera.position.clone(),smoothCamQuat66=camera.quaternion.clone();
+const footRay66=new THREE.Raycaster();
+
+addEventListener('keydown',e=>{
+  if(e.code==='KeyC'&&!e.repeat){
+    const tag=e.target?.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+    crouchToggle66=!crouchToggle66;e.preventDefault();
+  }
+},{capture:true});
+
+function angleDelta66(a,b){return Math.atan2(Math.sin(a-b),Math.cos(a-b));}
+function movementInput66(){
+  inputDir66.set(0,0,0);
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  let kx=0,kz=0;
+  if(keys.KeyW||keys.ArrowUp)kz+=1;if(keys.KeyS||keys.ArrowDown)kz-=1;
+  if(keys.KeyD||keys.ArrowRight)kx+=1;if(keys.KeyA||keys.ArrowLeft)kx-=1;
+  if(kx||kz)inputDir66.addScaledVector(fwd,kz).addScaledVector(right,kx);
+  if(typeof joy!=='undefined'&&(Math.abs(joy.x)>.02||Math.abs(joy.y)>.02))inputDir66.addScaledVector(fwd,-joy.y).addScaledVector(right,joy.x);
+  const strength=Math.min(1,inputDir66.length());if(strength>.001)inputDir66.normalize();
+  return strength;
+}
+function movementFree66(x,z){
+  if(typeof activeTower54!=='undefined'&&activeTower54){
+    if(activeTower54.floor>0&&typeof insideBuilding50==='function'&&!insideBuilding50(activeTower54.rec,x,z,.08))return false;
+    return !blockedPosition(x,z);
+  }
+  const oldG=groundY(player.pos.x,player.pos.z),newG=groundY(x,z),d=Math.hypot(x-player.pos.x,z-player.pos.z);
+  if(newG-oldG>.82+d*1.55)return false;
+  return !blockedPosition(x,z);
+}
+function surfaceAt66(){
+  if(typeof activeTower54!=='undefined'&&activeTower54)return 'concrete';
+  if(typeof buildingNav50!=='undefined'&&typeof insideBuilding50==='function'){
+    for(const rec of buildingNav50){if(rec?.g?.parent&&insideBuilding50(rec,player.pos.x,player.pos.z,.08))return 'concrete';}
+  }
+  const roadObjs=[];
+  if(typeof roadMesh56!=='undefined'&&roadMesh56?.parent)roadObjs.push(roadMesh56);
+  if(typeof extraRoadMesh58!=='undefined'&&extraRoadMesh58?.parent)roadObjs.push(extraRoadMesh58);
+  if(roadObjs.length){
+    footRay66.set(new THREE.Vector3(player.pos.x,player.pos.y+.5,player.pos.z),new THREE.Vector3(0,-1,0));footRay66.far=4;
+    if(footRay66.intersectObjects(roadObjs,true).length)return 'road';
+  }
+  if(typeof biomeAt==='function'&&typeof BIOMES!=='undefined'){
+    const b=biomeAt(player.pos.x,player.pos.z);
+    if(b===BIOMES.badlands)return 'dirt';if(b===BIOMES.alpine)return 'gravel';if(b===BIOMES.marsh)return 'mud';
+  }
+  return 'grass';
+}
+function footSound66(surface,intensity=.7){
+  const ctx=typeof ensureAudio65==='function'?ensureAudio65():null;if(!ctx){tone(surface==='road'?190:surface==='gravel'?155:110,.025,.010*intensity,'triangle');return;}
+  try{
+    const src=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();
+    src.buffer=typeof noise65==='function'?noise65(ctx):null;if(!src.buffer)return;
+    f.type='bandpass';f.frequency.value=surface==='road'?1050:surface==='concrete'?850:surface==='gravel'?650:surface==='dirt'?420:surface==='mud'?250:330;f.Q.value=.65;
+    g.gain.setValueAtTime(.0001,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.016*intensity,ctx.currentTime+.002);g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.055);
+    src.connect(f);f.connect(g);g.connect(ctx.destination);src.start();src.stop(ctx.currentTime+.07);
+  }catch{}
+}
+function landingSound66(){footSound66(surfaceAt66(),1.25);tone(72,.055,.013,'sine');}
+
+const updatePlayerBeforeMotion66=updatePlayer;
+updatePlayer=function(dt){
+  if(activeCar19||player.dead){
+    crouchToggle66=false;crouching66=false;sprinting66=false;moveVel66.multiplyScalar(Math.exp(-dt*12));player.height=THREE.MathUtils.lerp(player.height,BASE_HEIGHT66,1-Math.exp(-dt*12));
+    return updatePlayerBeforeMotion66(dt);
+  }
+
+  const frameStartX=player.pos.x,frameStartZ=player.pos.z;
+  const input=movementInput66();
+  const emoteActive=typeof activeEmote61!=='undefined'&&!!activeEmote61;
+  const grounded=typeof onGround==='undefined'?true:onGround;
+  if(!grounded||emoteActive||(typeof jumpQueued!=='undefined'&&jumpQueued))crouchToggle66=false;
+  crouching66=grounded&&!emoteActive&&(crouchToggle66||!!keys.ControlLeft||!!keys.ControlRight);
+  const wantsSprint=input>.12&&!crouching66&&!emoteActive&&!firing&&(keys.ShiftLeft||keys.ShiftRight);
+  sprinting66=!!wantsSprint;
+  const analogOnly=!(keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight);
+  let targetSpeed=0;
+  if(input>.02){
+    if(crouching66)targetSpeed=3.15*input;
+    else if(sprinting66)targetSpeed=12.65;
+    else if(analogOnly&&input<.58)targetSpeed=2.4+(5.1-2.4)*(input/.58);
+    else targetSpeed=7.85;
+  }
+  const targetVel=inputDir66.clone().multiplyScalar(targetSpeed);
+  const accel=input>.02?(sprinting66?7.4:crouching66?10.5:9.2):11.0;
+  moveVel66.lerp(targetVel,1-Math.exp(-dt*accel));
+  if(input<.02&&moveVel66.length()<.06)moveVel66.set(0,0,0);
+  actualSpeed66=moveVel66.length();
+
+  const dx=moveVel66.x*dt,dz=moveVel66.z*dt;
+  if(Math.abs(dx)+Math.abs(dz)>.00001){
+    let nx=clamp(player.pos.x+dx,-494,494),nz=player.pos.z;
+    if(movementFree66(nx,nz))player.pos.x=nx;else moveVel66.x*=.18;
+    nx=player.pos.x;nz=clamp(player.pos.z+dz,-494,494);
+    if(movementFree66(nx,nz))player.pos.z=nz;else moveVel66.z*=.18;
+  }
+
+  crouchAlpha66=THREE.MathUtils.lerp(crouchAlpha66,crouching66?1:0,1-Math.exp(-dt*11));
+  player.height=THREE.MathUtils.lerp(player.height,crouching66?CROUCH_HEIGHT66:BASE_HEIGHT66,1-Math.exp(-dt*12));
+
+  const savedSpeed=player.speed;player.speed=0;
+  let out;try{out=updatePlayerBeforeMotion66(dt);}finally{player.speed=savedSpeed;}
+
+  const dist=Math.hypot(player.pos.x-frameStartX,player.pos.z-frameStartZ);
+  actualSpeed66=dist/Math.max(dt,.001);
+  motionPhase66+=dt*(2.7+Math.min(13,actualSpeed66)*.88);
+  const yawStep=angleDelta66(player.yaw,lastYaw66);turnRate66=THREE.MathUtils.lerp(turnRate66,clamp(yawStep/Math.max(dt,.001),-4,4),1-Math.exp(-dt*12));lastYaw66=player.yaw;
+
+  const airborne=typeof onGround!=='undefined'?(!onGround||jumpOffset>.035):false;
+  if(wasAirborne66&&!airborne){landingKick66=1;landingSound66();}
+  wasAirborne66=airborne;landingKick66*=Math.exp(-dt*9.5);
+
+  if(!airborne&&actualSpeed66>1.05){
+    stepDistance66+=dist;const stride=crouching66?.72:sprinting66?1.42:actualSpeed66<4.8?.92:1.15;
+    if(stepDistance66>=stride){stepDistance66-=stride;footSound66(surfaceAt66(),crouching66?.45:sprinting66?1.0:.72);}
+  }else if(actualSpeed66<.35)stepDistance66=0;
+
+  const nowThird=!!thirdPerson16;
+  if(nowThird){
+    const desiredPos=camera.position.clone(),desiredQuat=camera.quaternion.clone();
+    if(!lastThird66){smoothCamPos66.copy(desiredPos);smoothCamQuat66.copy(desiredQuat);}else{
+      smoothCamPos66.lerp(desiredPos,1-Math.exp(-dt*10.5));smoothCamQuat66.slerp(desiredQuat,1-Math.exp(-dt*12));
+    }
+    camera.position.copy(smoothCamPos66);camera.quaternion.copy(smoothCamQuat66);
+  }else{
+    smoothCamPos66.copy(camera.position);smoothCamQuat66.copy(camera.quaternion);
+    const speed01=clamp(actualSpeed66/12.65,0,1),bob=crouching66?.004:.008+speed01*.008;
+    camera.position.y+=Math.abs(Math.sin(motionPhase66))*bob*speed01-landingKick66*.055;
+    camera.rotation.z+=clamp(-turnRate66*.0045,-.018,.018)+Math.sin(motionPhase66*.5)*.0025*speed01;
+  }
+  lastThird66=nowThird;
+  return out;
+};
+
+if(hud?.desktop)hud.desktop.textContent='MacBook: WASD move · Shift sprint · C crouch · SPACE jump · mouse look · 1 Griddy · F scope · E car/loot · L view · R reload · Q gear';
+window.__frontierZeroMovement66A={loaded:true,smoothAcceleration:true,sprint:true,crouch:true,footsteps:true,cameraSmoothing:true};
