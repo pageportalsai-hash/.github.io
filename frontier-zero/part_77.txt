@@ -1,0 +1,43 @@
+// ============================================================================
+// FRONTIER ZERO STEP 5 — SAFE AI PERCEPTION ONLY (Build 79)
+// Smarter sight/hearing without adding another NPC movement or camera wrapper.
+// ============================================================================
+const aiSight77=new WeakMap();
+const aiFrom77=new THREE.Vector3(),aiDir77=new THREE.Vector3();
+function sightState77(n){let s=aiSight77.get(n);if(!s){s={seenAt:0,lastVisible:0};aiSight77.set(n,s);}return s;}
+
+npcCanSee=function(n){
+  if(!n||n.dead||!n.group?.parent)return false;
+  const s=sightState77(n),now=performance.now(),px=player.pos.x,pz=player.pos.z,nx=n.group.position.x,nz=n.group.position.z,dx=px-nx,dz=pz-nz,dist=Math.hypot(dx,dz);
+  const alerted=(n.alert||0)>0||(n.playerProvoked||0)>0;
+  const maxDist=alerted?128:96;if(dist>maxDist){s.seenAt=0;return false;}
+  if(dist>.001){
+    const inv=1/dist,tx=dx*inv,tz=dz*inv,fx=-Math.sin(n.group.rotation.y),fz=-Math.cos(n.group.rotation.y),dot=fx*tx+fz*tz;
+    if(dot<(alerted?-.25:.12)){s.seenAt=0;return false;}
+  }
+  aiFrom77.set(nx,n.group.position.y+1.72,nz);aiDir77.set(px-aiFrom77.x,(player.pos.y-.18)-aiFrom77.y,pz-aiFrom77.z);const len=aiDir77.length();if(len<.1)return true;
+  raycaster.set(aiFrom77,aiDir77.multiplyScalar(1/len));raycaster.far=Math.max(.1,len-.42);
+  const hits=raycaster.intersectObjects([terrain,...blockers].filter(o=>o===terrain||o?.parent),true);
+  const clear=hits.length===0;
+  if(!clear){s.seenAt=0;return false;}
+  if(!s.seenAt)s.seenAt=now;s.lastVisible=now;
+  const reaction=alerted?85:180+((n.group.id%5)*24);
+  return now-s.seenAt>=reaction;
+};
+
+const shootBeforeHearing77=shootGun;
+shootGun=function(w){
+  const before=w?.type==='gun'?w.mag:null,out=shootBeforeHearing77(w);
+  if(w?.type==='gun'&&before>w.mag){
+    const fam=typeof weaponFamily27==='function'?weaponFamily27(w):'rifle';
+    const radius=fam==='sniper'?145:fam==='shotgun'?118:fam==='smg'?78:fam==='pistol'||fam==='revolver'?70:98;
+    for(const n of npcs){
+      if(!n||n.dead||!n.group?.parent)continue;const d=Math.hypot(n.group.position.x-player.pos.x,n.group.position.z-player.pos.z);if(d>radius)continue;
+      n.alert=Math.max(n.alert||0,3.8+Math.random()*1.2);n.shotCd=Math.max(n.shotCd||0,.18+Math.random()*.28);
+    }
+  }
+  return out;
+};
+
+window.__frontierZeroStep5_77={loaded:true,build:79,feature:'perception-only AI',movementAuthorityChanged:false,cameraTouched:false,doorsTouched:false,features:['field-of-view','reaction delay','alerted wider vision','gunshot hearing']};
+message('STEP 5 LIVE · smarter AI perception without new movement code',4.0);
