@@ -1,0 +1,105 @@
+// ============================================================================
+// FRONTIER ZERO WORLD EXPANSION + CHARACTER FIX + SUPPLY MARKER + 3-PASS QA 58
+// Strong supply-drop marker, 3 new towns, 12 extra cars, five new sniper tiers,
+// improved human proportions/lighting, and three independent QA review passes.
+// ============================================================================
+
+const expansionDesktop58=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. CHARACTER PROPORTION REBUILD — fixes long arms, disconnected shoulders,
+//    thin/overlong legs and boxy torso seen in the user screenshot.
+// ---------------------------------------------------------------------------
+function materialFrom58(group,kind,fallback){
+  if(!group)return fallback;
+  for(const o of group.children){
+    if(!o?.isMesh||!o.material)continue;
+    if(kind==='body'){
+      const p=o.geometry?.parameters||{};
+      if((o.geometry?.type==='BoxGeometry'&&(p.width||0)>.5)||(o.geometry?.type==='CapsuleGeometry'&&(p.radius||0)>.24))return o.material;
+    }else return o.material;
+  }
+  return fallback;
+}
+function hideMeshes58(group){if(group)for(const o of group.children)if(o?.isMesh)o.visible=false;}
+function humanRig58(rec,i,isPlayer=false){
+  if(!rec?.rig||rec.rig.userData.human58)return;rec.rig.userData.human58=true;
+  const shirt=materialFrom58(rec.torso,'body',mat35('humanTop58_'+i,isPlayer?0x536675:clothPal35[(i*5+1)%clothPal35.length],.78,.02));
+  const pants=materialFrom58(rec.lLeg,'any',mat35('humanPants58_'+i,isPlayer?0x303c4a:pantsPal35[(i*3+2)%pantsPal35.length],.82,.02));
+  const skin=materialFrom58(rec.lFore,'any',mat35('humanSkin58_'+i,isPlayer?0xe2b38e:skinPal35[i%skinPal35.length],.77,.01));
+  const boot=(rec.lShin?.children||[]).find(o=>o?.isMesh&&o.geometry?.type==='BoxGeometry')?.material||mat35('humanBoot58',0x1d2022,.78,.05);
+  const vest=mat35('humanVest58_'+(isPlayer?'p':i%2),isPlayer?0x35464c:(i%2?0x59423c:0x354d45),.67,.06);
+  if(rec.torso)for(const o of rec.torso.children){
+    if(!o?.isMesh)continue;const p=o.geometry?.parameters||{};
+    const largeBox=o.geometry?.type==='BoxGeometry'&&(p.width||0)>.46&&(p.height||0)>.28;
+    const largeCaps=o.geometry?.type==='CapsuleGeometry'&&(p.radius||0)>.22;
+    if(largeBox||largeCaps||o.userData?.rounded57)o.visible=false;
+  }
+  if(rec.hips)hideMeshes58(rec.hips);
+  for(const g of [rec.lArm,rec.rArm,rec.lFore,rec.rFore,rec.lLeg,rec.rLeg,rec.lShin,rec.rShin])hideMeshes58(g);
+  const torsoShape=new THREE.Shape();
+  torsoShape.moveTo(-.275,-.38);torsoShape.lineTo(-.335,.18);torsoShape.quadraticCurveTo(-.34,.34,-.255,.42);
+  torsoShape.lineTo(.255,.42);torsoShape.quadraticCurveTo(.34,.34,.335,.18);torsoShape.lineTo(.275,-.38);torsoShape.closePath();
+  const torsoGeo=new THREE.ExtrudeGeometry(torsoShape,{depth:.32,steps:1,bevelEnabled:true,bevelSegments:2,bevelSize:.035,bevelThickness:.028});torsoGeo.translate(0,0,-.16);
+  const torsoMesh=rigMesh35(rec.torso,torsoGeo,shirt,0,.09,0);torsoMesh.userData.human58=true;
+  const vestShape=new THREE.Shape();
+  vestShape.moveTo(-.255,-.28);vestShape.lineTo(-.31,.16);vestShape.quadraticCurveTo(-.30,.30,-.22,.34);
+  vestShape.lineTo(.22,.34);vestShape.quadraticCurveTo(.30,.30,.31,.16);vestShape.lineTo(.255,-.28);vestShape.closePath();
+  const vestGeo=new THREE.ExtrudeGeometry(vestShape,{depth:.354,steps:1,bevelEnabled:true,bevelSegments:2,bevelSize:.025,bevelThickness:.018});vestGeo.translate(0,0,-.177);
+  const vestMesh=rigMesh35(rec.torso,vestGeo,vest,0,.10,-.01);vestMesh.userData.human58=true;
+  for(const x of [-.335,.335]){const s=rigMesh35(rec.torso,new THREE.SphereGeometry(.13,12,9),shirt,x,.31,0);s.scale.set(1,.92,.88);s.userData.human58=true;}
+  rigMesh35(rec.torso,new THREE.CylinderGeometry(.105,.12,.20,10),skin,0,.56,0);
+  if(rec.hips){const hip=rigMesh35(rec.hips,new THREE.CapsuleGeometry(.20,.10,6,12),pants,0,.02,0,0,0,Math.PI/2);hip.scale.set(.82,1.18,.72);hip.userData.human58=true;}
+  const arms=[[rec.lArm,rec.lFore,-1],[rec.rArm,rec.rFore,1]];
+  for(const [arm,fore,side] of arms){
+    if(!arm||!fore)continue;
+    arm.position.set(side*.385,1.58,0);
+    const upper=rigMesh35(arm,new THREE.CapsuleGeometry(.10,.34,5,10),shirt,0,-.22,0);upper.userData.human58=true;
+    fore.position.set(0,-.47,0);
+    const lower=rigMesh35(fore,new THREE.CapsuleGeometry(.085,.28,5,10),skin,0,-.19,0);lower.userData.human58=true;
+    const hand=rigMesh35(fore,new THREE.SphereGeometry(.092,10,8),skin,0,-.40,0);hand.scale.set(.92,1.05,.84);hand.userData.human58=true;
+  }
+  const legs=[[rec.lLeg,rec.lShin,-1],[rec.rLeg,rec.rShin,1]];
+  for(const [leg,shin,side] of legs){
+    if(!leg||!shin)continue;
+    leg.position.set(side*.16,.77,0);
+    const thigh=rigMesh35(leg,new THREE.CapsuleGeometry(.13,.32,5,10),pants,0,-.22,0);thigh.scale.z=.92;thigh.userData.human58=true;
+    shin.position.set(0,-.48,0);
+    const calf=rigMesh35(shin,new THREE.CapsuleGeometry(.11,.24,5,10),pants,0,-.14,0);calf.scale.z=.90;calf.userData.human58=true;
+    const foot=rigMesh35(shin,new THREE.BoxGeometry(.24,.14,.39),boot,0,-.28,-.065);foot.userData.human58=true;
+  }
+  if(rec.head)rec.head.scale.set(.94,.97,.94);
+  rec.rig.traverse(o=>{if(o?.isMesh&&o.material){if((o.material.metalness??0)<.12)o.material.roughness=clamp(o.material.roughness??.8,.65,.88);}});
+}
+if(typeof npcRigs35!=='undefined')for(let i=0;i<npcRigs35.length;i++)humanRig58(npcRigs35[i],i,false);
+if(typeof playerRig35!=='undefined'&&playerRig35)humanRig58(playerRig35,999,true);
+if(typeof setNpcRigLod43==='function'){
+  setNpcRigLod43=function(rec,dist){
+    if(!rec?.rig)return;const onD=expansionDesktop58?112:62,offD=expansionDesktop58?142:82;
+    let near=npcLodState43.has(rec.rig)?npcLodState43.get(rec.rig):dist<onD;
+    if(near&&dist>offD)near=false;else if(!near&&dist<onD)near=true;
+    npcLodState43.set(rec.rig,near);rec.rig.visible=near;
+    for(const o of rec.legacy||[])if(o&&o!==rec.rig)o.visible=!near;
+  };
+}
+const styleWorldBefore58=typeof styleWorld53==='function'?styleWorld53:null;
+if(styleWorldBefore58){styleWorld53=function(){styleWorldBefore58();renderer.toneMappingExposure=1.11;hemi.intensity=1.72;sun.intensity=2.95;};styleWorld53();}
+if(typeof warehouseWall33!=='undefined')warehouseWall33.color.setHex(0x8b999e);
+if(typeof urbanWallDark51!=='undefined')urbanWallDark51.color.setHex(0x768287);
+if(typeof urbanWall51!=='undefined')urbanWall51.color.setHex(0xb2aca0);
+if(typeof urbanConcrete51!=='undefined')urbanConcrete51.color.setHex(0x8a8d88);
+if(typeof urbanRoof51!=='undefined')urbanRoof51.color.setHex(0x3d484e);
+if(typeof urbanGlass51!=='undefined'){urbanGlass51.color.setHex(0x4d7f94);urbanGlass51.opacity=.62;urbanGlass51.clearcoat=1;urbanGlass51.clearcoatRoughness=.08;}
+const supplyMarkerHud58=document.createElement('div');
+supplyMarkerHud58.style.cssText='position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:58;display:none;min-width:180px;text-align:center;padding:7px 11px;border-radius:10px;background:rgba(16,19,18,.82);border:1px solid rgba(255,221,92,.75);color:#ffe46e;font:900 11px system-ui;letter-spacing:.04em;pointer-events:none;text-shadow:0 1px 2px #000';document.body.appendChild(supplyMarkerHud58);
+const supplyDecor58=new WeakMap();
+function supplyLabelTexture58(){const c=document.createElement('canvas');c.width=256;c.height=64;const x=c.getContext('2d');x.fillStyle='rgba(15,17,16,.86)';x.fillRect(0,6,256,52);x.strokeStyle='#ffe46e';x.lineWidth=3;x.strokeRect(2,8,252,48);x.fillStyle='#ffe46e';x.font='900 24px system-ui';x.textAlign='center';x.textBaseline='middle';x.fillText('SUPPLY DROP',128,33);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+const supplyLabelTex58=supplyLabelTexture58();
+function decorateSupply58(c){if(!c||c.looted||!c.group?.parent||supplyDecor58.has(c))return;const marker=new THREE.Group();marker.position.y=10.5;c.group.add(marker);const mat=new THREE.MeshStandardMaterial({color:0xffe46e,emissive:0xffb52f,emissiveIntensity:1.2,roughness:.28,metalness:.18});const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(.42,0),mat);marker.add(diamond);const arrow=new THREE.Mesh(new THREE.ConeGeometry(.20,.55,4),mat);arrow.rotation.x=Math.PI;arrow.position.y=-.72;marker.add(arrow);const sm=new THREE.SpriteMaterial({map:supplyLabelTex58,transparent:true,depthWrite:false});const sprite=new THREE.Sprite(sm);sprite.position.y=1.15;sprite.scale.set(6.4,1.6,1);marker.add(sprite);supplyDecor58.set(c,{marker,diamond,sprite,phase:Math.random()*6.28});}
+function cardinal58(dx,dz){const names=['N','NE','E','SE','S','SW','W','NW'];let a=Math.atan2(dx,-dz);if(a<0)a+=Math.PI*2;return names[Math.round(a/(Math.PI/4))%8];}
+function updateSupplyMarker58(){
+  if(typeof activeSupplies47==='undefined'){supplyMarkerHud58.style.display='none';return;}let best=null,bd=Infinity;const now=performance.now()*.004;
+  for(const c of activeSupplies47){if(!c||c.looted||!c.group?.parent)continue;decorateSupply58(c);const d=Math.hypot(c.group.position.x-player.pos.x,c.group.position.z-player.pos.z);if(d<bd){bd=d;best=c;}const rec=supplyDecor58.get(c);if(rec){rec.marker.position.y=10.5+Math.sin(now+rec.phase)*.24;rec.diamond.rotation.y+=.025;const s=1+Math.sin(now*1.7+rec.phase)*.10;rec.diamond.scale.setScalar(s);}}
+  if(!best){supplyMarkerHud58.style.display='none';return;}const dx=best.group.position.x-player.pos.x,dz=best.group.position.z-player.pos.z;supplyMarkerHud58.style.display='block';supplyMarkerHud58.textContent=`◆ SUPPLY DROP #${best.supplyNumber47||''} · ${Math.round(bd)}m · ${cardinal58(dx,dz)}`;
+}
+if(typeof drawMiniMap==='function'){const drawMiniBefore58=drawMiniMap;drawMiniMap=function(){drawMiniBefore58();if(!miniCtx||typeof activeSupplies47==='undefined')return;const pulse=6+Math.sin(performance.now()*.006)*2;for(const c of activeSupplies47){if(!c||c.looted||!c.group?.parent)continue;const p=miniWorldToPx(c.group.position.x,c.group.position.z);miniCtx.save();miniCtx.translate(p.x,p.y);miniCtx.rotate(Math.PI/4);miniCtx.fillStyle='#ffe46e';miniCtx.strokeStyle='rgba(255,244,172,.95)';miniCtx.lineWidth=2;miniCtx.fillRect(-4,-4,8,8);miniCtx.strokeRect(-pulse,-pulse,pulse*2,pulse*2);miniCtx.restore();}};}
