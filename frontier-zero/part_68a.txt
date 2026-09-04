@@ -1,0 +1,86 @@
+// FRONTIER ZERO INTERIORS 68A — furnished building types + automatic proximity doors
+const indoorDesktop68=matchMedia('(pointer:fine)').matches;
+const interiorRecords68=[],interiorCols68=[],interiorCover68=[],interiorGlass68=[];
+const autoDoorState68=new WeakMap();
+const unitBox68=new THREE.BoxGeometry(1,1,1),signGeo68=new THREE.PlaneGeometry(2.7,.62);
+const matFloor68=new THREE.MeshStandardMaterial({color:0x6d665a,roughness:.94,metalness:0});
+const matWall68=new THREE.MeshStandardMaterial({color:0xb5ada0,roughness:.93,metalness:0});
+const matWood68=new THREE.MeshStandardMaterial({color:0x71563e,roughness:.88,metalness:.02});
+const matMetal68=new THREE.MeshStandardMaterial({color:0x5c666b,roughness:.52,metalness:.48});
+const matDark68=new THREE.MeshStandardMaterial({color:0x303638,roughness:.70,metalness:.22});
+const matCloth68=new THREE.MeshStandardMaterial({color:0x647378,roughness:.96,metalness:0});
+const matWhite68=new THREE.MeshStandardMaterial({color:0xd7d8d2,roughness:.90,metalness:.01});
+const matGlow68=new THREE.MeshStandardMaterial({color:0xffedc4,emissive:0xffc76b,emissiveIntensity:.95,roughness:.42});
+const glassMat68=new THREE.MeshPhysicalMaterial({color:0x9fc7d4,transparent:true,opacity:.30,roughness:.05,clearcoat:.85,depthWrite:false});
+
+function imesh68(parent,geo,mat,x,y,z,sx=1,sy=1,sz=1,rot=0,shadow=false){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.y=rot;m.castShadow=shadow;m.receiveShadow=true;m.userData.interior68=true;parent.add(m);return m;}
+function addCol68(rec,lx,lz,w,d,owner=null){interiorCols68.push({rec,lx,lz,w,d,owner});}
+function addCover68(rec,lx,lz){const p=worldXZ50(rec,lx,lz);interiorCover68.push({rec,lx,lz,x:p.x,z:p.z});}
+function localMatrix68(rec,lx,lz,y,sx,sy,sz,rot=0){const p=worldXZ50(rec,lx,lz),d=new THREE.Object3D();d.position.set(p.x,rec.g.position.y+y,p.z);d.rotation.y=rec.rot+rot;d.scale.set(sx,sy,sz);d.updateMatrix();return d.matrix.clone();}
+function makeInst68(list,mat,name){const m=new THREE.InstancedMesh(unitBox68,mat,Math.max(1,list.length));for(let i=0;i<list.length;i++)m.setMatrixAt(i,list[i]);m.count=list.length;m.instanceMatrix.needsUpdate=true;m.castShadow=false;m.receiveShadow=true;m.name=name;m.userData.interior68=true;scene.add(m);if(list.length)blockers.push(m);return m;}
+function signMaterial68(text,color='#32463f'){
+  const c=document.createElement('canvas');c.width=512;c.height=128;const x=c.getContext('2d');x.fillStyle=color;x.fillRect(0,0,512,128);x.strokeStyle='#d7ddd5';x.lineWidth=8;x.strokeRect(5,5,502,118);x.fillStyle='#f4f1df';x.textAlign='center';x.textBaseline='middle';x.font='900 43px system-ui';x.fillText(text,256,65);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return new THREE.MeshBasicMaterial({map:t,side:THREE.DoubleSide});
+}
+const typeInfo68=[['CLINIC','#3f6a66'],['POLICE','#394b61'],['GAS STATION','#5f5938'],['MOTEL','#684a46'],['WAREHOUSE','#4c5355']];
+const signMats68=Object.fromEntries(typeInfo68.map(([n,c])=>[n,signMaterial68(n,c)]));
+const deskM68=[],counterM68=[],shelfM68=[],bedM68=[],lockerM68=[],crateM68=[],cabinetM68=[],benchM68=[];
+
+function addFurniture68(kind,rec,lx,lz,y,sx,sy,sz,rot=0,collision=true,cover=false){
+  const map={desk:deskM68,counter:counterM68,shelf:shelfM68,bed:bedM68,locker:lockerM68,crate:crateM68,cabinet:cabinetM68,bench:benchM68};map[kind].push(localMatrix68(rec,lx,lz,y,sx,sy,sz,rot));
+  if(collision)addCol68(rec,lx,lz,Math.abs(rot%Math.PI)>.5?sz:sx,Math.abs(rot%Math.PI)>.5?sx:sz);
+  if(cover){const side=lz>=0?-1:1;addCover68(rec,lx,lz+side*(sz*.58+.55));}
+}
+function moveLoot68(rec,spots){
+  if(typeof lootCrates==='undefined')return;const cs=lootCrates.filter(c=>c?.group?.parent&&(c.tallBuilding51===rec||c.towerState52?.rec===rec));
+  for(let i=0;i<cs.length;i++){const s=spots[i%spots.length],p=worldXZ50(rec,s[0],s[1]);cs[i].group.position.set(p.x,rec.g.position.y+.43,p.z);}
+}
+function furnish68(rec,i){
+  if(!rec?.g||rec.tall51||rec.g.userData.furnished68)return;rec.g.userData.furnished68=true;
+  const type=typeInfo68[i%typeInfo68.length][0],w=Math.max(6,rec.w),d=Math.max(5.8,rec.d),h=3.05,root=new THREE.Group();root.name='interior68_'+type;rec.g.add(root);
+  rec.interiorType68=type;const gap=Math.min(2.3,w*.28),partZ=-d*.08,seg=Math.max(.8,(w-gap)/2);
+  imesh68(root,unitBox68,matFloor68,0,.055,0,w-.55,.11,d-.55,0,false);
+  const wallL68=imesh68(root,unitBox68,matWall68,-(gap/2+seg/2),h*.46,partZ,seg,h*.92,.12,0,false);blockers.push(wallL68);addCol68(rec,-(gap/2+seg/2),partZ,seg,.16);
+  const wallR68=imesh68(root,unitBox68,matWall68,(gap/2+seg/2),h*.46,partZ,seg,h*.92,.12,0,false);blockers.push(wallR68);addCol68(rec,(gap/2+seg/2),partZ,seg,.16);
+  for(const lx of [-w*.23,w*.23])imesh68(root,unitBox68,matGlow68,lx,2.70,0,1.05,.05,.30,0,false);
+  const sign=new THREE.Mesh(signGeo68,signMats68[type]);sign.position.set(0,2.78,d/2+.23);sign.userData.interior68=true;root.add(sign);
+
+  if((type==='CLINIC'||type==='POLICE')&&typeof breakable39==='function'){
+    const pane=imesh68(root,new THREE.BoxGeometry(1.55,1.15,.035),glassMat68,-w*.25,1.55,partZ-.82,1,1,1,0,false);breakable39(pane,'glass',18);addCol68(rec,-w*.25,partZ-.82,1.58,.08,pane);interiorGlass68.push(pane);
+  }
+
+  if(type==='CLINIC'){
+    addFurniture68('counter',rec,-w*.24,d*.20,.52,2.2,1.0,.62,0,true,true);addFurniture68('bed',rec,-w*.25,-d*.28,.34,1.9,.42,.82,0,true,true);addFurniture68('bed',rec,w*.24,-d*.28,.34,1.9,.42,.82,0,true,true);addFurniture68('cabinet',rec,w*.34,d*.17,.72,.72,1.44,.45,0,true,false);addFurniture68('bench',rec,w*.25,d*.31,.28,1.55,.46,.52,0,true,false);moveLoot68(rec,[[-w*.30,-d*.36],[w*.32,d*.08]]);
+  } else if(type==='POLICE'){
+    addFurniture68('counter',rec,0,d*.21,.55,3.4,1.05,.66,0,true,true);addFurniture68('desk',rec,-w*.25,-d*.25,.39,1.55,.76,.80,0,true,true);addFurniture68('desk',rec,w*.25,-d*.25,.39,1.55,.76,.80,0,true,true);addFurniture68('locker',rec,-w*.36,-d*.38,.90,.62,1.80,.52,0,true,false);addFurniture68('locker',rec,w*.36,-d*.38,.90,.62,1.80,.52,0,true,false);moveLoot68(rec,[[-w*.32,-d*.34],[w*.32,-d*.34]]);
+  } else if(type==='GAS STATION'){
+    addFurniture68('counter',rec,-w*.27,d*.25,.53,2.35,1.02,.64,0,true,true);addFurniture68('shelf',rec,-w*.24,-d*.25,.85,1.65,1.70,.48,0,true,true);addFurniture68('shelf',rec,w*.24,-d*.25,.85,1.65,1.70,.48,0,true,true);addFurniture68('crate',rec,w*.31,d*.29,.32,.72,.64,.72,0,true,false);moveLoot68(rec,[[-w*.25,-d*.34],[w*.25,-d*.34],[-w*.31,d*.16]]);
+  } else if(type==='MOTEL'){
+    addFurniture68('bed',rec,-w*.27,-d*.27,.34,1.95,.45,.90,0,true,true);addFurniture68('bed',rec,w*.27,-d*.27,.34,1.95,.45,.90,0,true,true);addFurniture68('cabinet',rec,0,-d*.39,.42,.62,.84,.42,0,true,false);addFurniture68('bench',rec,-w*.27,d*.27,.28,1.45,.46,.50,0,true,false);addFurniture68('bench',rec,w*.27,d*.27,.28,1.45,.46,.50,0,true,false);moveLoot68(rec,[[-w*.35,-d*.37],[w*.35,-d*.37]]);
+  } else {
+    addFurniture68('shelf',rec,-w*.28,-d*.26,.88,1.70,1.76,.52,0,true,true);addFurniture68('shelf',rec,w*.28,-d*.26,.88,1.70,1.76,.52,0,true,true);addFurniture68('crate',rec,-w*.28,d*.20,.40,.82,.80,.82,0,true,true);addFurniture68('crate',rec,w*.28,d*.20,.40,.82,.80,.82,0,true,true);addFurniture68('counter',rec,0,d*.34,.50,2.8,.95,.60,0,true,true);moveLoot68(rec,[[-w*.29,-d*.37],[w*.29,-d*.37],[0,d*.22]]);
+  }
+  rec.interior68={root,type,partitionZ:partZ,doorHalf:gap*.5,lightLocal:[[-w*.23,2.55,0],[w*.23,2.55,0]]};interiorRecords68.push(rec);
+}
+if(typeof townBuildings51!=='undefined'){let k=0;for(const rec of townBuildings51)if(rec&&!rec.tall51)furnish68(rec,k++);}
+const interiorDesk68=makeInst68(deskM68,matWood68,'interiorDesk68'),interiorCounter68=makeInst68(counterM68,matWood68,'interiorCounter68'),interiorShelf68=makeInst68(shelfM68,matMetal68,'interiorShelf68'),interiorBed68=makeInst68(bedM68,matCloth68,'interiorBed68'),interiorLocker68=makeInst68(lockerM68,matMetal68,'interiorLocker68'),interiorCrate68=makeInst68(crateM68,matWood68,'interiorCrate68'),interiorCabinet68=makeInst68(cabinetM68,matWhite68,'interiorCabinet68'),interiorBench68=makeInst68(benchM68,matCloth68,'interiorBench68');
+
+const blockedBeforeInterior68=blockedPosition;
+blockedPosition=function(x,z){
+  if(blockedBeforeInterior68(x,z))return true;
+  for(const c of interiorCols68){if(!c.rec?.g?.parent)continue;if(c.owner?.userData?.break39?.broken)continue;const p=localXZ50(c.rec,x,z);if(Math.abs(p.x-c.lx)<c.w/2+.24&&Math.abs(p.z-c.lz)<c.d/2+.24)return true;}
+  return false;
+};
+
+// Exterior doors remain fully automatic: proximity opens them, distance closes them.
+if(typeof doorShouldOpen50==='function'){
+  doorShouldOpen50=function(rec){
+    let near=Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<3.15;
+    if(!near)for(const n of npcs){if(n&&!n.dead&&Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<3.35){near=true;break;}}
+    const was=autoDoorState68.get(rec)||false;if(near){autoDoorState68.set(rec,true);return true;}if(was){
+      const pd=Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z);let npcNear=false;for(const n of npcs){if(n&&!n.dead&&Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<4.15){npcNear=true;break;}}
+      if(pd<4.05||npcNear)return true;
+    }
+    autoDoorState68.set(rec,false);return false;
+  };
+}
+window.__frontierZeroInteriors68A={loaded:true,interiors:interiorRecords68.length,glass:interiorGlass68.length,coverPoints:interiorCover68.length,types:typeInfo68.map(x=>x[0]),automaticDoors:true};
