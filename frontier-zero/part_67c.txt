@@ -1,11 +1,7 @@
 // FRONTIER ZERO ENVIRONMENT REALISM 67C — runtime polish, LOD and regression QA
-let envFrame67=0;
 const updatePlayerBeforeEnv67=updatePlayer;
 updatePlayer=function(dt){
-  const out=updatePlayerBeforeEnv67(dt);updateStreetLights67(dt);envFrame67+=dt;
-  if(grassDetail67){grassDetail67.rotation.z=Math.sin(envFrame67*.62)*.0018;grassDetail67.rotation.x=Math.cos(envFrame67*.47)*.0010;}
-  if(shrubDetail67)shrubDetail67.rotation.z=Math.sin(envFrame67*.41+.8)*.0008;
-  return out;
+  const out=updatePlayerBeforeEnv67(dt);updateStreetLights67(dt);return out;
 };
 
 for(const m of [grassDetail67,shrubDetail67,pebbleDetail67,roadLines67,curbDetail67,streetPoles67,streetLamps67,townBins67,fencePosts67,fenceRails67])if(m){m.castShadow=false;m.frustumCulled=true;}
