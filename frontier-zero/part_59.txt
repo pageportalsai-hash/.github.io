@@ -12,60 +12,73 @@ const sniperShop59=[
   {name:'Warden-X Sniper',rarity:'Mythic',price:950},
   {name:'Voidpiercer Sniper',rarity:'Secret',price:1900}
 ];
-
-// Put the sniper family first in the shop without duplicating entries on reload.
-for(let i=sniperShop59.length-1;i>=0;i--){
-  const item=sniperShop59[i];
-  if(!shopWeapons19.some(w=>w.name===item.name))shopWeapons19.unshift(item);
-}
-
-// Give the sniper section a clear heading while retaining all existing weapons
-// and armor purchasing behavior.
+for(let i=sniperShop59.length-1;i>=0;i--){const item=sniperShop59[i];if(!shopWeapons19.some(w=>w.name===item.name))shopWeapons19.unshift(item);}
 renderShop19=function(){
   if(!shopPanel19)return;
   shopPanel19.innerHTML=`<div style="font-weight:950;font-size:16px">COIN SHOP · ${coins19} COINS</div><div style="font-size:10px;opacity:.68;margin:4px 0 9px">Buy weapons or armor before deployment. Bought guns count toward your 2 weapon slots.</div>`;
-
-  const sniperHeading=document.createElement('div');
-  sniperHeading.style.cssText='font-weight:950;font-size:12px;margin:8px 0 6px;color:#dceeff;letter-spacing:.05em';
-  sniperHeading.textContent='SNIPER RIFLES';
-  shopPanel19.appendChild(sniperHeading);
-
-  const sg=document.createElement('div');
-  sg.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
-  for(const item of sniperShop59){
-    const b=document.createElement('button');b.type='button';
-    b.style.cssText='border:1px solid rgba(160,205,255,.34);border-radius:9px;background:rgba(90,130,165,.10);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';
-    b.textContent=`${item.rarity} ${item.name} · ${item.price}c`;
-    b.disabled=boughtLobbyGuns19.includes(item.name);
-    b.addEventListener('click',e=>{e.stopPropagation();buyLobbyGun19(item);});
-    sg.appendChild(b);
-  }
-  shopPanel19.appendChild(sg);
-
-  const weaponHeading=document.createElement('div');
-  weaponHeading.style.cssText='font-weight:900;font-size:12px;margin:11px 0 5px';weaponHeading.textContent='OTHER WEAPONS';shopPanel19.appendChild(weaponHeading);
+  const sniperHeading=document.createElement('div');sniperHeading.style.cssText='font-weight:950;font-size:12px;margin:8px 0 6px;color:#dceeff;letter-spacing:.05em';sniperHeading.textContent='SNIPER RIFLES';shopPanel19.appendChild(sniperHeading);
+  const sg=document.createElement('div');sg.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
+  for(const item of sniperShop59){const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(160,205,255,.34);border-radius:9px;background:rgba(90,130,165,.10);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.rarity} ${item.name} · ${item.price}c`;b.disabled=boughtLobbyGuns19.includes(item.name);b.addEventListener('click',e=>{e.stopPropagation();buyLobbyGun19(item);});sg.appendChild(b);}shopPanel19.appendChild(sg);
+  const weaponHeading=document.createElement('div');weaponHeading.style.cssText='font-weight:900;font-size:12px;margin:11px 0 5px';weaponHeading.textContent='OTHER WEAPONS';shopPanel19.appendChild(weaponHeading);
   const wg=document.createElement('div');wg.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
-  for(const item of shopWeapons19){
-    if(sniperShop59.some(s=>s.name===item.name))continue;
-    const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.rarity} ${item.name} · ${item.price}c`;b.disabled=boughtLobbyGuns19.includes(item.name);b.addEventListener('click',e=>{e.stopPropagation();buyLobbyGun19(item);});wg.appendChild(b);
-  }
-  shopPanel19.appendChild(wg);
-
+  for(const item of shopWeapons19){if(sniperShop59.some(s=>s.name===item.name))continue;const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.rarity} ${item.name} · ${item.price}c`;b.disabled=boughtLobbyGuns19.includes(item.name);b.addEventListener('click',e=>{e.stopPropagation();buyLobbyGun19(item);});wg.appendChild(b);}shopPanel19.appendChild(wg);
   const ah=document.createElement('div');ah.style.cssText='font-weight:900;font-size:12px;margin:10px 0 5px';ah.textContent='ARMOR';shopPanel19.appendChild(ah);
-  const ag=document.createElement('div');ag.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
-  for(const item of armorShop19){const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.name} ${item.max} armor · ${item.price}c`;b.addEventListener('click',e=>{e.stopPropagation();buyArmor19(item);});ag.appendChild(b);}
-  shopPanel19.appendChild(ag);
+  const ag=document.createElement('div');ag.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';for(const item of armorShop19){const b=document.createElement('button');b.type='button';b.style.cssText='border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:white;padding:8px;font:700 10px system-ui;cursor:pointer';b.textContent=`${item.name} ${item.max} armor · ${item.price}c`;b.addEventListener('click',e=>{e.stopPropagation();buyArmor19(item);});ag.appendChild(b);}shopPanel19.appendChild(ag);
 };
-
-// Part 59 loads after the sniper catalog expansion, so all seven purchase
-// buttons can resolve their actual gun definitions immediately.
 renderShop19();
+window.__frontierZeroSniperShop59={count:sniperShop59.length,allInCatalog:sniperShop59.every(s=>gunCatalog.some(g=>g.name===s.name)),allInShop:sniperShop59.every(s=>shopWeapons19.some(g=>g.name===s.name))};
 
-// Small QA diagnostic for the lobby shop.
-window.__frontierZeroSniperShop59={
-  count:sniperShop59.length,
-  allInCatalog:sniperShop59.every(s=>gunCatalog.some(g=>g.name===s.name)),
-  allInShop:sniperShop59.every(s=>shopWeapons19.some(g=>g.name===s.name))
+// ============================================================================
+// FRONTIER ZERO EMOTES 60 — integrated into the main bundled module scope
+// Number-key emote system. 1 = Griddy-style dance.
+// ============================================================================
+let activeEmote60=null,emoteStart60=0,emotePrevThird60=false;
+const EMOTE_DURATION60=8200;
+const emoteHud60=document.createElement('div');
+emoteHud60.style.cssText='position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:72;display:none;padding:7px 12px;border-radius:10px;background:rgba(8,12,15,.76);border:1px solid rgba(255,255,255,.20);color:#fff;font:900 11px system-ui;letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 2px #000';
+emoteHud60.textContent='1 · GRIDDY';document.body.appendChild(emoteHud60);
+function resetEmotePose60(){
+  if(typeof playerRig35==='undefined'||!playerRig35)return;const r=playerRig35;
+  for(const p of [r.lArm,r.rArm,r.lFore,r.rFore,r.lLeg,r.rLeg,r.lShin,r.rShin,r.hips,r.torso,r.head])if(p)p.rotation.set(0,0,0);
+  if(r.hips)r.hips.position.y=.84;if(r.torso)r.torso.position.y=1.33;
+}
+function stopEmote60(silent=false){
+  if(!activeEmote60)return;activeEmote60=null;emoteHud60.style.display='none';resetEmotePose60();firing=false;
+  if(typeof setViewMode16==='function'&&thirdPerson16!==emotePrevThird60)setViewMode16(emotePrevThird60);
+  if(!silent)message('EMOTE STOPPED',1.0);
+}
+function startGriddy60(){
+  if(activeCar19||player.dead||(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24)){message('CAN’T EMOTE RIGHT NOW',1.2);return;}
+  if(activeEmote60==='griddy'){stopEmote60();return;}
+  stopEmote60(true);activeEmote60='griddy';emoteStart60=performance.now();emotePrevThird60=!!thirdPerson16;
+  if(typeof setViewMode16==='function'&&!thirdPerson16)setViewMode16(true);firing=false;emoteHud60.style.display='block';message('GRIDDY EMOTE · PRESS 1 AGAIN TO STOP',1.8);
+}
+addEventListener('keydown',e=>{
+  if((e.code==='Digit1'||e.code==='Numpad1')&&!e.repeat){const tag=e.target?.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;e.preventDefault();e.stopImmediatePropagation();startGriddy60();}
+},{capture:true});
+const doActionBeforeEmote60=doAction;
+doAction=function(){if(activeEmote60){firing=false;return;}return doActionBeforeEmote60();};
+const updatePlayerBeforeEmote60=updatePlayer;
+updatePlayer=function(dt){
+  const before=player.pos.clone();updatePlayerBeforeEmote60(dt);if(!activeEmote60)return;
+  if(activeCar19||player.dead||(typeof lobbyActive17!=='undefined'&&lobbyActive17)){stopEmote60(true);return;}
+  player.pos.x=before.x;player.pos.z=before.z;
+  const tower=(typeof activeTower54!=='undefined')?activeTower54:null;
+  if(!tower){const y=groundY(player.pos.x,player.pos.z)+player.height,dy=y-player.pos.y;player.pos.y=y;camera.position.y+=dy;}
+  firing=false;
+  const elapsed=performance.now()-emoteStart60;if(elapsed>=EMOTE_DURATION60){stopEmote60(true);return;}
+  if(typeof playerRig35==='undefined'||!playerRig35)return;
+  const r=playerRig35,t=elapsed*.001,beat=t*6.0,step=Math.sin(beat),alt=Math.sin(beat+Math.PI),bounce=Math.abs(Math.sin(beat))*.055,side=Math.sin(beat*.5)*.055;
+  if(r.hips){r.hips.position.y=.84+bounce;r.hips.rotation.y=Math.sin(beat*.5)*.10;r.hips.rotation.z=side*.35;}
+  if(r.torso){r.torso.rotation.x=-.08+Math.abs(step)*.035;r.torso.rotation.y=Math.sin(beat*.5)*.12;r.torso.rotation.z=-side*.55;}
+  if(r.head){r.head.rotation.x=.03+Math.sin(beat*.5)*.025;r.head.rotation.z=Math.sin(beat*.5)*.035;}
+  if(r.lLeg){r.lLeg.rotation.x=step>0?-.58:.24;r.lLeg.rotation.z=.055;}if(r.rLeg){r.rLeg.rotation.x=alt>0?-.58:.24;r.rLeg.rotation.z=-.055;}
+  if(r.lShin)r.lShin.rotation.x=step>0?.72:.10;if(r.rShin)r.rShin.rotation.x=alt>0?.72:.10;
+  if(r.lArm){r.lArm.rotation.x=-.72+alt*.33;r.lArm.rotation.z=-.38-.12*step;r.lArm.rotation.y=-.10;}
+  if(r.rArm){r.rArm.rotation.x=-.72+step*.33;r.rArm.rotation.z=.38+.12*alt;r.rArm.rotation.y=.10;}
+  if(r.lFore)r.lFore.rotation.x=-.88+Math.max(0,step)*.22;if(r.rFore)r.rFore.rotation.x=-.88+Math.max(0,alt)*.22;
+  if(typeof playerAvatar16!=='undefined'){playerAvatar16.position.x=player.pos.x;playerAvatar16.position.z=player.pos.z;playerAvatar16.rotation.y=player.yaw;}
 };
-
-message('COIN SHOP UPDATED · ALL 7 SNIPER RARITIES AVAILABLE BEFORE DEPLOYMENT',4.2);
+if(hud?.desktop)hud.desktop.textContent='MacBook: WASD move · mouse look · 1 Griddy emote · F sniper scope · E car/loot · L view · R reload · Q gear · SPACE jump';
+window.__frontierZeroEmotes60={loaded:true,integrated:true,keys:{1:'Griddy'},durationMs:EMOTE_DURATION60};
+message('EMOTES FIXED · PRESS 1 FOR GRIDDY',3.4);
