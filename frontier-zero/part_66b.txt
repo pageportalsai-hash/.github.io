@@ -1,0 +1,116 @@
+// FRONTIER ZERO MOVEMENT ANIMATION 66B — player/NPC gait, jump/land, aim, reload, sprint weapon pose
+let boltCycle66=0,shotFamily66='rifle';
+const npcMotion66=new WeakMap();
+function mix66(a,b,k){return THREE.MathUtils.lerp(a,b,k);}
+function smoothAngle66(a,b,k){return a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*k;}
+function setRot66(o,x,y,z,k){if(!o)return;o.rotation.x=mix66(o.rotation.x,x,k);o.rotation.y=mix66(o.rotation.y,y,k);o.rotation.z=mix66(o.rotation.z,z,k);}
+function aimProfile66(fam){
+  if(fam==='sniper')return{ra:[-1.18,-.06,-.14],la:[-1.04,.05,.24],rf:-.34,lf:-.48,wp:[.20,1.47,-.50],wr:[-.08,0,-.015]};
+  if(fam==='shotgun')return{ra:[-1.03,-.03,-.17],la:[-.91,.04,.31],rf:-.28,lf:-.50,wp:[.21,1.43,-.43],wr:[-.07,0,-.025]};
+  if(fam==='pistol'||fam==='revolver')return{ra:[-1.12,-.01,-.13],la:[-1.00,.07,.38],rf:-.18,lf:-.62,wp:[.18,1.47,-.35],wr:[-.03,0,-.01]};
+  if(fam==='smg')return{ra:[-1.00,-.03,-.17],la:[-.89,.04,.29],rf:-.28,lf:-.44,wp:[.22,1.43,-.40],wr:[-.05,0,-.02]};
+  return{ra:[-1.06,-.03,-.17],la:[-.94,.04,.28],rf:-.30,lf:-.44,wp:[.22,1.45,-.44],wr:[-.05,0,-.02]};
+}
+
+const shootGunBeforeMotionAnim66=shootGun;
+shootGun=function(w){
+  const before=w?.mag;const out=shootGunBeforeMotionAnim66(w);
+  if(w?.type==='gun'&&Number.isFinite(before)&&w.mag<before){shotFamily66=weaponFamily27(w);if(shotFamily66==='sniper')boltCycle66=1;}
+  return out;
+};
+
+const updatePlayerBeforeMotionAnim66=updatePlayer;
+updatePlayer=function(dt){
+  const out=updatePlayerBeforeMotionAnim66(dt);
+  boltCycle66=Math.max(0,boltCycle66-dt*2.35);
+  const emote=typeof activeEmote61!=='undefined'&&!!activeEmote61;
+  const r=typeof playerRig35!=='undefined'?playerRig35:null;
+  const now=performance.now(),blend=1-Math.exp(-dt*13);
+  const air=typeof onGround!=='undefined'?!onGround:false;
+  const w=currentGear(),gun=w?.type==='gun',fam=gun?weaponFamily27(w):'tool';
+  const speed01=clamp(actualSpeed66/12.65,0,1),move01=clamp(actualSpeed66/7.85,0,1);
+  const stride=Math.sin(motionPhase66),strideOpp=-stride;
+  const turnLean=clamp(-turnRate66*.028,-.11,.11);
+
+  if(r&&!activeCar19&&!emote){
+    const crouch=crouchAlpha66,run=sprinting66?1:0;
+    const baseHip=.84-.17*crouch-landingKick66*.055;
+    const bob=(air?0:Math.abs(Math.sin(motionPhase66))*(sprinting66?.045:crouching66?.018:.030)*move01);
+    if(r.hips){r.hips.position.y=mix66(r.hips.position.y,baseHip+bob,blend);r.hips.rotation.y=mix66(r.hips.rotation.y,turnLean*.30,blend);r.hips.rotation.z=mix66(r.hips.rotation.z,turnLean*.45,blend);}
+    if(r.torso){r.torso.position.y=mix66(r.torso.position.y,1.34-.09*crouch,blend);r.torso.rotation.x=mix66(r.torso.rotation.x,.04+.15*run+.18*crouch+.08*landingKick66,blend);r.torso.rotation.z=mix66(r.torso.rotation.z,turnLean,blend);}
+    if(r.head){r.head.rotation.x=mix66(r.head.rotation.x,clamp(-player.pitch*.20,-.18,.18)-.025*run,blend);r.head.rotation.z=mix66(r.head.rotation.z,turnLean*.35,blend);}
+
+    if(air){
+      const rising=(typeof jumpVelocity!=='undefined'?jumpVelocity:0)>0;
+      setRot66(r.lLeg,rising?-.52:-.18,0,.045,blend);setRot66(r.rLeg,rising?-.34:.05,0,-.045,blend);
+      if(r.lShin)r.lShin.rotation.x=mix66(r.lShin.rotation.x,rising?.70:.22,blend);if(r.rShin)r.rShin.rotation.x=mix66(r.rShin.rotation.x,rising?.48:.16,blend);
+    }else{
+      const amp=crouching66?.34:sprinting66?.92:mix66(.20,.68,move01);
+      const bend=crouching66?.34:0;
+      if(r.lLeg){r.lLeg.rotation.x=mix66(r.lLeg.rotation.x,stride*amp-bend,blend);r.lLeg.rotation.z=mix66(r.lLeg.rotation.z,.035+turnLean*.12,blend);}
+      if(r.rLeg){r.rLeg.rotation.x=mix66(r.rLeg.rotation.x,strideOpp*amp-bend,blend);r.rLeg.rotation.z=mix66(r.rLeg.rotation.z,-.035+turnLean*.12,blend);}
+      if(r.lShin)r.lShin.rotation.x=mix66(r.lShin.rotation.x,Math.max(0,-stride)*(.55+.35*run)+crouch*.42+landingKick66*.34,blend);
+      if(r.rShin)r.rShin.rotation.x=mix66(r.rShin.rotation.x,Math.max(0,-strideOpp)*(.55+.35*run)+crouch*.42+landingKick66*.34,blend);
+    }
+
+    if(gun){
+      const p=aimProfile66(fam);
+      if(sprinting66){
+        setRot66(r.rArm,-.57,-.05,-.25,blend);setRot66(r.lArm,-.48,.05,.31,blend);
+        if(r.rFore)r.rFore.rotation.x=mix66(r.rFore.rotation.x,-.20,blend);if(r.lFore)r.lFore.rotation.x=mix66(r.lFore.rotation.x,-.24,blend);
+        if(r.weapon){r.weapon.position.x=mix66(r.weapon.position.x,.28,blend);r.weapon.position.y=mix66(r.weapon.position.y,1.24,blend);r.weapon.position.z=mix66(r.weapon.position.z,-.18,blend);setRot66(r.weapon,.38,.12,.20,blend);}
+      }else{
+        setRot66(r.rArm,...p.ra,blend);setRot66(r.lArm,...p.la,blend);
+        if(r.rFore)r.rFore.rotation.x=mix66(r.rFore.rotation.x,p.rf,blend);if(r.lFore)r.lFore.rotation.x=mix66(r.lFore.rotation.x,p.lf,blend);
+        if(r.weapon){r.weapon.position.x=mix66(r.weapon.position.x,p.wp[0],blend);r.weapon.position.y=mix66(r.weapon.position.y,p.wp[1]-.045*crouch,blend);r.weapon.position.z=mix66(r.weapon.position.z,p.wp[2],blend);setRot66(r.weapon,...p.wr,blend);}
+      }
+      if(typeof reloadActive35!=='undefined'&&reloadActive35&&r.weapon){
+        const a=clamp((now-reloadStart35)/650,0,1),s=Math.sin(Math.PI*a);r.weapon.position.y-=.18*s;r.weapon.rotation.z+=.62*s;
+        if(r.lFore)r.lFore.rotation.x-=.48*s;if(r.lArm)r.lArm.rotation.z+=.18*s;
+      }
+      if(fam==='sniper'&&boltCycle66>0){
+        const q=1-boltCycle66,pulse=Math.sin(Math.PI*clamp(q,0,1));if(r.weapon){r.weapon.position.x+=.05*pulse;r.weapon.rotation.y+=.12*pulse;}if(r.rFore)r.rFore.rotation.x+=.50*pulse;
+      }
+      if(fam==='shotgun'&&typeof pumpKick35!=='undefined'&&pumpKick35>0&&r.weapon){const pulse=(1-Math.abs(pumpKick35*2-1))*Math.min(1,pumpKick35);r.weapon.position.z+=.10*pulse;}
+    }else{
+      const armAmp=sprinting66?.72:mix66(.12,.50,move01);setRot66(r.lArm,strideOpp*armAmp,0,-.05,blend);setRot66(r.rArm,stride*armAmp,0,.05,blend);
+    }
+  }
+
+  const scoped=typeof sniperScoped57!=='undefined'&&sniperScoped57&&typeof isSniper57==='function'&&isSniper57();
+  if(!thirdPerson16&&!emote&&!activeCar19&&!scoped){
+    const sway=Math.sin(motionPhase66*.5),bob=Math.abs(Math.sin(motionPhase66));
+    if(gun&&typeof weaponModels27!=='undefined'){
+      weaponModels27.position.x+=sway*(crouching66?.003:.006+.008*speed01);
+      weaponModels27.position.y+=bob*(crouching66?.002:.004+.006*speed01)-landingKick66*.025;
+      weaponModels27.rotation.z+=sway*(.004+.008*speed01)+clamp(-turnRate66*.002,-.010,.010);
+      weaponModels27.rotation.y+=clamp(turnRate66*.0017,-.007,.007);
+      if(sprinting66){weaponModels27.position.y-=.18;weaponModels27.position.z+=.16;weaponModels27.rotation.x+=.38;weaponModels27.rotation.z-=.14;}
+      else if(crouching66){weaponModels27.position.y-=.035;weaponModels27.rotation.x+=.035;}
+      if(fam==='sniper'&&boltCycle66>0){const pulse=Math.sin(Math.PI*clamp(1-boltCycle66,0,1));weaponModels27.position.x+=.045*pulse;weaponModels27.rotation.z+=.055*pulse;}
+    }
+    if(!gun&&typeof toolHolder15!=='undefined'&&toolHolder15.visible){toolHolder15.position.y-=sprinting66?.12:0;toolHolder15.rotation.z+=sway*.018*speed01;}
+  }
+  return out;
+};
+
+const updateNPCsBeforeMotionAnim66=updateNPCs;
+updateNPCs=function(dt){
+  const out=updateNPCsBeforeMotionAnim66(dt);
+  for(const n of npcs){
+    if(!n||n.dead||!n.group?.parent)continue;const rec=n.phaseBRec35;if(!rec?.rig||!rec.rig.visible)continue;
+    let s=npcMotion66.get(n);if(!s){s={prev:n.group.position.clone(),yaw:n.group.rotation.y,phase:Math.random()*6.28};npcMotion66.set(n,s);}
+    const dx=n.group.position.x-s.prev.x,dz=n.group.position.z-s.prev.z,speed=Math.hypot(dx,dz)/Math.max(dt,.001);s.prev.copy(n.group.position);s.phase+=dt*(2.8+Math.min(7,speed)*.95);
+    const desired=n.group.rotation.y;s.yaw=smoothAngle66(s.yaw,desired,1-Math.exp(-dt*7.5));n.group.rotation.y=s.yaw;
+    const tactical=typeof aiState64!=='undefined'?aiState64.get(n):null,mode=tactical?.mode||'idle';
+    const stagger=typeof staggerState65!=='undefined'?staggerState65.get(n):null;if(stagger?.life>0)continue;
+    const run=clamp((speed-2.2)/2.4,0,1),moving=clamp(speed/3.6,0,1),phase=Math.sin(s.phase);
+    if(rec.torso){rec.torso.rotation.x+=run*.055+(mode==='rush'?.055:mode==='retreat'?.035:0);rec.torso.rotation.z+=clamp(angleDelta66(desired,s.yaw)*.18,-.07,.07);}
+    if(rec.hips)rec.hips.position.y+=Math.abs(phase)*.012*moving;
+    if(rec.lShin)rec.lShin.rotation.x+=Math.max(0,-phase)*.10*moving;if(rec.rShin)rec.rShin.rotation.x+=Math.max(0,phase)*.10*moving;
+    if(rec.head&&mode==='flank')rec.head.rotation.y+=tactical?.side*.06;
+  }
+  return out;
+};
+
+window.__frontierZeroMovement66B={loaded:true,gaitTransitions:true,jumpLandAnimation:true,weaponAimPoses:true,reloadPose:true,sniperBolt:true,npcTurnSmoothing:true};
