@@ -1,0 +1,118 @@
+// ============================================================================
+// FRONTIER ZERO COMBINED STEPS 3+4+5 — BUILD 80
+// Static graphics polish + weapon/world audio + smarter AI perception.
+// Intentionally does NOT replace updatePlayer/updateNPCs/camera/doors/cars.
+// ============================================================================
+const combinedDesktop78=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// STEP 3 — STATIC GRAPHICS / MATERIAL POLISH (one-time only)
+// ---------------------------------------------------------------------------
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.00;
+if(scene.background?.isColor)scene.background.setHex(0x91b4c4);
+if(scene.fog){scene.fog.color.setHex(0xb9c8cb);scene.fog.density=Math.min(scene.fog.density||.0007,.00062);}
+if(typeof hemi!=='undefined'){hemi.intensity=1.34;hemi.color.setHex(0xdce7ea);hemi.groundColor.setHex(0x50574d);}
+if(typeof sun!=='undefined'){sun.intensity=2.45;sun.color.setHex(0xffdfbd);}
+
+function polishMat78(m){
+  if(!m)return;const mats=Array.isArray(m)?m:[m];
+  for(const x of mats){
+    if(!x)continue;
+    if('roughness' in x)x.roughness=THREE.MathUtils.clamp(x.roughness??.75,.38,.96);
+    if('metalness' in x)x.metalness=THREE.MathUtils.clamp(x.metalness??0,0,.80);
+    if(x.map){x.map.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy?.()||1,3);x.map.needsUpdate=true;}
+    if('envMapIntensity' in x)x.envMapIntensity=.34;
+    x.needsUpdate=true;
+  }
+}
+for(const m of [typeof terrain!=='undefined'?terrain:null,typeof worldGround500!=='undefined'?worldGround500:null,typeof terrain2k!=='undefined'?terrain2k:null]){
+  if(!m?.material)continue;polishMat78(m.material);m.material.roughness=.95;m.material.metalness=0;
+  if(m.material.bumpMap)m.material.bumpScale=Math.min(Math.max(m.material.bumpScale||0,.10),.18);
+}
+if(typeof water!=='undefined'&&water?.material){water.material.color.setHex(0x507d8d);water.material.roughness=.22;water.material.metalness=.015;water.material.opacity=Math.min(water.material.opacity??.72,.72);water.material.needsUpdate=true;}
+if(typeof houseWall33!=='undefined'){polishMat78(houseWall33);houseWall33.color.setHex(0xc8bda8);}
+if(typeof woodWall33!=='undefined'){polishMat78(woodWall33);woodWall33.color.setHex(0x8b7155);}
+if(typeof warehouseWall33!=='undefined'){polishMat78(warehouseWall33);warehouseWall33.color.setHex(0x748187);}
+if(typeof roofMat33!=='undefined'){polishMat78(roofMat33);roofMat33.color.setHex(0x3b4449);}
+if(typeof roofDark33!=='undefined'){polishMat78(roofDark33);roofDark33.color.setHex(0x2e363a);}
+if(typeof urbanGlass51!=='undefined'){polishMat78(urbanGlass51);urbanGlass51.color.setHex(0x557888);urbanGlass51.opacity=.46;urbanGlass51.roughness=.14;urbanGlass51.needsUpdate=true;}
+if(typeof townBuildings51!=='undefined')for(const rec of townBuildings51){rec?.g?.traverse(o=>{if(!o?.isMesh||!o.material)return;polishMat78(o.material);});}
+if(typeof cars19!=='undefined')for(const c of cars19){c?.group?.traverse(o=>{if(!o?.isMesh||!o.material)return;polishMat78(o.material);const mats=Array.isArray(o.material)?o.material:[o.material];for(const m of mats){if(!m)continue;if(m.transparent){m.roughness=Math.min(m.roughness??.2,.20);}else if((m.metalness??0)>.35){m.roughness=Math.min(m.roughness??.32,.31);if('clearcoat' in m)m.clearcoat=Math.max(m.clearcoat||0,.50);}}});}
+if(typeof weaponModels27!=='undefined')weaponModels27.traverse(o=>{if(o?.isMesh&&o.material)polishMat78(o.material);});
+
+// ---------------------------------------------------------------------------
+// STEP 4 — LIGHTWEIGHT WEAPON-SPECIFIC AUDIO + DISTANT ECHO
+// ---------------------------------------------------------------------------
+let audio78=null,noise78=null,delay78=null,delayGain78=null,suppressOldShotTone78=false;
+function ensureAudio78(){
+  try{
+    audio78=audioCtx||(audio78||new (window.AudioContext||window.webkitAudioContext)());
+    if(audio78.state==='suspended')audio78.resume?.();
+    if(!noise78){noise78=audio78.createBuffer(1,Math.floor(audio78.sampleRate*.12),audio78.sampleRate);const a=noise78.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=(Math.random()*2-1)*(1-i/a.length);}
+    if(!delay78){delay78=audio78.createDelay(.45);delay78.delayTime.value=.13;delayGain78=audio78.createGain();delayGain78.gain.value=.12;delay78.connect(delayGain78);delayGain78.connect(audio78.destination);}
+    return audio78;
+  }catch{return null;}
+}
+function gunProfile78(w){
+  const f=typeof weaponFamily27==='function'?weaponFamily27(w):'rifle';
+  if(f==='shotgun')return{f,body:72,crack:390,vol:.18,noise:.92,echo:.20,dur:.145};
+  if(f==='sniper')return{f,body:80,crack:690,vol:.17,noise:.78,echo:.24,dur:.13};
+  if(f==='revolver')return{f,body:108,crack:570,vol:.14,noise:.56,echo:.17,dur:.105};
+  if(f==='pistol')return{f,body:138,crack:760,vol:.105,noise:.40,echo:.10,dur:.08};
+  if(f==='smg')return{f,body:120,crack:900,vol:.085,noise:.31,echo:.07,dur:.058};
+  if(f==='dmr')return{f,body:94,crack:720,vol:.13,noise:.52,echo:.17,dur:.10};
+  return{f,body:102,crack:660,vol:.115,noise:.44,echo:.13,dur:.09};
+}
+function playGun78(w){
+  const ctx=ensureAudio78();if(!ctx)return;const p=gunProfile78(w),t=ctx.currentTime;
+  const o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.setValueAtTime(p.body,t);o.frequency.exponentialRampToValueAtTime(Math.max(40,p.body*.50),t+p.dur);g.gain.setValueAtTime(p.vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+p.dur);o.connect(g);g.connect(ctx.destination);g.connect(delay78);o.start(t);o.stop(t+p.dur+.01);
+  const n=ctx.createBufferSource(),f=ctx.createBiquadFilter(),ng=ctx.createGain();n.buffer=noise78;f.type='bandpass';f.frequency.value=p.crack;f.Q.value=.7;ng.gain.setValueAtTime(p.vol*p.noise,t);ng.gain.exponentialRampToValueAtTime(.0001,t+Math.min(.105,p.dur));n.connect(f);f.connect(ng);ng.connect(ctx.destination);ng.connect(delay78);n.start(t);n.stop(t+.12);
+  delayGain78.gain.cancelScheduledValues(t);delayGain78.gain.setValueAtTime(p.echo,t);delayGain78.gain.setTargetAtTime(.08,t+.07,.12);
+}
+function mech78(freq=600,vol=.018){const ctx=ensureAudio78();if(!ctx)return;const t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='square';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.58,t+.03);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+.04);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.045);}
+const toneBeforeCombined78=tone;
+tone=function(...args){if(suppressOldShotTone78)return;return toneBeforeCombined78(...args);};
+
+// ---------------------------------------------------------------------------
+// STEP 5 — THROTTLED AI PERCEPTION / HEARING ONLY
+// LOS is cached per NPC to avoid a raycast for every NPC every frame.
+// ---------------------------------------------------------------------------
+const sight78=new WeakMap(),sightFrom78=new THREE.Vector3(),sightDir78=new THREE.Vector3();
+function sightState78(n){let s=sight78.get(n);if(!s){s={next:0,clear:false,seenAt:0};sight78.set(n,s);}return s;}
+npcCanSee=function(n){
+  if(!n||n.dead||!n.group?.parent)return false;
+  const s=sightState78(n),now=performance.now(),dx=player.pos.x-n.group.position.x,dz=player.pos.z-n.group.position.z,dist=Math.hypot(dx,dz),alerted=(n.alert||0)>0||(n.playerProvoked||0)>0;
+  const maxDist=alerted?122:92;if(dist>maxDist){s.clear=false;s.seenAt=0;return false;}
+  if(now>=s.next){
+    s.next=now+110+(n.group.id%5)*17;
+    let facing=true;
+    if(dist>.001){const inv=1/dist,tx=dx*inv,tz=dz*inv,fx=-Math.sin(n.group.rotation.y),fz=-Math.cos(n.group.rotation.y);facing=(fx*tx+fz*tz)>=(alerted?-.28:.14);}
+    if(!facing){s.clear=false;s.seenAt=0;}
+    else{
+      sightFrom78.set(n.group.position.x,n.group.position.y+1.72,n.group.position.z);
+      sightDir78.set(player.pos.x-sightFrom78.x,(player.pos.y-.18)-sightFrom78.y,player.pos.z-sightFrom78.z);const len=sightDir78.length();
+      if(len<.1)s.clear=true;
+      else{raycaster.set(sightFrom78,sightDir78.multiplyScalar(1/len));raycaster.far=Math.max(.1,len-.42);const hits=raycaster.intersectObjects([terrain,...blockers].filter(o=>o===terrain||o?.parent),true);s.clear=hits.length===0;}
+      if(s.clear){if(!s.seenAt)s.seenAt=now;}else s.seenAt=0;
+    }
+  }
+  if(!s.clear)return false;const reaction=alerted?70:165+((n.group.id%5)*22);return now-s.seenAt>=reaction;
+};
+
+const shootBeforeCombined78=shootGun;
+shootGun=function(w){
+  const before=w?.type==='gun'?w.mag:null;suppressOldShotTone78=true;let out;try{out=shootBeforeCombined78(w);}finally{suppressOldShotTone78=false;}
+  if(w?.type==='gun'&&before>w.mag){
+    playGun78(w);
+    const fam=typeof weaponFamily27==='function'?weaponFamily27(w):'rifle';const radius=fam==='sniper'?138:fam==='shotgun'?112:fam==='smg'?72:fam==='pistol'||fam==='revolver'?66:92;
+    for(const n of npcs){if(!n||n.dead||!n.group?.parent)continue;const d=Math.hypot(n.group.position.x-player.pos.x,n.group.position.z-player.pos.z);if(d<=radius){n.alert=Math.max(n.alert||0,3.4+Math.random());n.shotCd=Math.max(n.shotCd||0,.16+Math.random()*.24);}}
+  }
+  return out;
+};
+const reloadBeforeCombined78=reload;
+reload=function(){const w=currentGear(),can=!!w&&w.type==='gun'&&!reloading&&w.mag<w.magSize&&w.reserve>0;const out=reloadBeforeCombined78();if(can){mech78(500,.017);setTimeout(()=>mech78(730,.014),420);}return out;};
+
+window.__frontierZeroCombined34578={loaded:true,build:80,steps:[3,4,5],features:['static material polish','weapon-family audio','distant echo','throttled FOV/LOS','gunshot hearing'],movementTouched:false,npcMovementTouched:false,cameraTouched:false,addedWorldGeometry:0};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='STEPS 3+4+5 · COMBINED CLEAN LAYER';setTimeout(()=>graphicsBadge21.style.opacity='0',6500);}
+message('STEPS 3 + 4 + 5 LIVE · graphics + audio + perception combined',4.2);
