@@ -1,0 +1,133 @@
+// ============================================================================
+// FRONTIER ZERO LOOT + INVENTORY + HUD 73 — Build 75
+// UI/item-only polish. Intentionally does NOT wrap movement, NPC AI, camera,
+// doors, vehicles or collision. Safe on top of Hard Stability Build 74.
+// ============================================================================
+const lootUiDesktop73=matchMedia('(pointer:fine)').matches;
+const R73=(typeof RARITY!=='undefined')?RARITY:{Common:{rank:1,color:'#b8bec5'},Uncommon:{rank:2,color:'#55c96a'},Rare:{rank:3,color:'#4b8cff'},Epic:{rank:4,color:'#a966ff'},Legendary:{rank:5,color:'#ff9f32'},Mythic:{rank:6,color:'#ff4f68'},Secret:{rank:7,color:'#55f4ed'}};
+player.armor73=Number.isFinite(player.armor73)?player.armor73:0;
+player.medkits73=Number.isFinite(player.medkits73)?player.medkits73:0;
+
+// ---------- HUD shell ----------
+const oldHealth73=document.getElementById('healthOuter');if(oldHealth73)oldHealth73.style.display='none';
+const oldWeapon73=document.getElementById('weaponText');if(oldWeapon73)oldWeapon73.style.display='none';
+if(typeof rarityLegend!=='undefined'&&rarityLegend)rarityLegend.style.display='none';
+
+const hud73=document.createElement('div');hud73.id='combatHud73';hud73.style.cssText='position:fixed;inset:0;z-index:74;pointer-events:none;color:#f5f7f8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;text-shadow:0 1px 2px #000';document.body.appendChild(hud73);
+const status73=document.createElement('div');status73.style.cssText=`position:absolute;left:14px;bottom:${lootUiDesktop73?'18':'168'}px;width:218px;padding:9px 10px;border-radius:12px;background:rgba(7,11,14,.78);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(5px)`;hud73.appendChild(status73);
+status73.innerHTML='<div style="display:flex;justify-content:space-between;font:900 10px system-ui;letter-spacing:.06em"><span>VITALS</span><span id="medkitText73">MEDKIT ×0 · H</span></div><div style="margin-top:6px;font:800 9px system-ui">HEALTH <span id="healthNum73">100</span></div><div style="height:9px;border-radius:8px;background:#311b1b;overflow:hidden;border:1px solid rgba(255,255,255,.16)"><div id="healthBar73" style="height:100%;width:100%;background:linear-gradient(90deg,#c93f42,#58d06d)"></div></div><div style="margin-top:5px;font:800 9px system-ui">ARMOR <span id="armorNum73">0</span></div><div style="height:7px;border-radius:8px;background:#172633;overflow:hidden;border:1px solid rgba(255,255,255,.14)"><div id="armorBar73" style="height:100%;width:0%;background:linear-gradient(90deg,#4a91ff,#79c7ff)"></div></div>';
+const healthBar73=status73.querySelector('#healthBar73'),armorBar73=status73.querySelector('#armorBar73'),healthNum73=status73.querySelector('#healthNum73'),armorNum73=status73.querySelector('#armorNum73'),medkitText73=status73.querySelector('#medkitText73');
+
+const ammo73=document.createElement('div');ammo73.style.cssText=`position:absolute;right:14px;bottom:${lootUiDesktop73?'18':'164'}px;min-width:150px;padding:9px 12px;border-radius:12px;background:rgba(7,11,14,.80);border:1px solid rgba(255,255,255,.18);text-align:right`;hud73.appendChild(ammo73);
+const ammoName73=document.createElement('div');ammoName73.style.cssText='font:900 10px system-ui;letter-spacing:.05em;white-space:nowrap';ammo73.appendChild(ammoName73);
+const ammoNums73=document.createElement('div');ammoNums73.style.cssText='font:1000 27px system-ui;line-height:1;margin-top:3px';ammo73.appendChild(ammoNums73);
+const ammoReserve73=document.createElement('div');ammoReserve73.style.cssText='font:800 9px system-ui;opacity:.68;margin-top:3px';ammo73.appendChild(ammoReserve73);
+
+const hotbar73=document.createElement('div');hotbar73.style.cssText=`position:absolute;left:50%;bottom:${lootUiDesktop73?'16':'154'}px;transform:translateX(-50%);display:flex;gap:6px`;hud73.appendChild(hotbar73);
+const hotSlotEls73=[];for(let i=0;i<5;i++){const s=document.createElement('div');s.style.cssText='width:96px;height:58px;border-radius:10px;background:rgba(10,14,17,.83);border:2px solid rgba(255,255,255,.14);padding:5px 6px;position:relative;overflow:hidden;transition:transform .08s,border-color .08s';s.innerHTML=`<div style="position:absolute;left:5px;top:3px;font:1000 9px system-ui;opacity:.62">${i+1}</div><div class="gunIcon73" style="font:1000 14px system-ui;margin-top:8px"></div><div class="gunName73" style="font:850 8px system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px"></div><div class="gunAmmo73" style="font:800 8px system-ui;opacity:.70;margin-top:2px"></div>`;hotbar73.appendChild(s);hotSlotEls73.push(s);s.style.pointerEvents='auto';s.addEventListener('pointerdown',e=>{e.stopPropagation();selectWeaponSlot73(i);});}
+if(!lootUiDesktop73){hotbar73.style.transform='translateX(-50%) scale(.78)';}
+
+const compare73=document.createElement('div');compare73.style.cssText='position:absolute;left:50%;top:61%;transform:translate(-50%,-50%);min-width:280px;max-width:430px;padding:10px 12px;border-radius:12px;background:rgba(6,10,13,.91);border:1px solid rgba(255,255,255,.22);opacity:0;transition:opacity .12s;text-align:center';hud73.appendChild(compare73);
+const toast73=document.createElement('div');toast73.style.cssText='position:absolute;left:50%;top:24%;transform:translate(-50%,-50%) scale(.96);min-width:280px;max-width:70vw;padding:12px 16px;border-radius:12px;background:rgba(7,11,14,.94);border:2px solid #fff;opacity:0;transition:opacity .14s,transform .14s;text-align:center;font:900 13px system-ui';hud73.appendChild(toast73);let toastTimer73=0;
+function showToast73(title,body,color='#fff',secs=2.2){clearTimeout(toastTimer73);toast73.style.borderColor=color;toast73.innerHTML=`<div style="font-size:10px;opacity:.72;letter-spacing:.08em">${title}</div><div style="font-size:15px;color:${color};margin-top:3px">${body}</div>`;toast73.style.opacity='1';toast73.style.transform='translate(-50%,-50%) scale(1)';toastTimer73=setTimeout(()=>{toast73.style.opacity='0';toast73.style.transform='translate(-50%,-50%) scale(.96)';},secs*1000);}
+
+const supplyPanel73=document.createElement('div');supplyPanel73.style.cssText='position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.95);min-width:330px;padding:18px 20px;border-radius:16px;background:linear-gradient(180deg,rgba(13,19,23,.97),rgba(5,8,10,.97));border:2px solid #a966ff;box-shadow:0 16px 60px rgba(0,0,0,.45);opacity:0;transition:opacity .15s,transform .15s;text-align:center';hud73.appendChild(supplyPanel73);let supplyTimer73=0;
+function showSupplyPanel73(w){if(!w)return;clearTimeout(supplyTimer73);const r=w.rarity||'Epic',col=R73[r]?.color||'#a966ff';supplyPanel73.style.borderColor=col;supplyPanel73.innerHTML=`<div style="font:1000 11px system-ui;letter-spacing:.13em;opacity:.72">SUPPLY DROP OPENED</div><div style="font:1000 23px system-ui;color:${col};margin-top:5px">${r.toUpperCase()} ${String(w.name).toUpperCase()}</div><div style="font:800 11px system-ui;margin-top:8px;opacity:.82">DAMAGE ${Math.round(w.damage||0)} · MAG ${w.magSize||0} · AMMO ${w.reserve||0}</div><div style="font:800 9px system-ui;margin-top:8px;opacity:.55">HIGH-TIER WEAPON + SUPPLIES ADDED</div>`;supplyPanel73.style.opacity='1';supplyPanel73.style.transform='translate(-50%,-50%) scale(1)';supplyTimer73=setTimeout(()=>{supplyPanel73.style.opacity='0';supplyPanel73.style.transform='translate(-50%,-50%) scale(.95)';},3200);}
+
+// ---------- five weapon quick slots ----------
+const weaponSlots73=new Array(5).fill(null);
+const knownGear73=new Set(gear);
+function gunIcon73(w){if(!w)return'—';const n=String(w.name||'').toLowerCase();if(n.includes('shotgun'))return'SG';if(n.includes('smg'))return'SMG';if(n.includes('pistol')||n.includes('handcannon')||n.includes('cannon'))return'PST';if(n.includes('sniper')||n.includes('scout')||n.includes('longshot')||n.includes('warden')||n.includes('voidpiercer'))return'SNP';return'AR';}
+function weaponScore73(w){if(!w)return-1;const rank=R73[w.rarity||'Common']?.rank||1,dps=((w.damage||10)*Math.max(1,w.pellets||1))/Math.max(.05,w.rate||.2);return rank*10000+dps*10+(w.magSize||0);}
+function syncInitialSlots73(){const guns=gear.filter(g=>g?.type==='gun');for(let i=0;i<5;i++)weaponSlots73[i]=guns[i]||null;}syncInitialSlots73();
+function removeGearRef73(w){const i=gear.indexOf(w);if(i>=0){gear.splice(i,1);if(gearIndex>=gear.length)gearIndex=Math.max(0,gear.length-1);}}
+function ensureGunInGear73(w){if(w&&!gear.includes(w))gear.push(w);}
+function selectWeaponSlot73(i){const w=weaponSlots73[i];if(!w)return;ensureGunInGear73(w);const gi=gear.indexOf(w);if(gi<0)return;gearIndex=gi;reloading=false;if(typeof buildMode!=='undefined'&&buildMode){buildMode=false;updateBuildUI?.();}updateHUD();}
+addEventListener('keydown',e=>{if(/^Digit[1-5]$/.test(e.code)){selectWeaponSlot73(Number(e.code.slice(-1))-1);}else if(/^Numpad[1-5]$/.test(e.code)){selectWeaponSlot73(Number(e.code.slice(-1))-1);}else if(e.code==='KeyH'){if(player.medkits73>0&&player.health<100&&!player.dead){player.medkits73--;player.health=Math.min(100,player.health+40);updateHUD();showToast73('MEDKIT USED','+40 HEALTH','#6be36b',1.4);tone?.(310,.08,.025,'sine');}}});
+
+function bestCompare73(){const c=currentGear();if(c?.type==='gun')return c;let best=null;for(const w of weaponSlots73)if(w&&(!best||weaponScore73(w)>weaponScore73(best)))best=w;return best;}
+function acceptWeapon73(w,pos,fromGround=false){
+  if(!w)return false;if(weaponSlots73.includes(w)){ensureGunInGear73(w);return true;}
+  let empty=weaponSlots73.findIndex(x=>!x);if(empty>=0){ensureGunInGear73(w);weaponSlots73[empty]=w;knownGear73.add(w);showToast73('WEAPON EQUIPPED',`${w.rarity||'Common'} ${w.name}`,R73[w.rarity||'Common']?.color||'#fff');return true;}
+  let weak=0;for(let i=1;i<5;i++)if(weaponScore73(weaponSlots73[i])<weaponScore73(weaponSlots73[weak]))weak=i;
+  const old=weaponSlots73[weak];if(weaponScore73(w)>weaponScore73(old)){
+    ensureGunInGear73(w);weaponSlots73[weak]=w;removeGearRef73(old);knownGear73.add(w);const p=pos||player.pos;spawnGroundGun73(old,p.x+rand(-1.1,1.1),p.z+rand(-1.1,1.1));showToast73('AUTO SWAP',`${w.rarity||'Common'} ${w.name} replaced ${old.rarity||'Common'} ${old.name}`,R73[w.rarity||'Common']?.color||'#fff',2.8);return true;
+  }
+  if(!fromGround){removeGearRef73(w);const p=pos||player.pos;spawnGroundGun73(w,p.x+rand(-.8,.8),p.z+rand(-.8,.8));showToast73('INVENTORY FULL',`${w.rarity||'Common'} ${w.name} left on ground`,R73[w.rarity||'Common']?.color||'#fff',2.6);}
+  else showToast73('INVENTORY FULL',`${w.rarity||'Common'} ${w.name} is weaker than your loadout`,R73[w.rarity||'Common']?.color||'#fff',2.3);
+  return false;
+}
+
+// ---------- physical ground weapons + consumables ----------
+const groundPickups73=[];
+const groundGunSteel73=new THREE.MeshStandardMaterial({color:0x30373b,roughness:.42,metalness:.58});
+function cloneCatalogGun73(src){if(!src)return null;return{name:src.name,type:'gun',rarity:src.rarity||'Common',magSize:src.magSize||30,mag:src.magSize||30,reserve:src.reserve||90,damage:src.damage||20,rate:src.rate||.12,spread:src.spread||.014,pellets:src.pellets||1,skin:typeof randomGunSkin==='function'?randomGunSkin(src.rarity||'Common'):undefined};}
+function spawnGroundGun73(w,x,z){
+  if(!w||!Number.isFinite(x)||!Number.isFinite(z))return null;const g=new THREE.Group(),body=new THREE.Mesh(new THREE.BoxGeometry(.16,.13,1.02),groundGunSteel73.clone()),barrel=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.52,7),groundGunSteel73.clone());barrel.rotation.x=Math.PI/2;barrel.position.z=-.71;const stock=new THREE.Mesh(new THREE.BoxGeometry(.22,.16,.35),groundGunSteel73.clone());stock.position.z=.58;g.add(body,barrel,stock);g.rotation.set(.05,rand(0,Math.PI*2),1.48);g.position.set(x,groundY(x,z)+.16,z);
+  const col=R73[w.rarity||'Common']?.color||'#fff',beam=new THREE.Mesh(new THREE.CylinderGeometry(.025,.075,2.6,7),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.20,depthWrite:false}));beam.position.y=1.35;g.add(beam);scene.add(g);
+  const c={group:g,looted:false,label:`${w.rarity||'Common'} ${w.name}`,groundWeapon73:true,weapon73:w};lootCrates.push(c);groundPickups73.push(c);return c;
+}
+const pickupMats73={ammo:new THREE.MeshStandardMaterial({color:0xb79955,roughness:.72,metalness:.25}),medkit:new THREE.MeshStandardMaterial({color:0xd7ded9,roughness:.78}),armor:new THREE.MeshStandardMaterial({color:0x4d8ec8,roughness:.52,metalness:.18})};
+function spawnConsumable73(type,x,z,amount){const g=new THREE.Group(),mat=pickupMats73[type]||pickupMats73.ammo;let m;if(type==='medkit'){m=new THREE.Mesh(new THREE.BoxGeometry(.58,.38,.48),mat);const cross=new THREE.Mesh(new THREE.BoxGeometry(.28,.06,.06),new THREE.MeshBasicMaterial({color:0xb93636}));cross.position.set(0,.21,.25);g.add(cross);}else if(type==='armor'){m=new THREE.Mesh(new THREE.BoxGeometry(.52,.58,.12),mat);m.rotation.x=-.16;}else m=new THREE.Mesh(new THREE.BoxGeometry(.54,.32,.42),mat);g.add(m);if(!g.children.includes(m))g.add(m);g.position.set(x,groundY(x,z)+.25,z);const color=type==='medkit'?0x6be36b:type==='armor'?0x62b8ff:0xffd36a,beam=new THREE.Mesh(new THREE.CylinderGeometry(.018,.055,1.5,6),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.18,depthWrite:false}));beam.position.y=.78;g.add(beam);scene.add(g);const c={group:g,looted:false,label:type==='medkit'?'Medkit':type==='armor'?'Armor Plate':'Ammo Box',pickup73:type,amount73:amount};lootCrates.push(c);groundPickups73.push(c);return c;}
+function findLooseSpot73(){for(let t=0;t<60;t++){let x,z;if(typeof townZones51!=='undefined'&&townZones51.length){const q=townZones51[(Math.random()*townZones51.length)|0];x=q.x+rand(-32,32);z=q.z+rand(-32,32);}else{x=rand(-420,420);z=rand(-420,420);}if(Math.abs(x)>465||Math.abs(z)>465||groundY(x,z)<=water.position.y+.65||blockedPosition(x,z))continue;return{x,z};}return null;}
+if(typeof gunCatalog!=='undefined')for(let i=0;i<8;i++){const p=findLooseSpot73();if(!p)continue;const pool=gunCatalog.filter(g=>g.rarity!=='Secret'&&g.rarity!=='Mythic'),src=pool[(Math.random()*pool.length)|0];spawnGroundGun73(cloneCatalogGun73(src),p.x,p.z);if(i%2===0){const type=i%6===0?'armor':i%4===0?'medkit':'ammo';spawnConsumable73(type,p.x+1.3,p.z+.7,type==='medkit'?1:type==='armor'?30:28);}}
+
+// Keep NPC chest-seeking focused on actual chests; player ground pickups are not AI loot targets.
+if(typeof nearestNpcLoot14==='function'){
+  nearestNpcLoot14=function(n,maxDist=58){let best=null,bestD=maxDist;for(const c of lootCrates){if(!c||c.looted||c.supply47||c.npcDrop47||c.groundWeapon73||c.pickup73||!c.group?.parent)continue;if(c.npcReserved14&&c.npcReserved14!==n)continue;const d=Math.hypot(c.group.position.x-n.group.position.x,c.group.position.z-n.group.position.z);if(d<bestD){best=c;bestD=d;}}return best;};
+}
+
+function collectPickup73(c){if(!c||c.looted)return false;const type=c.pickup73,amt=c.amount73||1;c.looted=true;if(type==='medkit'){player.medkits73=Math.min(5,player.medkits73+amt);showToast73('MEDKIT PICKED UP',`MEDKITS ×${player.medkits73}`,'#6be36b',1.7);}else if(type==='armor'){const before=player.armor73;player.armor73=Math.min(100,player.armor73+amt);showToast73('ARMOR PICKED UP',`+${Math.round(player.armor73-before)} ARMOR`,'#62b8ff',1.7);}else{for(const w of gear)if(w?.type==='gun')w.reserve+=(amt|0);showToast73('AMMO BOX',`+${amt|0} AMMO TO WEAPONS`,'#ffd36a',1.7);}if(c.group?.parent)scene.remove(c.group);updateHUD();tone?.(220,.06,.022,'triangle');return true;}
+function collectGroundGun73(c){if(!c||c.looted||!c.weapon73)return false;const p=c.group.position.clone(),w=c.weapon73;if(!acceptWeapon73(w,p,true))return false;c.looted=true;if(c.group?.parent)scene.remove(c.group);if(typeof ownedGunKeys!=='undefined')ownedGunKeys.add((w.rarity||'Common')+'|'+w.name);selectWeaponSlot73(weaponSlots73.indexOf(w));return true;}
+
+// Final loot wrapper: item/UI only. Existing crate/supply/NPC-drop logic runs first.
+const lootCrateBeforeHud73=lootCrate;
+lootCrate=function(c){
+  if(!c||c.looted)return;if(c.groundWeapon73){collectGroundGun73(c);return;}if(c.pickup73){collectPickup73(c);return;}
+  const before=new Set(gear),wasSupply=!!c.supply47,supplyW=c.supplyGun47||null,pos=c.group?.position?.clone?.()||player.pos.clone();
+  const out=lootCrateBeforeHud73(c);
+  const added=gear.filter(w=>w?.type==='gun'&&!before.has(w));for(const w of added){knownGear73.add(w);acceptWeapon73(w,pos,false);}
+  if(!wasSupply&&c.looted&&Math.random()<.58){const roll=Math.random(),type=roll<.34?'medkit':roll<.67?'armor':'ammo',amt=type==='medkit'?1:type==='armor'?20+((Math.random()*21)|0):22+((Math.random()*25)|0);spawnConsumable73(type,pos.x+rand(-1.1,1.1),pos.z+rand(-1.1,1.1),amt);}
+  if(wasSupply)showSupplyPanel73(supplyW||added[0]);return out;
+};
+
+// Existing pickup-banner calls become compact polished toasts.
+if(typeof showGunPickup13==='function')showGunPickup13=function(w){if(w)showToast73('WEAPON FOUND',`${w.rarity||'Common'} ${w.name}`,R73[w.rarity||'Common']?.color||'#fff',2.0);};
+
+// ---------- armor damage ----------
+if(typeof damagePlayer==='function'){
+  const damagePlayerBeforeArmor73=damagePlayer;
+  damagePlayer=function(amount,...rest){let a=Number(amount);if(Number.isFinite(a)&&a>0&&player.armor73>0){const absorb=Math.min(player.armor73,a);player.armor73-=absorb;a-=absorb;if(absorb>0){const flash=document.getElementById('damageFlash');if(flash){flash.style.background='rgba(45,130,220,.25)';setTimeout(()=>flash.style.background='rgba(180,0,0,.34)',120);}if(a<=.001){updateHUD();return;}}}return damagePlayerBeforeArmor73(Number.isFinite(a)?a:amount,...rest);};
+}
+
+// ---------- hit confirmation + kill feed ----------
+const hit73=document.createElement('div');hit73.style.cssText='position:absolute;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%);opacity:0;transition:opacity .06s';hit73.innerHTML='<span style="position:absolute;left:4px;top:5px;width:8px;height:2px;background:#fff;transform:rotate(45deg)"></span><span style="position:absolute;right:4px;top:5px;width:8px;height:2px;background:#fff;transform:rotate(-45deg)"></span><span style="position:absolute;left:4px;bottom:5px;width:8px;height:2px;background:#fff;transform:rotate(-45deg)"></span><span style="position:absolute;right:4px;bottom:5px;width:8px;height:2px;background:#fff;transform:rotate(45deg)"></span>';hud73.appendChild(hit73);let hitTimer73=0;
+function flashHit73(kill=false){clearTimeout(hitTimer73);for(const x of hit73.children)x.style.background=kill?'#ff6b66':'#fff';hit73.style.opacity='1';hitTimer73=setTimeout(()=>hit73.style.opacity='0',kill?180:95);}
+const killFeed73=document.createElement('div');killFeed73.style.cssText='position:absolute;right:14px;top:150px;width:265px;display:flex;flex-direction:column;gap:5px;align-items:flex-end';hud73.appendChild(killFeed73);
+function feed73(text,color='#fff'){const d=document.createElement('div');d.style.cssText=`max-width:265px;padding:6px 9px;border-radius:8px;background:rgba(5,8,10,.76);border-left:3px solid ${color};font:850 10px system-ui`;d.textContent=text;killFeed73.prepend(d);while(killFeed73.children.length>5)killFeed73.lastChild.remove();setTimeout(()=>{d.style.opacity='0';d.style.transition='opacity .3s';setTimeout(()=>d.remove(),320);},4200);}
+if(typeof shootGun==='function'){
+  const shootGunBeforeHud73=shootGun;
+  shootGun=function(w){const before=[];for(const n of npcs)if(n&&!n.dead)before.push([n,n.health]);const out=shootGunBeforeHud73(w);let hitAny=false,killAny=false;for(const [n,h] of before){if(n.health<h){hitAny=true;if(n.dead)killAny=true;}}if(hitAny)flashHit73(killAny);return out;};
+}
+if(typeof killNpc==='function'){
+  const killNpcBeforeFeed73=killNpc;
+  killNpc=function(n){const alive=!!(n&&!n.dead),credited=typeof playerGunKillWindow20!=='undefined'&&playerGunKillWindow20;const r=killNpcBeforeFeed73(n);if(alive&&n?.dead&&credited){const rw=n.weapon14?.rarity||'Common';feed73(`YOU ELIMINATED ${n.faction||'HOSTILE'} · ${rw} WEAPON`,R73[rw]?.color||'#ff766e');flashHit73(true);}return r;};
+}
+
+// ---------- nearby comparison card + HUD refresh ----------
+function weaponFromLoot73(c){return c?.groundWeapon73?c.weapon73:c?.npcDrop47?c.weapon47:c?.supply47?c.supplyGun47:null;}
+function compareText73(w){const cur=bestCompare73();if(!cur)return'EMPTY SLOT AVAILABLE';const d=Math.round((w.damage||0)-(cur.damage||0)),mag=(w.magSize||0)-(cur.magSize||0),rate=(cur.rate||.2)-(w.rate||.2);return `${d>=0?'+':''}${d} DMG · ${mag>=0?'+':''}${mag} MAG · ${rate>0?'+':'-'}${Math.abs(rate).toFixed(2)} FIRE SPEED`;}
+function refreshHud73(){
+  const hp=clamp(player.health||0,0,100),ar=clamp(player.armor73||0,0,100);healthBar73.style.width=hp+'%';armorBar73.style.width=ar+'%';healthNum73.textContent=Math.round(hp);armorNum73.textContent=Math.round(ar);medkitText73.textContent=`MEDKIT ×${player.medkits73|0} · H`;
+  const cur=currentGear();if(cur?.type==='gun'){const col=R73[cur.rarity||'Common']?.color||'#fff';ammoName73.textContent=`${cur.rarity||'Common'} · ${cur.name}`;ammoName73.style.color=col;ammoNums73.textContent=cur.mag;ammoReserve73.textContent=`RESERVE ${cur.reserve} · R TO RELOAD`;}else{ammoName73.textContent=cur?.name||'NO WEAPON';ammoName73.style.color='#fff';ammoNums73.textContent='—';ammoReserve73.textContent='HARVESTING TOOL';}
+  for(let i=0;i<5;i++){const w=weaponSlots73[i],el=hotSlotEls73[i],active=w&&cur===w,col=w?(R73[w.rarity||'Common']?.color||'#fff'):'#777';el.style.borderColor=active?col:'rgba(255,255,255,.14)';el.style.transform=active?'translateY(-3px)':'none';el.querySelector('.gunIcon73').textContent=w?gunIcon73(w):'EMPTY';el.querySelector('.gunIcon73').style.color=col;el.querySelector('.gunName73').textContent=w?`${w.rarity||'Common'} ${w.name}`:'EMPTY SLOT';el.querySelector('.gunAmmo73').textContent=w?`${w.mag} / ${w.reserve}`:'';}
+  const c=typeof nearbyLoot!=='undefined'?nearbyLoot:null,w=weaponFromLoot73(c);if(c&&!c.looted&&(w||c.pickup73)){compare73.style.opacity='1';if(w){const col=R73[w.rarity||'Common']?.color||'#fff';compare73.style.borderColor=col;compare73.innerHTML=`<div style="font:1000 11px system-ui;color:${col}">${(w.rarity||'Common').toUpperCase()} ${String(w.name).toUpperCase()}</div><div style="font:800 9px system-ui;margin-top:4px;opacity:.78">${compareText73(w)}</div><div style="font:1000 9px system-ui;margin-top:5px">E · PICK UP / AUTO-SWAP</div>`;}else{const col=c.pickup73==='medkit'?'#6be36b':c.pickup73==='armor'?'#62b8ff':'#ffd36a';compare73.style.borderColor=col;compare73.innerHTML=`<div style="font:1000 11px system-ui;color:${col}">${String(c.label||'PICKUP').toUpperCase()}</div><div style="font:1000 9px system-ui;margin-top:5px">E · PICK UP</div>`;}}else compare73.style.opacity='0';
+  // Catch weapons added by shops or other systems without wrapping their code.
+  for(const w of gear){if(w?.type==='gun'&&!knownGear73.has(w)){knownGear73.add(w);acceptWeapon73(w,player.pos,false);}}
+}
+setInterval(refreshHud73,100);refreshHud73();
+
+if(hud.desktop&&lootUiDesktop73)hud.desktop.textContent='WASD move · mouse aim · click shoot · R reload · 1–5 weapons · H medkit · E loot · Q tools · B build';
+
+window.__frontierZeroLootHud73={loaded:true,build:75,features:['5 weapon quick slots','1-5 weapon switching','ground weapon pickups','weapon comparison','medkits','armor','ammo boxes','rarity glow','health/armor HUD','ammo HUD','kill feed','hit confirmation','supply reward panel'],movementTouched:false,aiTouched:false,cameraTouched:false};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='LOOT + INVENTORY HUD 73 · SAFE UI LAYER';setTimeout(()=>graphicsBadge21.style.opacity='0',9000);}message('NEW LOADOUT HUD · 1–5 WEAPONS · MEDKITS · ARMOR · GROUND LOOT',5.0);
