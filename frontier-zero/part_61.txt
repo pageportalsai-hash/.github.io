@@ -1,0 +1,107 @@
+// ============================================================================
+// FRONTIER ZERO EMOTE HOTFIX 61
+// Definitive in-bundle emote control. Works in the lobby and in-match.
+// 1 = Griddy-style dance. Overrides any older part-60 trigger if present.
+// ============================================================================
+
+let activeEmote61=null,emoteStart61=0,emotePrevThird61=false;
+const EMOTE_DURATION61=8200;
+const emoteAnchor61=new THREE.Vector3();
+
+const emoteHud61=document.createElement('div');
+emoteHud61.style.cssText='position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:90;display:none;padding:8px 13px;border-radius:10px;background:rgba(7,11,14,.84);border:1px solid rgba(255,255,255,.26);color:#fff;font:900 11px system-ui;letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 2px #000';
+emoteHud61.textContent='1 · GRIDDY';document.body.appendChild(emoteHud61);
+
+function resetPose61(){
+  if(typeof playerRig35==='undefined'||!playerRig35)return;
+  const r=playerRig35;
+  for(const p of [r.lArm,r.rArm,r.lFore,r.rFore,r.lLeg,r.rLeg,r.lShin,r.rShin,r.hips,r.torso,r.head])if(p)p.rotation.set(0,0,0);
+  if(r.hips)r.hips.position.y=.84;
+}
+function restoreView61(){
+  if(typeof thirdPerson16!=='undefined')thirdPerson16=emotePrevThird61;
+  if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=emotePrevThird61;
+  if(!emotePrevThird61){
+    if(typeof updateToolVisual15==='function')updateToolVisual15();
+    else if(typeof gunHolder!=='undefined')gunHolder.visible=true;
+  }
+}
+function stopGriddy61(silent=false){
+  if(!activeEmote61)return;
+  activeEmote61=null;emoteHud61.style.display='none';resetPose61();firing=false;restoreView61();
+  if(!silent)message('EMOTE STOPPED',1.0);
+}
+function toggleGriddy61(){
+  if(activeEmote61==='griddy'){stopGriddy61();return;}
+  if(activeCar19||player.dead||(typeof matchWon24!=='undefined'&&matchWon24)){message('CAN’T EMOTE RIGHT NOW',1.1);return;}
+  if(typeof activeEmote60!=='undefined')activeEmote60=null;
+  if(typeof emoteHud60!=='undefined'&&emoteHud60)emoteHud60.style.display='none';
+  activeEmote61='griddy';emoteStart61=performance.now();emoteAnchor61.copy(player.pos);
+  emotePrevThird61=typeof thirdPerson16!=='undefined'?!!thirdPerson16:false;
+  if(typeof thirdPerson16!=='undefined')thirdPerson16=true;
+  if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=true;
+  firing=false;emoteHud61.style.display='block';
+  message('GRIDDY · PRESS 1 AGAIN TO STOP',1.5);
+}
+
+if(typeof startGriddy60==='function')startGriddy60=toggleGriddy61;
+addEventListener('keydown',e=>{
+  const one=e.code==='Digit1'||e.code==='Numpad1'||e.key==='1'||e.keyCode===49||e.which===49;
+  if(!one||e.repeat)return;
+  const tag=e.target?.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+  if(typeof startGriddy60==='function')return;
+  e.preventDefault();toggleGriddy61();
+},{capture:true});
+
+const doActionBefore61=doAction;
+doAction=function(){if(activeEmote61){firing=false;return;}return doActionBefore61();};
+
+const updatePlayerBefore61=updatePlayer;
+updatePlayer=function(dt){
+  updatePlayerBefore61(dt);
+  if(!activeEmote61)return;
+  if(activeCar19||player.dead||(typeof matchWon24!=='undefined'&&matchWon24)){stopGriddy61(true);return;}
+
+  player.pos.x=emoteAnchor61.x;player.pos.z=emoteAnchor61.z;firing=false;
+  if(typeof playerAvatar16!=='undefined'){
+    playerAvatar16.visible=true;
+    playerAvatar16.position.x=player.pos.x;playerAvatar16.position.z=player.pos.z;
+    playerAvatar16.rotation.y=player.yaw;
+  }
+  if(typeof gunHolder!=='undefined')gunHolder.visible=false;
+  if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;
+
+  const elapsed=performance.now()-emoteStart61;
+  if(elapsed>=EMOTE_DURATION61){stopGriddy61(true);return;}
+  if(typeof playerRig35==='undefined'||!playerRig35)return;
+
+  const r=playerRig35,t=elapsed*.001,beat=t*6.4;
+  const left=Math.sin(beat),right=Math.sin(beat+Math.PI),bounce=Math.abs(Math.sin(beat))*.060,sway=Math.sin(beat*.5);
+  if(r.hips){r.hips.position.y=.84+bounce;r.hips.rotation.y=sway*.13;r.hips.rotation.z=sway*.035;}
+  if(r.torso){r.torso.rotation.x=-.10+Math.abs(left)*.045;r.torso.rotation.y=sway*.15;r.torso.rotation.z=-sway*.05;}
+  if(r.head){r.head.rotation.x=.03+Math.sin(beat*.5)*.035;r.head.rotation.z=sway*.045;}
+  if(r.lLeg){r.lLeg.rotation.x=left>0?-.68:.28;r.lLeg.rotation.z=.07;}
+  if(r.rLeg){r.rLeg.rotation.x=right>0?-.68:.28;r.rLeg.rotation.z=-.07;}
+  if(r.lShin)r.lShin.rotation.x=left>0?.86:.08;
+  if(r.rShin)r.rShin.rotation.x=right>0?.86:.08;
+  if(r.lArm){r.lArm.rotation.x=-.78+right*.40;r.lArm.rotation.z=-.46-left*.14;r.lArm.rotation.y=-.12;}
+  if(r.rArm){r.rArm.rotation.x=-.78+left*.40;r.rArm.rotation.z=.46+right*.14;r.rArm.rotation.y=.12;}
+  if(r.lFore)r.lFore.rotation.x=-.98+Math.max(0,left)*.25;
+  if(r.rFore)r.rFore.rotation.x=-.98+Math.max(0,right)*.25;
+
+  if(typeof playerAvatar16!=='undefined'){
+    const av=playerAvatar16.position,target=new THREE.Vector3(av.x,av.y+1.45,av.z);
+    const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+    let desired=target.clone().addScaledVector(fwd,-4.9).add(new THREE.Vector3(0,1.65,0));
+    if(!(typeof lobbyActive17!=='undefined'&&lobbyActive17)){
+      const ray=desired.clone().sub(target),dist=ray.length();raycaster.set(target,ray.normalize());raycaster.far=dist;
+      const hits=raycaster.intersectObjects([terrain,...blockers].filter(o=>o===terrain||o.parent),true);
+      if(hits.length)desired=target.clone().addScaledVector(ray,Math.max(.8,hits[0].distance-.30));
+    }
+    camera.position.copy(desired);camera.lookAt(target.clone().add(new THREE.Vector3(0,.12,0)));
+  }
+};
+
+if(hud?.desktop)hud.desktop.textContent='MacBook: WASD move · mouse look · 1 Griddy emote · F sniper scope · E car/loot · L view · R reload · Q gear · SPACE jump';
+window.__frontierZeroEmote61={loaded:true,lobby:true,key:'1',durationMs:EMOTE_DURATION61};
+message('EMOTE HOTFIX · PRESS 1 FOR GRIDDY (WORKS IN LOBBY + MATCH)',3.8);
