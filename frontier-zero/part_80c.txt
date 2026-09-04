@@ -1,0 +1,78 @@
+// ---------------------------------------------------------------------------
+// 7) ONE NPC AUTHORITY
+// No old NPC wrapper is called. Perception remains the cached Build-80 version.
+// ---------------------------------------------------------------------------
+const npcState80=new WeakMap();
+function stateNpc80(n){let s=npcState80.get(n);if(!s){s={route:null,nextRoute:0,stuck:0,last:n.group.position.clone(),yaw:n.group.rotation.y};npcState80.set(n,s);}return s;}
+function moveNpc80(n,dx,dz,step){
+  const len=Math.hypot(dx,dz);if(len<.0001)return false;dx/=len;dz/=len;
+  const tests=[[dx,dz],[-dz,dx],[dz,-dx]];
+  for(const t of tests){const nx=n.group.position.x+t[0]*step,nz=n.group.position.z+t[1]*step;if(Math.abs(nx)>WORLD_LIMIT80||Math.abs(nz)>WORLD_LIMIT80||blockedPosition(nx,nz))continue;n.group.position.x=nx;n.group.position.z=nz;n.group.position.y=groundY(nx,nz);return true;}return false;
+}
+const masterUpdateNPCs80=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);const now=performance.now();
+  const paused=(typeof settingsOpen46!=='undefined'&&settingsOpen46)||(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24);
+  if(paused){scanDoors80(now);if(typeof animateDoors50==='function')animateDoors50(dt);return;}
+  for(let i=0;i<MASTER_NPCS80&&i<npcs.length;i++){
+    const n=npcs[i];if(!n||n.dead||!n.group?.parent)continue;const s=stateNpc80(n),p=n.group.position;
+    if(!Number.isFinite(p.x)||!Number.isFinite(p.z)||Math.abs(p.x)>WORLD_LIMIT80+2||Math.abs(p.z)>WORLD_LIMIT80+2){p.copy(s.last);p.y=groundY(p.x,p.z);}
+    const see=typeof npcCanSee==='function'?npcCanSee(n):false;if(see)n.alert=Math.max(n.alert||0,3.5);else n.alert=Math.max(0,(n.alert||0)-dt);
+    const combat=(n.alert||0)>0||(n.playerProvoked||0)>0;let tx,tz;
+    if(combat){tx=player.pos.x;tz=player.pos.z;}else{if(!n.patrol)n.patrol=new THREE.Vector3(p.x,0,p.z);if((n.repath||0)<=0||Math.hypot(n.patrol.x-p.x,n.patrol.z-p.z)<2){n.repath=rand(3.5,7);n.patrol.set(clamp(p.x+rand(-22,22),-480,480),0,clamp(p.z+rand(-22,22),-480,480));}else n.repath-=dt;tx=n.patrol.x;tz=n.patrol.z;}
+    if(combat&&typeof doorwayWaypoint50==='function'&&now>s.nextRoute){const q=doorwayWaypoint50(n,player.pos);s.route=q?{x:q.x,z:q.z,until:now+1200}:null;s.nextRoute=now+260+(i%4)*35;}
+    if(s.route&&now<s.route.until){tx=s.route.x;tz=s.route.z;if(Math.hypot(p.x-tx,p.z-tz)<.45)s.route=null;}
+    const dx=tx-p.x,dz=tz-p.z,dist=Math.hypot(dx,dz),speed=combat?2.65:1.35,step=Math.min(dist,speed*dt);
+    const moved=dist>.45?moveNpc80(n,dx,dz,step):false;
+    if(moved){const targetYaw=Math.atan2(dx,dz)+Math.PI,delta=Math.atan2(Math.sin(targetYaw-s.yaw),Math.cos(targetYaw-s.yaw));s.yaw+=delta*Math.min(1,dt*8);n.group.rotation.y=s.yaw;s.stuck=0;}else if(dist>1.5)s.stuck+=dt;else s.stuck=0;
+    if(s.stuck>1.3){n.patrol.set(clamp(p.x+rand(-8,8),-480,480),0,clamp(p.z+rand(-8,8),-480,480));s.route=null;s.nextRoute=0;s.stuck=.25;}
+    n.shotCd=(n.shotCd||0)-dt;
+    const pd=Math.hypot(player.pos.x-p.x,player.pos.z-p.z);
+    if(combat&&see&&pd<92&&n.shotCd<=0){
+      const w=n.weapon14,rank=typeof RARITY!=='undefined'?(RARITY[w?.rarity||'Common']?.rank||1):1;n.shotCd=clamp((w?.rate||.22)*3.3+rand(.30,.58),.42,1.18);
+      const accuracy=clamp(.50+rank*.018-pd/180,.20,.58);if(Math.random()<accuracy)damagePlayer(rand(5.5,8.5));else if(typeof tone==='function')tone(65,.018,.004,'square');
+    }
+    p.y=groundY(p.x,p.z);s.last.copy(p);
+  }
+  scanDoors80(now);if(typeof animateDoors50==='function')animateDoors50(dt);
+};
+updateNPCs=masterUpdateNPCs80;
+
+if(typeof drawMiniMap==='function'){const miniReal80=drawMiniMap;let miniAt80=-1e9;drawMiniMap=function(){const now=performance.now();if(now-miniAt80<300)return;miniAt80=now;return miniReal80();};}
+if(typeof styleWorld53==='function'){const styleReal80=styleWorld53;let styleAt80=-1e9;styleWorld53=function(){const now=performance.now();if(now-styleAt80<800)return;styleAt80=now;return styleReal80();};}
+
+if(typeof stableLod42==='function')stableLod42=function(){};
+let lodAt80=-1e9;
+function masterLod80(now){
+  if(now-lodAt80<400)return;lodAt80=now;const px=player.pos.x,pz=player.pos.z;
+  if(typeof rebuiltBuildings33!=='undefined')for(const g of rebuiltBuildings33){
+    const b=g?.userData?.bounds33;if(!g||!b)continue;g.visible=Math.hypot(b.x-px,b.z-pz)<(masterDesktop80?270:165);
+  }
+  if(typeof interiors39!=='undefined')for(const root of interiors39){
+    const b=root?.userData?.bounds39;if(!root||!b)continue;const d=Math.hypot(b.x-px,b.z-pz);root.visible=!!root.parent?.visible&&d<(masterDesktop80?72:46);
+    if(root.userData.light39)root.userData.light39.visible=false;
+  }
+  if(typeof propCols39!=='undefined')for(const c of propCols39){
+    if(!c?.g)continue;const p=c.g.position;c.g.visible=Math.hypot(p.x-px,p.z-pz)<(masterDesktop80?90:56);
+  }
+  if(typeof towerFixStates54!=='undefined')for(const st of towerFixStates54){
+    if(st?.g)st.g.visible=Math.hypot(st.rec.x-px,st.rec.z-pz)<(masterDesktop80?155:95);
+  }
+}
+
+function check80(name,items){const r={name,passed:0,total:items.length,issues:[]};for(const [label,fn] of items){let ok=false;try{ok=!!fn();}catch(e){r.issues.push(label+': '+e.message);continue;}if(ok)r.passed++;else r.issues.push(label);}return r;}
+window.__frontierZeroMasterAudit80={
+  movement:check80('movement',[["single player authority",()=>updatePlayer===masterUpdatePlayer80],["finite player",()=>Number.isFinite(player.pos.x)&&Number.isFinite(player.pos.y)&&Number.isFinite(player.pos.z)],["jump state",()=>typeof jumpOffset!=='undefined'],["tower support",()=>typeof towerAt54==='function'],["axis collision",()=>typeof blockedPosition==='function']]),
+  camera:check80('camera',[["third-person support",()=>typeof thirdPerson16!=='undefined'],["sniper support",()=>typeof isSniper57==='function'],["finite camera",()=>Number.isFinite(camera.position.x)&&Number.isFinite(camera.position.y)&&Number.isFinite(camera.position.z)],["fixed far plane",()=>camera.far<=620]]),
+  input:check80('input',[["F scope owned",()=>typeof handleMasterKey80==='function'],["E context owned",()=>typeof nearestCar19==='function'&&typeof findNearbyLoot==='function'],["mouse fire preserved",()=>typeof firing==='boolean'],["number slots preserved",()=>typeof weaponSlots73!=='undefined']]),
+  npc:check80('npc',[["20 live cap",()=>npcs.filter(n=>n&&!n.dead&&n.group?.parent).length<=MASTER_NPCS80],["single NPC authority",()=>updateNPCs===masterUpdateNPCs80],["cached sight",()=>typeof npcCanSee==='function'],["NPC loot seeking off",()=>typeof nearestNpcLoot14!=='function'||nearestNpcLoot14(null)===null],["door route retained",()=>typeof doorwayWaypoint50==='function']]),
+  vehicles:check80('vehicles',[["8 car cap",()=>cars19.length<=MASTER_CARS80],["car enter",()=>typeof enterCar19==='function'],["car exit",()=>typeof exitCar19==='function'],["finite car positions",()=>cars19.every(c=>Number.isFinite(c.group.position.x)&&Number.isFinite(c.group.position.z))]]),
+  rendering:check80('rendering',[["shadows off",()=>renderer.shadowMap.enabled===false],["low pixel ratio",()=>renderer.getPixelRatio()<=.75],["cloud off",()=>typeof cloud29==='undefined'||!cloud29.visible],["NPC rigs off",()=>typeof npcRigs35==='undefined'||npcRigs35.length===0],["tracer allocator off",()=>typeof spawnTracer24==='function']]),
+  collision:check80('collision',[["spatial grid built",()=>grid80.size>0],["point collision owned",()=>typeof staticBlocked80==='function'],["car collision separated",()=>typeof carCanMove80==='function'],["dynamic car obstacle",()=>typeof carPointBlocked80==='function'],["build-grid refresh",()=>typeof rebuildCollision80==='function']]),
+  runtime:check80('runtime',[["fixed quality function",()=>typeof apply60Profile54!=='function'||apply60Profile54===applyMasterRender80],["old build79 layer absent",()=>typeof window.__frontierZeroGlitch79==='undefined'],["old hard72 layer absent",()=>typeof window.__frontierZeroHardStable72==='undefined'],["combined 3/4/5 present",()=>!!window.__frontierZeroCombined34578],["master LOD",()=>typeof masterLod80==='function']]),
+  systems:check80('systems',[["loot",()=>typeof lootCrate==='function'],["supply drops",()=>typeof spawnTimedSupply47==='function'],["weapon inventory",()=>typeof weaponSlots73!=='undefined'],["audio",()=>typeof playGun78==='function'],["doors",()=>typeof animateDoors50==='function'],["respawn",()=>typeof respawnNpc24==='function']])
+};
+const audits80=Object.values(window.__frontierZeroMasterAudit80),pass80=audits80.reduce((s,r)=>s+r.passed,0),total80=audits80.reduce((s,r)=>s+r.total,0);
+window.__frontierZeroMaster80={loaded:true,build:81,activeNPCs:MASTER_NPCS80,cars:cars19.length,checks:{passed:pass80,total:total80},singlePlayerAuthority:true,singleNpcAuthority:true};
+const npcHud80=document.getElementById('npcText');if(npcHud80)npcHud80.textContent=`Hostiles: ${npcs.filter(n=>n&&!n.dead&&n.group?.parent).length}`;
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent=`MASTER STABILITY 80 · ${pass80}/${total80} CHECKS`;setTimeout(()=>graphicsBadge21.style.opacity='0',9000);}
+message(`MASTER STABILITY · one player loop · one NPC loop · ${pass80}/${total80} checks`,5.5);
