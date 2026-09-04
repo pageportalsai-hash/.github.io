@@ -1,0 +1,83 @@
+// ============================================================================
+// FRONTIER ZERO GLITCH REDUCTION 79 — FINAL BUILD 80 AUTHORITY
+// Runs after combined 3+4+5. Focus: frame-time, NPC jitter, camera spikes.
+// One final movement guard only; no new gameplay system.
+// ============================================================================
+const glitchDesktop79=matchMedia('(pointer:fine)').matches;
+const ACTIVE_NPCS79=20,ACTIVE_CARS79=8;
+
+// 1) Reduce simultaneous simulation/render load further while keeping respawns.
+for(let i=ACTIVE_NPCS79;i<npcs.length;i++){
+  const n=npcs[i];if(!n)continue;n.dead=true;n.health=0;n.alert=0;n.playerProvoked=0;n.npcEnemy=null;n.lootTarget14=null;
+  if(n.group){n.group.visible=false;if(n.group.parent)n.group.parent.remove(n.group);}
+  for(const m of n.hitMeshes||[])for(let j=npcHitMeshes.length-1;j>=0;j--)if(npcHitMeshes[j]===m)npcHitMeshes.splice(j,1);
+}
+while(typeof cars19!=='undefined'&&cars19.length>ACTIVE_CARS79){const c=cars19.pop();if(!c)continue;if(c.proxy39)for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===c.proxy39)blockers.splice(i,1);if(c.group?.parent)c.group.parent.remove(c.group);}
+
+// NPC crate-seeking created needless route changes. Player loot remains unchanged.
+if(typeof nearestNpcLoot14==='function')nearestNpcLoot14=function(){return null;};
+for(const n of npcs){if(!n)continue;if(n.lootTarget14?.npcReserved14===n)n.lootTarget14.npcReserved14=null;n.lootTarget14=null;n.lootThink14=999999;}
+
+// 2) Use cheap fallback NPC bodies only. This removes articulated NPC animation work.
+let disabledNpcRigs79=0;
+if(typeof npcRigs35!=='undefined'){
+  for(const r of npcRigs35){if(!r)continue;if(r.rig)r.rig.visible=false;for(const o of r.legacy||[])if(o)o.visible=true;disabledNpcRigs79++;}
+  npcRigs35.length=0;
+}
+
+// 3) Hard render budget: no shadows, fewer atmospheric/decorative objects.
+renderer.setPixelRatio(Math.min(devicePixelRatio,glitchDesktop79?.78:.66));renderer.shadowMap.enabled=false;
+if(typeof sun!=='undefined')sun.castShadow=false;
+if(typeof detail24!=='undefined'&&detail24)detail24.count=Math.min(detail24.count,36);
+if(typeof roughClods55!=='undefined'&&roughClods55)roughClods55.count=0;
+if(typeof gravel55!=='undefined'&&gravel55)gravel55.count=0;
+if(typeof grass!=='undefined'&&grass?.isInstancedMesh)grass.count=Math.min(grass.count,65);
+if(typeof reeds!=='undefined'&&reeds?.isInstancedMesh)reeds.count=Math.min(reeds.count,28);
+if(typeof cloud29!=='undefined'&&cloud29)cloud29.visible=false;
+if(typeof atmosphere39!=='undefined'&&atmosphere39)atmosphere39.visible=false;
+if(typeof mist39!=='undefined')for(const m of mist39)if(m)m.visible=false;
+scene.traverse(o=>{if(o?.isPointLight&&o!==(typeof muzzleLight!=='undefined'?muzzleLight:null))o.visible=false;if(o?.isMesh)o.castShadow=false;});
+if(typeof camera!=='undefined'){camera.far=Math.min(camera.far||900,650);camera.updateProjectionMatrix();}
+
+// Minimap at 4Hz is enough for navigation and removes canvas work from most frames.
+if(typeof drawMiniMap==='function'){
+  const miniReal79=drawMiniMap;let miniAt79=-1e9;
+  drawMiniMap=function(){const now=performance.now();if(now-miniAt79<250)return;miniAt79=now;return miniReal79();};
+}
+
+// 4) One final NPC post-step guard: prevent multi-system one-frame jumps/jitter.
+const npcBase79=updateNPCs;const npcPrev79=Array.from({length:ACTIVE_NPCS79},()=>new THREE.Vector3());
+updateNPCs=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);
+  for(let i=0;i<ACTIVE_NPCS79&&i<npcs.length;i++){const n=npcs[i];if(n?.group&&!n.dead)npcPrev79[i].copy(n.group.position);}
+  const out=npcBase79(dt);
+  const maxMove=4.6*dt+.065;
+  for(let i=0;i<ACTIVE_NPCS79&&i<npcs.length;i++){
+    const n=npcs[i];if(!n?.group||n.dead)continue;const p=n.group.position,b=npcPrev79[i],dx=p.x-b.x,dz=p.z-b.z,d=Math.hypot(dx,dz);
+    if(!Number.isFinite(p.x)||!Number.isFinite(p.y)||!Number.isFinite(p.z)){p.copy(b);p.y=groundY(p.x,p.z);continue;}
+    if(d>maxMove&&d<3){const k=maxMove/d;p.x=b.x+dx*k;p.z=b.z+dz*k;p.y=groundY(p.x,p.z);}
+    if(n.phaseBRec35){n.phaseBRec35.rig.visible=false;for(const o of n.phaseBRec35.legacy||[])if(o)o.visible=true;}
+  }
+  return out;
+};
+
+// 5) Player/camera spike guard. Valid ordinary movement is untouched.
+const playerBase79=updatePlayer;const playerPrev79=new THREE.Vector3(),camPrev79=new THREE.Vector3();let modePrev79='';
+updatePlayer=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);playerPrev79.copy(player.pos);camPrev79.copy(camera.position);
+  const modeBefore=activeCar19?'car':((typeof thirdPerson16!=='undefined'&&thirdPerson16)?'third':'first');const out=playerBase79(dt);
+  const modeAfter=activeCar19?'car':((typeof thirdPerson16!=='undefined'&&thirdPerson16)?'third':'first');
+  if(!activeCar19&&!player.dead&&!(typeof lobbyActive17!=='undefined'&&lobbyActive17)){
+    const d=Math.hypot(player.pos.x-playerPrev79.x,player.pos.z-playerPrev79.z);
+    if(d>1.15&&d<12){player.pos.x=playerPrev79.x;player.pos.z=playerPrev79.z;const tower=typeof activeTower54!=='undefined'?activeTower54:null;if(!tower)player.pos.y=groundY(player.pos.x,player.pos.z)+player.height+(typeof jumpOffset!=='undefined'?jumpOffset:0);}
+  }
+  const pMove=Math.hypot(player.pos.x-playerPrev79.x,player.pos.z-playerPrev79.z),cMove=camera.position.distanceTo(camPrev79),modeChanged=modeBefore!==modeAfter||modePrev79!==modeAfter;
+  if(!modeChanged&&!activeCar19&&pMove<1.2&&cMove>7.5)camera.position.copy(camPrev79);
+  if(!Number.isFinite(camera.position.x)||!Number.isFinite(camera.position.y)||!Number.isFinite(camera.position.z))camera.position.copy(player.pos);
+  modePrev79=modeAfter;return out;
+};
+
+const npcHud79=document.getElementById('npcText');if(npcHud79)npcHud79.textContent=`Hostiles: ${npcs.filter(n=>n&&!n.dead).length}`;
+window.__frontierZeroGlitch79={loaded:true,build:80,activeNPCs:ACTIVE_NPCS79,cars:typeof cars19!=='undefined'?cars19.length:null,disabledNpcRigs:disabledNpcRigs79,pixelRatio:renderer.getPixelRatio(),features:['20 live NPCs','8 cars','NPC loot seeking off','fallback NPC bodies','4Hz minimap','no shadows','NPC jump clamp','player/camera spike guard']};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='BUILD 80 · GLITCH REDUCTION FINAL';setTimeout(()=>graphicsBadge21.style.opacity='0',8000);}
+message('BUILD 80 · combined 3/4/5 + hard glitch reduction',5.0);
