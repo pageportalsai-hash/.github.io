@@ -1,0 +1,70 @@
+// FRONTIER ZERO STABILITY 69A — fast interior collision, cached auto doors, emote foot reset
+const stabilityDesktop69=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// 1. INTERIOR COLLISION: keep the exact furniture collision from Part 68, but
+//    stop scanning every piece of furniture for every movement probe.
+// ---------------------------------------------------------------------------
+const interiorColsByRec69=new Map();
+for(const c of interiorCols68){let a=interiorColsByRec69.get(c.rec);if(!a){a=[];interiorColsByRec69.set(c.rec,a);}a.push(c);}
+const INTERIOR_CELL69=42,interiorGrid69=new Map();
+function interiorKey69(x,z){return Math.floor(x/INTERIOR_CELL69)+','+Math.floor(z/INTERIOR_CELL69);}
+function addInteriorGrid69(rec){
+  const r=Math.max(rec.w||8,rec.d||8)*.72+2.2,minX=Math.floor((rec.x-r)/INTERIOR_CELL69),maxX=Math.floor((rec.x+r)/INTERIOR_CELL69),minZ=Math.floor((rec.z-r)/INTERIOR_CELL69),maxZ=Math.floor((rec.z+r)/INTERIOR_CELL69);
+  for(let gx=minX;gx<=maxX;gx++)for(let gz=minZ;gz<=maxZ;gz++){const k=gx+','+gz;let a=interiorGrid69.get(k);if(!a){a=[];interiorGrid69.set(k,a);}a.push(rec);}
+}
+for(const rec of interiorRecords68)addInteriorGrid69(rec);
+function interiorAtFast69(pos,expand=0){
+  const a=interiorGrid69.get(interiorKey69(pos.x,pos.z));if(!a)return null;
+  for(const rec of a)if(rec?.g?.parent&&insideBuilding50(rec,pos.x,pos.z,-expand))return rec;
+  return null;
+}
+if(typeof interiorAt68==='function')interiorAt68=function(pos){return interiorAtFast69(pos,0);};
+
+if(typeof blockedBeforeInterior68==='function'){
+  blockedPosition=function(x,z){
+    if(!Number.isFinite(x)||!Number.isFinite(z))return true;
+    if(blockedBeforeInterior68(x,z))return true;
+    const rec=interiorAtFast69({x,z},.48);if(!rec)return false;
+    const cols=interiorColsByRec69.get(rec)||[],p=localXZ50(rec,x,z);
+    for(const c of cols){
+      if(c.owner?.userData?.break39?.broken)continue;
+      if(Math.abs(p.x-c.lx)<c.w/2+.24&&Math.abs(p.z-c.lz)<c.d/2+.24)return true;
+    }
+    return false;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 2. AUTOMATIC DOORS: cache proximity at 10 Hz and hold the open state briefly.
+//    This removes 60-Hz door/NPC scans and prevents rapid open/close flicker.
+// ---------------------------------------------------------------------------
+const doorState69=new WeakMap();
+let doorRefreshAt69=-1e9;
+function refreshDoors69(force=false){
+  const now=performance.now();if(!force&&now-doorRefreshAt69<95)return;doorRefreshAt69=now;
+  for(const rec of buildingNav50){
+    if(!rec?.doorParts?.length)continue;let near=Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<3.25;
+    if(!near){for(const n of npcs){if(n&&!n.dead&&Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<3.45){near=true;break;}}}
+    let s=doorState69.get(rec);if(!s){s={open:false,until:0};doorState69.set(rec,s);}if(near)s.until=now+900;s.open=near||now<s.until;
+  }
+}
+refreshDoors69(true);
+if(typeof doorShouldOpen50==='function')doorShouldOpen50=function(rec){return doorState69.get(rec)?.open||false;};
+const updateNPCsBeforeDoorCache69=updateNPCs;
+updateNPCs=function(dt){refreshDoors69(false);return updateNPCsBeforeDoorCache69(dt);};
+
+// ---------------------------------------------------------------------------
+// 3. GRIDDY CLEANUP: restore boot rotations after the emote so feet cannot stay
+//    twisted on the final animation frame.
+// ---------------------------------------------------------------------------
+const griddyLBootBase69=(typeof griddyLBoot62!=='undefined'&&griddyLBoot62)?griddyLBoot62.rotation.clone():null;
+const griddyRBootBase69=(typeof griddyRBoot62!=='undefined'&&griddyRBoot62)?griddyRBoot62.rotation.clone():null;
+const updatePlayerBeforeFootReset69=updatePlayer;
+updatePlayer=function(dt){
+  const out=updatePlayerBeforeFootReset69(dt),active=(typeof activeEmote61!=='undefined'&&activeEmote61==='griddy');
+  if(!active){const f=1-Math.exp(-dt*16);if(griddyLBootBase69&&griddyLBoot62){griddyLBoot62.rotation.x=THREE.MathUtils.lerp(griddyLBoot62.rotation.x,griddyLBootBase69.x,f);griddyLBoot62.rotation.y=THREE.MathUtils.lerp(griddyLBoot62.rotation.y,griddyLBootBase69.y,f);griddyLBoot62.rotation.z=THREE.MathUtils.lerp(griddyLBoot62.rotation.z,griddyLBootBase69.z,f);}if(griddyRBootBase69&&griddyRBoot62){griddyRBoot62.rotation.x=THREE.MathUtils.lerp(griddyRBoot62.rotation.x,griddyRBootBase69.x,f);griddyRBoot62.rotation.y=THREE.MathUtils.lerp(griddyRBoot62.rotation.y,griddyRBootBase69.y,f);griddyRBoot62.rotation.z=THREE.MathUtils.lerp(griddyRBoot62.rotation.z,griddyRBootBase69.z,f);}}
+  return out;
+};
+
+window.__frontierZeroStability69A={loaded:true,fastInteriorCollision:true,cachedDoors:true,doorHoldMs:900,griddyFootReset:true};
