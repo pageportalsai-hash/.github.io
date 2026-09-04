@@ -1,0 +1,109 @@
+// FRONTIER ZERO STABLE CORE 70 — simplify the runtime instead of stacking more wrappers
+const stableDesktop70=matchMedia('(pointer:fine)').matches;
+
+// 1) Restore the cleaner pre-movement-overhaul player loop and pre-tactical NPC loop.
+// This keeps the established world/door/stair systems, Griddy and combat, while removing
+// the later layers that were all correcting position/camera/AI in the same frame.
+if(typeof updatePlayerBeforeMotion66==='function') updatePlayer=updatePlayerBeforeMotion66;
+if(typeof updateNPCsBeforeTactical64==='function') updateNPCs=updateNPCsBeforeTactical64;
+
+// 2) Restore the proven collision function from immediately before the new furniture layer.
+// Furniture remains visible, but it cannot create giant/overlapping invisible collision zones.
+if(typeof blockedBeforeInterior68==='function') blockedPosition=blockedBeforeInterior68;
+const furnitureMeshes70=[
+  typeof interiorDesk68!=='undefined'?interiorDesk68:null,
+  typeof interiorCounter68!=='undefined'?interiorCounter68:null,
+  typeof interiorShelf68!=='undefined'?interiorShelf68:null,
+  typeof interiorBed68!=='undefined'?interiorBed68:null,
+  typeof interiorLocker68!=='undefined'?interiorLocker68:null,
+  typeof interiorCrate68!=='undefined'?interiorCrate68:null,
+  typeof interiorCabinet68!=='undefined'?interiorCabinet68:null,
+  typeof interiorBench68!=='undefined'?interiorBench68:null
+].filter(Boolean);
+for(const m of furnitureMeshes70){
+  for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===m)blockers.splice(i,1);
+  m.castShadow=false;m.receiveShadow=true;
+}
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();
+
+// 3) Very cheap automatic doors. Scan proximity 8 times/second, animate using the old
+// door system every frame, and hold open long enough to eliminate flicker at thresholds.
+const stableDoor70=new WeakMap();
+function refreshStableDoors70(){
+  const now=performance.now();
+  for(const rec of buildingNav50){
+    if(!rec?.doorParts?.length)continue;
+    let near=Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<3.35;
+    if(!near){
+      for(const n of npcs){
+        if(!n||n.dead)continue;
+        if(Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<3.55){near=true;break;}
+      }
+    }
+    let s=stableDoor70.get(rec);if(!s){s={open:false,until:0};stableDoor70.set(rec,s);}
+    if(near)s.until=now+1100;
+    s.open=near||now<s.until;
+  }
+}
+refreshStableDoors70();
+setInterval(refreshStableDoors70,125);
+if(typeof doorShouldOpen50==='function')doorShouldOpen50=function(rec){return stableDoor70.get(rec)?.open||false;};
+
+// 4) Cut visual load without making the world empty.
+if(typeof grassDetail67!=='undefined'&&grassDetail67)grassDetail67.count=Math.min(grassDetail67.count,stableDesktop70?320:140);
+if(typeof shrubDetail67!=='undefined'&&shrubDetail67)shrubDetail67.count=Math.min(shrubDetail67.count,stableDesktop70?70:30);
+if(typeof pebbleDetail67!=='undefined'&&pebbleDetail67)pebbleDetail67.count=Math.min(pebbleDetail67.count,stableDesktop70?120:45);
+if(typeof distantHills67!=='undefined'&&distantHills67)distantHills67.count=Math.min(distantHills67.count,10);
+for(const l of (typeof pooledStreetLights67!=='undefined'?pooledStreetLights67:[]))l.visible=false;
+for(const l of (typeof indoorLights68!=='undefined'?indoorLights68:[]))l.visible=false;
+
+renderer.setPixelRatio(Math.min(devicePixelRatio,stableDesktop70?1.15:1.0));
+renderer.shadowMap.type=THREE.PCFShadowMap;
+
+// 5) High-detail people only when they are actually close. Keep all 70 NPCs active,
+// but stop rendering the expensive articulated version across large distances.
+if(typeof setNpcRigLod43==='function'){
+  setNpcRigLod43=function(rec,dist){
+    if(!rec||!rec.rig)return;
+    const onD=stableDesktop70?52:28,offD=stableDesktop70?68:40;
+    let near=npcLodState43.has(rec.rig)?npcLodState43.get(rec.rig):dist<onD;
+    if(near&&dist>offD)near=false;else if(!near&&dist<onD)near=true;
+    npcLodState43.set(rec.rig,near);rec.rig.visible=near;
+    for(const o of rec.legacy||[])if(o&&o!==rec.rig)o.visible=!near;
+  };
+}
+for(const n of npcs){
+  if(!n?.group)continue;
+  n.group.traverse(o=>{if(o?.isMesh)o.castShadow=false;});
+}
+
+// 6) Reset state left by disabled newer movement/camera wrappers.
+if(typeof crouchToggle66!=='undefined')crouchToggle66=false;
+if(typeof crouching66!=='undefined')crouching66=false;
+if(typeof sprinting66!=='undefined')sprinting66=false;
+if(typeof moveVel66!=='undefined')moveVel66.set(0,0,0);
+player.height=1.72;
+
+// Keep Griddy feet normal after emote even though the later anti-glitch wrapper is bypassed.
+const stableLBoot70=(typeof griddyLBoot62!=='undefined'&&griddyLBoot62)?griddyLBoot62.rotation.clone():null;
+const stableRBoot70=(typeof griddyRBoot62!=='undefined'&&griddyRBoot62)?griddyRBoot62.rotation.clone():null;
+const stablePlayerCore70=updatePlayer;
+updatePlayer=function(dt){
+  const out=stablePlayerCore70(clamp(Number.isFinite(dt)?dt:.016,.001,.033));
+  const active=typeof activeEmote61!=='undefined'&&activeEmote61==='griddy';
+  if(!active){
+    const f=1-Math.exp(-dt*14);
+    if(stableLBoot70&&griddyLBoot62){griddyLBoot62.rotation.x=THREE.MathUtils.lerp(griddyLBoot62.rotation.x,stableLBoot70.x,f);griddyLBoot62.rotation.y=THREE.MathUtils.lerp(griddyLBoot62.rotation.y,stableLBoot70.y,f);griddyLBoot62.rotation.z=THREE.MathUtils.lerp(griddyLBoot62.rotation.z,stableLBoot70.z,f);}
+    if(stableRBoot70&&griddyRBoot62){griddyRBoot62.rotation.x=THREE.MathUtils.lerp(griddyRBoot62.rotation.x,stableRBoot70.x,f);griddyRBoot62.rotation.y=THREE.MathUtils.lerp(griddyRBoot62.rotation.y,stableRBoot70.y,f);griddyRBoot62.rotation.z=THREE.MathUtils.lerp(griddyRBoot62.rotation.z,stableRBoot70.z,f);}
+  }
+  return out;
+};
+
+window.__frontierZeroStable70={
+  loaded:true,build:72,
+  mode:'simplified-runtime',
+  removedRuntime:['smooth-movement wrapper stack','tactical steering layer','indoor combat steering','dynamic street/indoor light updates','furniture collision layer','later camera correction stack'],
+  kept:['70 NPCs','combat/headshots','cars','Griddy','automatic doors','visible furnished interiors','world detail','snipers','supply drops']
+};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='STABLE CORE 70 · SIMPLIFIED RUNTIME';setTimeout(()=>graphicsBadge21.style.opacity='0',9000);}
+message('STABLE CORE LIVE · fewer systems fighting each other · lower render load',5.5);
