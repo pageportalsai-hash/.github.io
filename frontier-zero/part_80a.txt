@@ -1,0 +1,164 @@
+// ============================================================================
+// FRONTIER ZERO MASTER RUNTIME 80 — BUILD 81
+// Single player authority + single NPC authority + input de-conflict + fixed
+// render budget. Replaces the old wrapper stack at runtime without removing
+// world/content systems that provide towns, loot, towers, cars and weapons.
+// ============================================================================
+const masterDesktop80=matchMedia('(pointer:fine)').matches;
+const MASTER_NPCS80=20,MASTER_CARS80=8,WORLD_LIMIT80=493;
+
+// ---------------------------------------------------------------------------
+// 1) HARD RENDER BUDGET — idempotent so the old 60-fps monitor cannot bounce
+//    the resolution/shadows back up every few seconds.
+// ---------------------------------------------------------------------------
+function applyMasterRender80(){
+  const ratio=Math.min(devicePixelRatio,masterDesktop80?.74:.64);
+  if(Math.abs(renderer.getPixelRatio()-ratio)>.015){renderer.setPixelRatio(ratio);renderer.setSize(innerWidth,innerHeight,false);}
+  renderer.shadowMap.enabled=false;
+  if(typeof sun!=='undefined'){sun.castShadow=false;sun.shadow.autoUpdate=false;}
+  if(typeof cloud29!=='undefined'&&cloud29)cloud29.visible=false;
+  if(typeof atmosphere39!=='undefined'&&atmosphere39)atmosphere39.visible=false;
+  if(typeof mist39!=='undefined')for(const m of mist39)if(m)m.visible=false;
+  if(typeof detail24!=='undefined'&&detail24)detail24.count=Math.min(detail24.count,28);
+  if(typeof roughClods55!=='undefined'&&roughClods55)roughClods55.count=0;
+  if(typeof gravel55!=='undefined'&&gravel55)gravel55.count=0;
+  if(typeof grass!=='undefined'&&grass?.isInstancedMesh)grass.count=Math.min(grass.count,52);
+  if(typeof reeds!=='undefined'&&reeds?.isInstancedMesh)reeds.count=Math.min(reeds.count,20);
+  camera.far=Math.min(camera.far||650,620);camera.updateProjectionMatrix();
+}
+if(typeof apply60Profile54==='function')apply60Profile54=applyMasterRender80;
+if(typeof applyRenderTier31==='function')applyRenderTier31=function(){applyMasterRender80();};
+if(typeof applyClarityQuality48==='function')applyClarityQuality48=function(){applyMasterRender80();};
+if(typeof perfMode54!=='undefined')perfMode54=2;
+applyMasterRender80();
+scene.traverse(o=>{if(o?.isMesh)o.castShadow=false;if(o?.isPointLight&&o!==(typeof muzzleLight!=='undefined'?muzzleLight:null))o.visible=false;});
+if(typeof pPts39!=='undefined'&&pPts39)pPts39.visible=false;if(typeof decals39!=='undefined')for(const d of decals39)if(d)d.visible=false;
+
+if(typeof spawnTracer24==='function')spawnTracer24=function(){};
+
+for(let i=MASTER_NPCS80;i<npcs.length;i++){
+  const n=npcs[i];if(!n)continue;n.dead=true;n.health=0;n.alert=0;n.playerProvoked=0;n.npcEnemy=null;n.lootTarget14=null;
+  if(n.group){n.group.visible=false;if(n.group.parent)n.group.parent.remove(n.group);}
+  for(const m of n.hitMeshes||[])for(let j=npcHitMeshes.length-1;j>=0;j--)if(npcHitMeshes[j]===m)npcHitMeshes.splice(j,1);
+}
+while(typeof cars19!=='undefined'&&cars19.length>MASTER_CARS80){
+  const c=cars19.pop();if(!c)continue;
+  if(c.proxy39)for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===c.proxy39)blockers.splice(i,1);
+  if(c.group?.parent)c.group.parent.remove(c.group);
+}
+for(const c of cars19){
+  if(!c)continue;
+  const normal=c.tier24?.ms||c.baseMaxSpeed57||c.maxSpeed||18;
+  c.maxSpeed=normal;c.baseMaxSpeed57=normal;
+  if(Math.abs(c.speed||0)>normal)c.speed=Math.sign(c.speed||1)*normal;
+}
+if(typeof nearestNpcLoot14==='function')nearestNpcLoot14=function(){return null;};
+for(const n of npcs){if(!n)continue;if(n.lootTarget14?.npcReserved14===n)n.lootTarget14.npcReserved14=null;n.lootTarget14=null;n.lootThink14=999999;n.npcEnemy=null;}
+if(typeof npcRigs35!=='undefined'){
+  for(const r of npcRigs35){if(!r)continue;if(r.rig)r.rig.visible=false;for(const o of r.legacy||[])if(o)o.visible=true;}
+  npcRigs35.length=0;
+}
+if(typeof playerRig35!=='undefined'&&playerRig35?.rig)playerRig35.rig.visible=false;
+
+const CELL80=26,grid80=new Map(),gridObjects80=new Set();
+function visible80(o){let p=o;while(p){if(p.visible===false)return false;p=p.parent;}return true;}
+function broken80(o){return !!(o?.userData?.break39?.broken);}
+function carAncestor80(o){let p=o;for(let i=0;i<7&&p;i++,p=p.parent)if(p.userData?.car19||p.userData?.carProxy39)return true;return false;}
+function cell80(x,z){return Math.floor(x/CELL80)+','+Math.floor(z/CELL80);}
+function addCell80(item,minX,maxX,minZ,maxZ){
+  const ax=Math.floor(minX/CELL80),bx=Math.floor(maxX/CELL80),az=Math.floor(minZ/CELL80),bz=Math.floor(maxZ/CELL80);
+  for(let gx=ax;gx<=bx;gx++)for(let gz=az;gz<=bz;gz++){const k=gx+','+gz;let a=grid80.get(k);if(!a){a=[];grid80.set(k,a);}a.push(item);}
+}
+function rebuildCollision80(){
+  grid80.clear();gridObjects80.clear();
+  if(typeof colliders!=='undefined')for(const c of colliders){
+    if(!c?.obj?.parent||gridObjects80.has(c.obj)||carAncestor80(c.obj))continue;gridObjects80.add(c.obj);
+    const p=new THREE.Vector3();c.obj.getWorldPosition(p),r=Math.max(.1,c.radius||0)+.46;
+    addCell80({kind:'circle',obj:c.obj,x:p.x,z:p.z,r},p.x-r,p.x+r,p.z-r,p.z+r);
+  }
+  if(typeof playerStructures!=='undefined')for(const o of playerStructures){
+    if(!o?.parent||gridObjects80.has(o)||carAncestor80(o))continue;gridObjects80.add(o);
+    o.updateWorldMatrix(true,false);const b=new THREE.Box3().setFromObject(o);if(!Number.isFinite(b.min.x)||!Number.isFinite(b.max.x))continue;
+    const pad=.38,minX=b.min.x-pad,maxX=b.max.x+pad,minZ=b.min.z-pad,maxZ=b.max.z+pad;
+    addCell80({kind:'box',obj:o,minX,maxX,minZ,maxZ},minX,maxX,minZ,maxZ);
+  }
+  if(typeof buildingCollision33!=='undefined')for(const r of buildingCollision33){
+    const pad=.43,minX=r.x-r.w/2-pad,maxX=r.x+r.w/2+pad,minZ=r.z-r.d/2-pad,maxZ=r.z+r.d/2+pad;
+    addCell80({kind:'rect',obj:r.building50?.g||null,minX,maxX,minZ,maxZ},minX,maxX,minZ,maxZ);
+  }
+  if(typeof interiorCols39!=='undefined')for(const c of interiorCols39){
+    if(!c?.root)continue;const pad=.14,minX=c.x-c.w/2-pad,maxX=c.x+c.w/2+pad,minZ=c.z-c.d/2-pad,maxZ=c.z+c.d/2+pad;
+    addCell80({kind:'interior',obj:c.root,owner:c.owner,minX,maxX,minZ,maxZ},minX,maxX,minZ,maxZ);
+  }
+  if(typeof propCols39!=='undefined')for(const c of propCols39){
+    if(!c?.g)continue;const p=c.g.position,pad=.16,minX=p.x-c.w/2-pad,maxX=p.x+c.w/2+pad,minZ=p.z-c.d/2-pad,maxZ=p.z+c.d/2+pad;
+    addCell80({kind:'prop',obj:c.g,owner:c.owner40,minX,maxX,minZ,maxZ},minX,maxX,minZ,maxZ);
+  }
+}
+function staticBlocked80(x,z){
+  if(!Number.isFinite(x)||!Number.isFinite(z))return true;const a=grid80.get(cell80(x,z));if(!a)return false;
+  for(const q of a){
+    if(q.obj&&(!q.obj.parent||!visible80(q.obj)))continue;if(q.owner&&broken80(q.owner))continue;if(q.obj&&broken80(q.obj))continue;
+    if(q.kind==='circle'){if(Math.hypot(x-q.x,z-q.z)<q.r)return true;}
+    else if(x>q.minX&&x<q.maxX&&z>q.minZ&&z<q.maxZ)return true;
+  }
+  return false;
+}
+function carPointBlocked80(x,z,ignore){
+  if(staticBlocked80(x,z))return true;
+  for(const c of cars19){
+    if(!c||c===ignore||!c.group?.parent||!c.group.visible)continue;
+    const dx=x-c.group.position.x,dz=z-c.group.position.z,a=-c.group.rotation.y,ca=Math.cos(a),sa=Math.sin(a),lx=dx*ca-dz*sa,lz=dx*sa+dz*ca;
+    if(Math.abs(lx)<1.62&&Math.abs(lz)<2.62)return true;
+  }
+  return false;
+}
+blockedPosition=function(x,z){return carPointBlocked80(x,z,null);};
+function carCanMove80(c,x,z){
+  const a=c.group.rotation.y,fx=-Math.sin(a),fz=-Math.cos(a),rx=Math.cos(a),rz=-Math.sin(a);
+  for(const [sx,sz] of [[0,0],[1.25,2.15],[-1.25,2.15],[1.25,-2.15],[-1.25,-2.15],[0,2.45],[0,-2.45]]){
+    if(carPointBlocked80(x+rx*sx+fx*sz,z+rz*sx+fz*sz,c))return false;
+  }
+  return true;
+}
+rebuildCollision80();
+if(typeof placeBuild==='function'){const placeBuildReal80=placeBuild;placeBuild=function(){const before=playerStructures.length,out=placeBuildReal80();if(playerStructures.length!==before)rebuildCollision80();return out;};}
+
+function handleMasterKey80(e){
+  if(e.code==='KeyF'){
+    e.preventDefault();e.stopImmediatePropagation();
+    if(e.type==='keyup'){firing=false;return;}
+    if(e.repeat)return;
+    firing=false;
+    if(typeof isSniper57==='function'&&isSniper57()&&!activeCar19){
+      sniperScoped57=!sniperScoped57;if(typeof applyScope57==='function')applyScope57();
+      message(sniperScoped57?'SNIPER SCOPE · 4× ZOOM':'SCOPE OFF',1.0);
+    }
+    return;
+  }
+  if(e.code==='KeyE'&&e.type==='keydown'&&!e.repeat){
+    e.preventDefault();e.stopImmediatePropagation();
+    if(typeof activeCar19!=='undefined'&&activeCar19){exitCar19();return;}
+    const car=typeof nearestCar19==='function'?nearestCar19(4.4):null;
+    if(car){enterCar19(car);return;}
+    const c=(typeof nearbyLoot!=='undefined'&&nearbyLoot)?nearbyLoot:(typeof findNearbyLoot==='function'?findNearbyLoot():null);
+    if(c)lootCrate(c);else message('Nothing to use nearby',.8);
+  }
+}
+addEventListener('keydown',handleMasterKey80,true);addEventListener('keyup',handleMasterKey80,true);
+
+if(typeof exitCar19==='function'){
+  exitCar19=function(){
+    if(!activeCar19)return;const c=activeCar19,g=c.group,px=g.position.x,pz=g.position.z,a=g.rotation.y;
+    c.driver=false;activeCar19=null;c.speed=0;
+    const rightX=Math.cos(a),rightZ=-Math.sin(a),frontX=-Math.sin(a),frontZ=-Math.cos(a);
+    const spots=[[px+rightX*3.25,pz+rightZ*3.25],[px-rightX*3.25,pz-rightZ*3.25],[px+frontX*3.7,pz+frontZ*3.7],[px-frontX*3.7,pz-frontZ*3.7]];
+    for(let i=0;i<8;i++){const ang=i/8*Math.PI*2;spots.push([px+Math.cos(ang)*4.1,pz+Math.sin(ang)*4.1]);}
+    let chosen=null;for(const q of spots){if(Math.abs(q[0])>=WORLD_LIMIT80||Math.abs(q[1])>=WORLD_LIMIT80)continue;if(!blockedPosition(q[0],q[1])){chosen=q;break;}}
+    const x=chosen?.[0]??clamp(px+rightX*3.25,-WORLD_LIMIT80,WORLD_LIMIT80),z=chosen?.[1]??clamp(pz+rightZ*3.25,-WORLD_LIMIT80,WORLD_LIMIT80);
+    player.pos.set(x,groundY(x,z)+player.height,z);
+    if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=!!thirdPerson16;
+    if(typeof updateToolVisual15==='function')updateToolVisual15();
+    message('EXITED CAR',1.0);
+  };
+}
