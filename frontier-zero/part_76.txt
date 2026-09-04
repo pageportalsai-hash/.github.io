@@ -1,0 +1,51 @@
+// ============================================================================
+// FRONTIER ZERO STEP 4 — BETTER WEAPON / WORLD AUDIO (Build 78)
+// Audio-only. No movement, AI, camera, door, vehicle or collision changes.
+// ============================================================================
+let soundCtx76=null,echoBus76=null,echoGain76=null,noiseBuffer76=null;
+function ensureSound76(){
+  try{
+    soundCtx76=audioCtx||(soundCtx76||new (window.AudioContext||window.webkitAudioContext)());
+    if(soundCtx76.state==='suspended')soundCtx76.resume?.();
+    if(!noiseBuffer76){noiseBuffer76=soundCtx76.createBuffer(1,Math.floor(soundCtx76.sampleRate*.18),soundCtx76.sampleRate);const a=noiseBuffer76.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=(Math.random()*2-1)*(1-i/a.length);}
+    if(!echoBus76){echoBus76=soundCtx76.createDelay(.5);echoBus76.delayTime.value=.145;echoGain76=soundCtx76.createGain();echoGain76.gain.value=.16;echoBus76.connect(echoGain76);echoGain76.connect(soundCtx76.destination);}
+    return soundCtx76;
+  }catch{return null;}
+}
+function familyProfile76(w){
+  const f=typeof weaponFamily27==='function'?weaponFamily27(w):'rifle';
+  if(f==='shotgun')return{f,body:72,crack:420,noise:1.0,vol:.20,echo:.24,dur:.16};
+  if(f==='sniper')return{f,body:82,crack:720,noise:.82,vol:.18,echo:.28,dur:.14};
+  if(f==='revolver')return{f,body:105,crack:610,noise:.58,vol:.15,echo:.20,dur:.11};
+  if(f==='pistol')return{f,body:135,crack:820,noise:.42,vol:.12,echo:.12,dur:.085};
+  if(f==='smg')return{f,body:118,crack:950,noise:.34,vol:.095,echo:.08,dur:.065};
+  if(f==='dmr')return{f,body:94,crack:760,noise:.56,vol:.14,echo:.20,dur:.11};
+  return{f,body:102,crack:700,noise:.48,vol:.125,echo:.16,dur:.095};
+}
+function gunSound76(w){
+  const ctx=ensureSound76();if(!ctx)return;const p=familyProfile76(w),t=ctx.currentTime;
+  const o=ctx.createOscillator(),og=ctx.createGain();o.type='triangle';o.frequency.setValueAtTime(p.body,t);o.frequency.exponentialRampToValueAtTime(Math.max(38,p.body*.48),t+p.dur);og.gain.setValueAtTime(p.vol,t);og.gain.exponentialRampToValueAtTime(.0001,t+p.dur);o.connect(og);og.connect(ctx.destination);og.connect(echoBus76);o.start(t);o.stop(t+p.dur+.01);
+  const n=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),ng=ctx.createGain();n.buffer=noiseBuffer76;filter.type='bandpass';filter.frequency.value=p.crack;filter.Q.value=.72;ng.gain.setValueAtTime(p.vol*p.noise,t);ng.gain.exponentialRampToValueAtTime(.0001,t+Math.min(.12,p.dur));n.connect(filter);filter.connect(ng);ng.connect(ctx.destination);ng.connect(echoBus76);n.start(t);n.stop(t+.14);
+  echoGain76.gain.setTargetAtTime(p.echo,t,.015);
+}
+function mechClick76(freq=620,vol=.025){
+  const ctx=ensureSound76();if(!ctx)return;const t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='square';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.55,t+.035);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+.045);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.05);
+}
+
+let suppressOldGunTone76=false;
+const toneBeforeAudio76=tone;
+tone=function(...args){if(suppressOldGunTone76)return;return toneBeforeAudio76(...args);};
+const shootBeforeAudio76=shootGun;
+shootGun=function(w){
+  const before=w?.type==='gun'?w.mag:null;suppressOldGunTone76=true;let out;try{out=shootBeforeAudio76(w);}finally{suppressOldGunTone76=false;}
+  if(w?.type==='gun'&&before>w.mag)gunSound76(w);return out;
+};
+const reloadBeforeAudio76=reload;
+reload=function(){const w=currentGear(),can=!!w&&w.type==='gun'&&!reloading&&w.mag<w.magSize&&w.reserve>0;const out=reloadBeforeAudio76();if(can){mechClick76(520,.022);setTimeout(()=>mechClick76(760,.018),430);}return out;};
+
+if(typeof showToast73==='function'){
+  const toastBeforeAudio76=showToast73;showToast73=function(...args){const out=toastBeforeAudio76(...args);mechClick76(840,.010);return out;};
+}
+
+window.__frontierZeroStep4_76={loaded:true,build:78,features:['weapon-family sound profiles','mechanical reload clicks','shared distant echo bus','old generic shot tone suppressed'],movementTouched:false,aiTouched:false,cameraTouched:false};
+message('STEP 4 LIVE · weapon-specific audio + distant echoes',3.8);
