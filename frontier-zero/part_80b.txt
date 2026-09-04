@@ -1,0 +1,119 @@
+// ---------------------------------------------------------------------------
+// 5) AUTOMATIC DOORS — cached proximity, no AI scan every render call.
+// ---------------------------------------------------------------------------
+const doorCache80=new WeakMap();let doorScan80=-1e9;
+function scanDoors80(now){
+  if(typeof buildingNav50==='undefined'||now-doorScan80<125)return;doorScan80=now;
+  for(const rec of buildingNav50){
+    if(!rec?.doorParts?.length)continue;
+    let near=Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<3.15;
+    if(!near)for(let i=0;i<MASTER_NPCS80&&i<npcs.length;i++){
+      const n=npcs[i];if(n&&!n.dead&&n.group?.parent&&Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<3.25){near=true;break;}
+    }
+    let s=doorCache80.get(rec);if(!s){s={open:false,until:0};doorCache80.set(rec,s);}if(near)s.until=now+850;s.open=near||now<s.until;
+  }
+}
+if(typeof doorShouldOpen50==='function')doorShouldOpen50=function(rec){return !!doorCache80.get(rec)?.open;};
+
+const move80=new THREE.Vector3(),forward80=new THREE.Vector3(),right80=new THREE.Vector3();
+const camDesired80=new THREE.Vector3(),camTarget80=new THREE.Vector3(),camDir80=new THREE.Vector3();
+let camCollisionAt80=-1e9,camDistance80=4.6,lootScanAt80=-1e9;
+function setFov80(v){if(Math.abs((camera.fov||72)-v)>.04){camera.fov=v;camera.updateProjectionMatrix();}}
+
+function playerMoveInput80(){
+  forward80.set(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  right80.set(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  move80.set(0,0,0);
+  if(typeof keys!=='undefined'){
+    if(keys.KeyW||keys.ArrowUp)move80.add(forward80);
+    if(keys.KeyS||keys.ArrowDown)move80.sub(forward80);
+    if(keys.KeyD||keys.ArrowRight)move80.add(right80);
+    if(keys.KeyA||keys.ArrowLeft)move80.sub(right80);
+  }
+  if(typeof joy!=='undefined'&&Math.hypot(joy.x||0,joy.y||0)>.04)move80.addScaledVector(forward80,-joy.y).addScaledVector(right80,joy.x);
+  if(move80.lengthSq()>1)move80.normalize();
+  return move80;
+}
+function axisMovePlayer80(dx,dz){
+  const x=clamp(player.pos.x+dx,-WORLD_LIMIT80,WORLD_LIMIT80);if(!blockedPosition(x,player.pos.z))player.pos.x=x;
+  const z=clamp(player.pos.z+dz,-WORLD_LIMIT80,WORLD_LIMIT80);if(!blockedPosition(player.pos.x,z))player.pos.z=z;
+}
+function updateTowerHeight80(prevX,prevZ){
+  if(typeof towerAt54!=='function'||typeof stairCandidate54!=='function')return false;
+  const previous=typeof activeTower54!=='undefined'?activeTower54:null;
+  let state=towerAt54(player.pos.x,player.pos.z,.08);
+  if(!state&&previous&&previous.floor>0){player.pos.x=prevX;player.pos.z=prevZ;state=previous;}
+  if(!state){if(typeof activeTower54!=='undefined')activeTower54=null;return false;}
+  if(typeof activeTower54!=='undefined'&&activeTower54!==state){state.floor=0;state.elev=0;activeTower54=state;}
+  const local=localXZ50(state.rec,player.pos.x,player.pos.z),cand=stairCandidate54(state,local);
+  if(cand){
+    state.elev=cand.e;
+    if(cand.fi===state.floor&&cand.t>.965&&state.floor<state.floors-1){state.floor++;state.elev=state.floor*state.floorH;}
+    else if(cand.fi===state.floor-1&&cand.t<.035&&state.floor>0){state.floor--;state.elev=state.floor*state.floorH;}
+  }else{state.floor=clamp(Math.round(state.elev/state.floorH),0,state.floors-1);state.elev=state.floor*state.floorH;}
+  player.pos.y=state.baseY+state.elev+player.height+(typeof jumpOffset!=='undefined'?jumpOffset:0);return true;
+}
+function updateJump80(dt){
+  if(typeof jumpQueued==='undefined')return;
+  if(jumpQueued&&onGround){jumpQueued=false;onGround=false;jumpVelocity=7.2;if(typeof tone==='function')tone(150,.035,.012,'triangle');}
+  if(!onGround){jumpVelocity-=18.5*dt;jumpOffset+=jumpVelocity*dt;if(jumpOffset<=0){jumpOffset=0;jumpVelocity=0;onGround=true;}}
+}
+function updateCar80(dt){
+  const c=activeCar19,g=c.group;let throttle=0,steer=0;
+  if(typeof keys!=='undefined'){
+    if(keys.KeyW||keys.ArrowUp)throttle+=1;if(keys.KeyS||keys.ArrowDown)throttle-=1;
+    if(keys.KeyA||keys.ArrowLeft)steer+=1;if(keys.KeyD||keys.ArrowRight)steer-=1;
+  }
+  if(typeof joy!=='undefined'){throttle+=clamp(-joy.y,-1,1);steer+=clamp(-joy.x,-1,1);}
+  throttle=clamp(throttle,-1,1);steer=clamp(steer,-1,1);
+  const max=Math.max(8,c.maxSpeed||c.tier24?.ms||18),acc=throttle>=0?12:15;
+  c.speed=clamp((c.speed||0)+throttle*acc*dt,-Math.min(8,max*.45),max);
+  if(Math.abs(throttle)<.04)c.speed*=Math.max(0,1-2.5*dt);
+  const ratio=clamp(Math.abs(c.speed)/max,0,1),steerRate=.72-.34*ratio;
+  if(Math.abs(c.speed)>.25)g.rotation.y+=steer*steerRate*dt*(c.speed>=0?1:-1);
+  const fx=-Math.sin(g.rotation.y),fz=-Math.cos(g.rotation.y),nx=g.position.x+fx*c.speed*dt,nz=g.position.z+fz*c.speed*dt;
+  if(Math.abs(nx)<WORLD_LIMIT80&&Math.abs(nz)<WORLD_LIMIT80&&carCanMove80(c,nx,nz)){g.position.x=nx;g.position.z=nz;}else c.speed*=-.10;
+  g.position.y=groundY(g.position.x,g.position.z)+.08;player.pos.set(g.position.x,g.position.y+1.85,g.position.z);player.yaw=g.rotation.y;
+  camTarget80.set(g.position.x,g.position.y+1.25,g.position.z);camDesired80.set(g.position.x-fx*7.0,g.position.y+4.0,g.position.z-fz*7.0);
+  const f=1-Math.exp(-dt*9);camera.position.lerp(camDesired80,f);camera.lookAt(camTarget80);setFov80(THREE.MathUtils.lerp(camera.fov,76+ratio*4,Math.min(1,dt*4)));
+  gunHolder.visible=false;if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=false;
+}
+function updateOnFootCamera80(dt,now){
+  const third=typeof thirdPerson16!=='undefined'&&thirdPerson16;
+  if(!third){
+    camera.position.copy(player.pos);camera.rotation.set(player.pitch,player.yaw,0);
+    if(typeof sniperScoped57!=='undefined'&&sniperScoped57&&typeof isSniper57==='function'&&isSniper57())setFov80(24);else setFov80(typeof baseFov47!=='undefined'?baseFov47:72);
+    if(typeof playerAvatar16!=='undefined')playerAvatar16.visible=false;
+    const gun=currentGear()?.type==='gun'&&!(typeof sniperScoped57!=='undefined'&&sniperScoped57&&typeof isSniper57==='function'&&isSniper57());gunHolder.visible=gun;
+    if(typeof toolHolder15!=='undefined')toolHolder15.visible=currentGear()?.type!=='gun';
+    if(typeof applyRealWeapon27==='function')applyRealWeapon27();
+    if(typeof recoil27!=='undefined'){recoil27=Math.max(0,recoil27-dt*2.2);if(typeof weaponModels27!=='undefined')weaponModels27.position.z=.02+recoil27*.65;}
+    return;
+  }
+  if(typeof playerAvatar16!=='undefined'){
+    playerAvatar16.visible=true;playerAvatar16.position.set(player.pos.x,player.pos.y-player.height-(typeof jumpOffset!=='undefined'?jumpOffset:0),player.pos.z);playerAvatar16.rotation.y=player.yaw;
+  }
+  gunHolder.visible=false;if(typeof toolHolder15!=='undefined')toolHolder15.visible=false;
+  camTarget80.set(player.pos.x,player.pos.y-.15,player.pos.z);forward80.set(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  if(now-camCollisionAt80>90){
+    camCollisionAt80=now;camDir80.copy(forward80).multiplyScalar(-1);raycaster.set(camTarget80,camDir80);raycaster.far=4.6;
+    const hits=raycaster.intersectObjects([terrain,...blockers].filter(o=>o===terrain||o?.parent),true);camDistance80=hits.length?Math.max(.8,hits[0].distance-.30):4.6;
+  }
+  camDesired80.copy(camTarget80).addScaledVector(forward80,-camDistance80).add(new THREE.Vector3(0,1.55,0));
+  const f=1-Math.exp(-dt*12);camera.position.lerp(camDesired80,f);const aim=camTarget80.clone().addScaledVector(forward80,2.2);aim.y+=Math.sin(player.pitch)*1.6;camera.lookAt(aim);setFov80(72);
+}
+
+const masterUpdatePlayer80=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);const now=performance.now();
+  if(player.dead)return;
+  if(activeCar19){updateCar80(dt);masterLod80(now);scanDoors80(now);if(typeof animateDoors50==='function')animateDoors50(dt);return;}
+  const prevX=player.pos.x,prevZ=player.pos.z;const mv=playerMoveInput80();
+  let speed=player.speed||8.1;if(typeof keys!=='undefined'&&(keys.ShiftLeft||keys.ShiftRight))speed*=1.32;
+  if(mv.lengthSq()>.0001)axisMovePlayer80(mv.x*speed*dt,mv.z*speed*dt);
+  updateJump80(dt);
+  const inTower=updateTowerHeight80(prevX,prevZ);
+  if(!inTower)player.pos.y=groundY(player.pos.x,player.pos.z)+player.height+(typeof jumpOffset!=='undefined'?jumpOffset:0);
+  updateOnFootCamera80(dt,now);masterLod80(now);scanDoors80(now);if(typeof animateDoors50==='function')animateDoors50(dt);
+  if(now-lootScanAt80>120){lootScanAt80=now;if(typeof nearbyLoot!=='undefined'&&typeof findNearbyLoot==='function'){nearbyLoot=(!buildMode&&!player.dead)?findNearbyLoot():null;if(typeof lootBtn!=='undefined')lootBtn.style.display=nearbyLoot?'flex':'none';}}
+};
+updatePlayer=masterUpdatePlayer80;
