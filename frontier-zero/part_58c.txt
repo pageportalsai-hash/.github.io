@@ -8,6 +8,7 @@ const sniperExpansion58=[
   {rarity:'Mythic',name:'Warden-X Sniper',magSize:7,damage:145,rate:.84,spread:.00044,pellets:1,reserve:38,variant58:4},
   {rarity:'Secret',name:'Voidpiercer Sniper',magSize:8,damage:168,rate:.76,spread:.00028,pellets:1,reserve:44,variant58:5}
 ];
+if(!gunCatalog.some(g=>g.name==='Scout Sniper'))gunCatalog.push({rarity:'Common',name:'Scout Sniper',magSize:5,damage:82,rate:1.12,spread:.0017,pellets:1,reserve:25,variant58:0});
 for(const s of sniperExpansion58)if(!gunCatalog.some(g=>g.name===s.name))gunCatalog.push(s);
 if(typeof models27!=='undefined'&&models27.sniper&&!models27.sniper.userData.variants58){
   const g=models27.sniper,acc=new THREE.Group();acc.name='sniperAccessories58';g.add(acc);
