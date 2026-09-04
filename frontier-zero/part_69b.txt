@@ -1,0 +1,62 @@
+// FRONTIER ZERO STABILITY 69B — NPC anti-jitter/recovery, camera guard, final QA
+const npcStable69=new WeakMap();
+function stableState69(n){let s=npcStable69.get(n);if(!s){s={lastGood:n.group.position.clone(),before:n.group.position.clone(),yaw:n.group.rotation.y,stuck:0};npcStable69.set(n,s);}return s;}
+for(const n of npcs)if(n?.group)stableState69(n);
+function validNpcPos69(p){return !!p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)&&Math.abs(p.x)<494&&Math.abs(p.z)<494&&groundY(p.x,p.z)>water.position.y+.62;}
+function desiredNpcMove69(n){
+  const tactical=(typeof aiState64!=='undefined')?aiState64.get(n):null;
+  if(tactical?.waypoint)return tactical.waypoint;
+  if((n.alert||0)>0||(n.playerProvoked||0)>0){const wp=typeof doorwayWaypoint50==='function'?doorwayWaypoint50(n,player.pos):null;if(wp)return wp;if(Math.hypot(player.pos.x-n.group.position.x,player.pos.z-n.group.position.z)>7)return player.pos;}
+  return null;
+}
+function unstickNpc69(n,s,target){
+  if(!target)return false;const p=n.group.position,dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);if(d<.3)return false;const ux=dx/d,uz=dz/d;
+  for(const [a,b] of [[ux,uz],[-uz,ux],[uz,-ux]])for(const step of [.42,.68,.92]){const x=p.x+a*step,z=p.z+b*step;if(Math.abs(x)>492||Math.abs(z)>492||groundY(x,z)<=water.position.y+.65||blockedPosition(x,z))continue;p.x=x;p.z=z;p.y=groundY(x,z);s.lastGood.copy(p);return true;}
+  return false;
+}
+
+const updateNPCsBeforeStability69=updateNPCs;
+updateNPCs=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);
+  for(const n of npcs)if(n?.group&&!n.dead){const s=stableState69(n);s.before.copy(n.group.position);}
+  const out=updateNPCsBeforeStability69(dt);
+  for(const n of npcs){
+    if(!n?.group||n.dead)continue;const s=stableState69(n),p=n.group.position;
+    if(!validNpcPos69(p)){p.copy(s.lastGood);p.y=groundY(p.x,p.z);if(n.patrol)n.patrol.set(p.x+rand(-4,4),0,p.z+rand(-4,4));s.stuck=0;continue;}
+
+    const rec=typeof interiorAt68==='function'?interiorAt68(p):null,nearDoor=typeof buildingNav50!=='undefined'&&buildingNav50.some(r=>r?.center&&Math.hypot(p.x-r.center.x,p.z-r.center.z)<4.2);
+    const moved=Math.hypot(p.x-s.before.x,p.z-s.before.z),maxMove=(rec||nearDoor?4.4:5.7)*dt+.045;
+    if(moved>maxMove&&moved<2.2){const k=maxMove/moved;p.x=s.before.x+(p.x-s.before.x)*k;p.z=s.before.z+(p.z-s.before.z)*k;p.y=groundY(p.x,p.z);}
+
+    const targetYaw=n.group.rotation.y,dyaw=Math.atan2(Math.sin(targetYaw-s.yaw),Math.cos(targetYaw-s.yaw)),maxYaw=7.2*dt;s.yaw+=clamp(dyaw,-maxYaw,maxYaw);n.group.rotation.y=s.yaw;
+    if(validNpcPos69(p))s.lastGood.copy(p);
+
+    const target=desiredNpcMove69(n),needsMove=target&&Math.hypot(target.x-p.x,target.z-p.z)>1.1;
+    if(needsMove&&moved<.009)s.stuck+=dt;else s.stuck=Math.max(0,s.stuck-dt*1.7);
+    if(s.stuck>.85){unstickNpc69(n,s,target);s.stuck=0;}
+  }
+  return out;
+};
+
+// Keep a tiny idle first-person Y filter and recover from impossible camera values.
+let cameraY69=camera.position.y;
+const updatePlayerBeforeStability69=updatePlayer;
+updatePlayer=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);const out=updatePlayerBeforeStability69(dt);
+  if(!Number.isFinite(camera.position.x)||!Number.isFinite(camera.position.y)||!Number.isFinite(camera.position.z)){
+    camera.position.copy(player.pos);camera.rotation.set(player.pitch,player.yaw,0);cameraY69=camera.position.y;return out;
+  }
+  const first=!(typeof thirdPerson16!=='undefined'&&thirdPerson16)&&!activeCar19,grounded=typeof onGround==='undefined'||onGround,emote=typeof activeEmote61!=='undefined'&&!!activeEmote61;
+  const quiet=first&&grounded&&!emote&&(typeof actualSpeed66==='undefined'||actualSpeed66<.22)&&(typeof landingKick66==='undefined'||landingKick66<.025)&&(typeof activeTower54==='undefined'||!activeTower54);
+  if(quiet&&Math.abs(camera.position.y-cameraY69)<.12){cameraY69=THREE.MathUtils.lerp(cameraY69,camera.position.y,1-Math.exp(-dt*18));camera.position.y=cameraY69;}else cameraY69=camera.position.y;
+  return out;
+};
+
+function stableCheck69(name,checks){const r={name,passed:0,total:checks.length,issues:[]};for(const [label,fn] of checks){let ok=false;try{ok=!!fn();}catch(e){r.issues.push(label+': '+e.message);continue;}if(ok)r.passed++;else r.issues.push(label);}return r;}
+window.__frontierZeroStabilityQA69={
+  stability:stableCheck69('stability',[['70 NPC recovery states',()=>npcs.filter(n=>n?.group).every(n=>npcStable69.has(n))],['fast interior lookup',()=>typeof interiorAtFast69==='function'],['cached automatic doors',()=>doorState69 instanceof WeakMap],['NPC unstick guard',()=>typeof unstickNpc69==='function'],['camera NaN guard',()=>Number.isFinite(camera.position.x)],['Griddy foot reset',()=>window.__frontierZeroStability69A?.griddyFootReset===true]]),
+  regression:stableCheck69('regression',[['movement retained',()=>typeof moveVel66!=='undefined'],['indoor combat retained',()=>typeof chooseIndoorCover68==='function'],['tactical AI retained',()=>typeof weaponRole64==='function'],['headshots retained',()=>typeof isHeadshot65==='function'],['world realism retained',()=>typeof grassDetail67!=='undefined'],['30 cars retained',()=>cars19.length===30],['70 NPC slots retained',()=>npcs.length===70]])
+};
+const sq69=window.__frontierZeroStabilityQA69,stTotal69=sq69.stability.total+sq69.regression.total,stPassed69=sq69.stability.passed+sq69.regression.passed;
+window.__frontierZeroStability69={loaded:true,build:71,features:['fast furniture collision','cached auto doors','door anti-flicker hold','70-NPC recovery','door/indoor movement cap','stuck-NPC nudge','camera finite guard','idle camera micro-jitter filter','Griddy foot reset'],qa:{passed:stPassed69,total:stTotal69}};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent=`STABILITY 69 · ANTI-GLITCH · ${stPassed69}/${stTotal69}`;setTimeout(()=>graphicsBadge21.style.opacity='0',8500);}message(`ANTI-GLITCH PASS LIVE · NPCS · DOORS · COLLISION · CAMERA · QA ${stPassed69}/${stTotal69}`,5.2);
