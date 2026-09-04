@@ -1,0 +1,124 @@
+// ============================================================================
+// FRONTIER ZERO GRIDDY CHOREOGRAPHY 62
+// Higher-fidelity Griddy-style emote layered over the working Part 61 controls.
+// Keeps WASD movement while improving knee lifts, heel/toe work, foot flicks,
+// forward lean, shoulder bounce, loose opposite arm swings and side swagger.
+// ============================================================================
+
+function frac62(v){return v-Math.floor(v);}
+function griddyStep62(q){
+  q=frac62(q);
+  // Each foot has a clear airborne/lift phase, then a planted heel/toe phase.
+  const air=q<.46?Math.sin((q/.46)*Math.PI):0;
+  const plant=1-air;
+  const travel=Math.cos(q*Math.PI*2);
+  const toePulse=q>=.46?Math.sin(((q-.46)/.54)*Math.PI):0;
+  const flick=Math.sin(q*Math.PI*2);
+  return{air,plant,travel,toePulse,flick};
+}
+function findBoot62(shin){
+  if(!shin)return null;
+  return shin.children.find(o=>{
+    if(!o?.isMesh||o.geometry?.type!=='BoxGeometry')return false;
+    const p=o.geometry.parameters||{};
+    return (p.width||0)>.20&&(p.width||0)<.34&&(p.height||0)<.24&&(p.depth||0)>.32;
+  })||null;
+}
+const griddyLBoot62=typeof playerRig35!=='undefined'&&playerRig35?findBoot62(playerRig35.lShin):null;
+const griddyRBoot62=typeof playerRig35!=='undefined'&&playerRig35?findBoot62(playerRig35.rShin):null;
+
+function applyRealGriddy62(elapsed){
+  if(typeof playerRig35==='undefined'||!playerRig35)return;
+  const r=playerRig35;
+  const t=elapsed*.001;
+  // About 3.3 alternating foot contacts each second — energetic without looking frantic.
+  const cycle=frac62(t*1.65);
+  const L=griddyStep62(cycle),R=griddyStep62(cycle+.5);
+  const side=Math.sin(t*Math.PI*1.65);
+  const double=Math.sin(t*Math.PI*3.30);
+  const lift=Math.max(L.air,R.air);
+
+  // Recognizable Griddy posture: low center, slight forward lean and shoulder bounce.
+  if(r.hips){
+    r.hips.position.y=.82+.055*Math.abs(double)+.018*lift;
+    r.hips.rotation.x=-.045;
+    r.hips.rotation.y=side*.12;
+    r.hips.rotation.z=side*.045;
+  }
+  if(r.torso){
+    r.torso.rotation.x=-.20+.035*Math.abs(double);
+    r.torso.rotation.y=-side*.11;
+    r.torso.rotation.z=-side*.055;
+  }
+  if(r.head){
+    r.head.rotation.x=.055+.035*Math.sin(t*Math.PI*3.3+.4);
+    r.head.rotation.y=side*.045;
+    r.head.rotation.z=side*.030;
+  }
+
+  // Alternating high knee + trailing leg. This is the main silhouette that makes
+  // the dance read like a Griddy instead of ordinary running in place.
+  if(r.lLeg){
+    r.lLeg.rotation.x=.12+L.travel*.15-L.air*.93;
+    r.lLeg.rotation.y=-.045+L.flick*.035;
+    r.lLeg.rotation.z=.065+side*.018;
+  }
+  if(r.rLeg){
+    r.rLeg.rotation.x=.12+R.travel*.15-R.air*.93;
+    r.rLeg.rotation.y=.045-R.flick*.035;
+    r.rLeg.rotation.z=-.065+side*.018;
+  }
+  if(r.lShin){r.lShin.rotation.x=.06+L.air*1.08+L.toePulse*.18;r.lShin.rotation.z=-.018*L.flick;}
+  if(r.rShin){r.rShin.rotation.x=.06+R.air*1.08+R.toePulse*.18;r.rShin.rotation.z=.018*R.flick;}
+
+  // Heel/toe action and small outward foot flicks. The boot meshes exist under
+  // the shin pivots, so rotating them independently gives visible ankle rhythm.
+  if(griddyLBoot62){
+    griddyLBoot62.rotation.x=.20*L.plant+.16*L.toePulse-.48*L.air;
+    griddyLBoot62.rotation.y=-.12-L.air*.18-L.flick*.055;
+    griddyLBoot62.rotation.z=.055+.035*L.flick;
+  }
+  if(griddyRBoot62){
+    griddyRBoot62.rotation.x=.20*R.plant+.16*R.toePulse-.48*R.air;
+    griddyRBoot62.rotation.y=.12+R.air*.18+R.flick*.055;
+    griddyRBoot62.rotation.z=-.055-.035*R.flick;
+  }
+
+  // Loose opposite arm swings. Keep the elbows low instead of the old stiff
+  // raised pose; wrists/forearms lag behind the shoulders slightly.
+  const armDrive=L.air-R.air;
+  if(r.lArm){
+    r.lArm.rotation.x=-.18-armDrive*.52;
+    r.lArm.rotation.y=-.10+side*.055;
+    r.lArm.rotation.z=-.26-side*.075;
+  }
+  if(r.rArm){
+    r.rArm.rotation.x=-.18+armDrive*.52;
+    r.rArm.rotation.y=.10+side*.055;
+    r.rArm.rotation.z=.26-side*.075;
+  }
+  if(r.lFore){
+    r.lFore.rotation.x=-.30-R.air*.30+.06*double;
+    r.lFore.rotation.z=-.045;
+  }
+  if(r.rFore){
+    r.rFore.rotation.x=-.30-L.air*.30-.06*double;
+    r.rFore.rotation.z=.045;
+  }
+}
+
+// Part 61 keeps movement, camera, key handling and emote state working. Run it
+// first, then overwrite only the body pose with the improved choreography.
+const updatePlayerBeforeGriddy62=updatePlayer;
+updatePlayer=function(dt){
+  const out=updatePlayerBeforeGriddy62(dt);
+  if(typeof activeEmote61!=='undefined'&&activeEmote61==='griddy'){
+    const elapsed=performance.now()-emoteStart61;
+    applyRealGriddy62(elapsed);
+  }
+  return out;
+};
+
+if(typeof emoteHud61!=='undefined'&&emoteHud61)emoteHud61.textContent='1 · GRIDDY · WASD TO MOVE';
+window.__frontierZeroGriddy62={loaded:true,choreography:'heel-toe+knee-lift+foot-flick+arm-swing',movement:true};
+message('GRIDDY ANIMATION UPGRADED · PRESS 1 · MOVE WITH WASD',3.5);
