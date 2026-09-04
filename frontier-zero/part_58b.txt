@@ -1,0 +1,75 @@
+// ---------------------------------------------------------------------------
+// 4. THREE EXTRA TOWNS — low-rise settlements with terrain-following roads
+// ---------------------------------------------------------------------------
+const extraTowns58=[];
+const extraRoadMatrices58=[],extraWalkMatrices58=[];
+const roadDummy58=new THREE.Object3D(),yAxis58=new THREE.Vector3(0,1,0),zAxis58=new THREE.Vector3(0,0,1),yawQ58=new THREE.Quaternion(),slopeQ58=new THREE.Quaternion();
+function roadStrip58(list,cx,cz,length,width,rot,lift){
+  const segTarget=expansionDesktop58?4.1:5.0,count=Math.ceil(length/segTarget),seg=length/count,dx=Math.cos(rot),dz=-Math.sin(rot);
+  for(let i=0;i<count;i++){
+    const along=-length/2+(i+.5)*seg,x=cx+dx*along,z=cz+dz*along,ex=dx*seg*.48,ez=dz*seg*.48;
+    const y0=groundY(x-ex,z-ez),y1=groundY(x+ex,z+ez),y=(groundY(x,z)*2+y0+y1)/4+lift,slope=Math.atan2(y1-y0,seg*.96);
+    roadDummy58.position.set(x,y,z);yawQ58.setFromAxisAngle(yAxis58,rot);slopeQ58.setFromAxisAngle(zAxis58,slope);roadDummy58.quaternion.copy(yawQ58).multiply(slopeQ58);roadDummy58.scale.set(seg+.10,1,width);roadDummy58.updateMatrix();list.push(roadDummy58.matrix.clone());
+  }
+}
+function pitchedRoof58(rec,w,d,h,seed){
+  if(!rec?.g)return;const mat=new THREE.MeshStandardMaterial({color:[0x4a4d49,0x5c5047,0x44545a][seed%3],roughness:.82,metalness:.06});
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(1,1.05,4),mat);roof.rotation.y=Math.PI/4;roof.scale.set(w*.72,1,d*.72);roof.position.set(0,h+.66,0);roof.castShadow=true;roof.receiveShadow=true;rec.g.add(roof);
+}
+function buildSettlement58(cx,cz,name,seed){
+  clearNature51(cx,cz,48);const zone={name,x:cx,z:cz,radius:43,bigCity:false,expansion58:true};townZones51.push(zone);extraTowns58.push(zone);
+  roadStrip58(extraRoadMatrices58,cx,cz,72,7.2,0,.06);roadStrip58(extraRoadMatrices58,cx,cz,72,7.2,Math.PI/2,.065);
+  roadStrip58(extraWalkMatrices58,cx,cz+5.7,72,1.8,0,.11);roadStrip58(extraWalkMatrices58,cx,cz-5.7,72,1.8,0,.11);
+  roadStrip58(extraWalkMatrices58,cx+5.7,cz,72,1.8,Math.PI/2,.11);roadStrip58(extraWalkMatrices58,cx-5.7,cz,72,1.8,Math.PI/2,.11);
+  const spots=[[-24,-22,0],[-25,0,Math.PI/2],[-23,22,Math.PI],[0,25,Math.PI],[23,22,-Math.PI/2],[25,0,Math.PI/2],[23,-22,0],[0,-25,0]];
+  for(let i=0;i<spots.length;i++){
+    const s=spots[i],w=8+(i%3),d=7+((i+seed)%3),h=3.45+(i%2)*.18,rec=makeUrbanBuilding51(cx+s[0],cz+s[1],w,d,h,s[2],`${name} ${i+1}`,1+(i%3===0?1:0),false,'house');pitchedRoof58(rec,w,d,h,i+seed);
+  }
+  const shop=makeUrbanBuilding51(cx,cz+15,11,8,5.2,Math.PI,`${name} Trading Post`,3,false,'block');
+  const canopy=new THREE.Mesh(new THREE.BoxGeometry(5.2,.16,1.4),urbanAccent51);canopy.position.set(0,2.75,4.55);canopy.castShadow=true;shop.g.add(canopy);
+  return zone;
+}
+const townCandidatePool58=[...(typeof zoneCandidates51!=='undefined'?zoneCandidates51:[]),{x:-405,z:315},{x:405,z:315},{x:-405,z:-345},{x:405,z:-345},{x:0,z:425},{x:0,z:-430}];
+const selectedTownPts58=[];
+for(const p of townCandidatePool58){
+  if(selectedTownPts58.length>=3)break;if(!p)continue;
+  if(Math.abs(p.x)>435||Math.abs(p.z)>435||groundY(p.x,p.z)<=water.position.y+1.2)continue;
+  if(townZones51.some(z=>Math.hypot(z.x-p.x,z.z-p.z)<118))continue;
+  if(selectedTownPts58.some(z=>Math.hypot(z.x-p.x,z.z-p.z)<125))continue;
+  selectedTownPts58.push({x:p.x,z:p.z});
+}
+if(selectedTownPts58.length<3){
+  for(let gx=-400;gx<=400&&selectedTownPts58.length<3;gx+=100)for(let gz=-400;gz<=400&&selectedTownPts58.length<3;gz+=100){
+    if(Math.hypot(gx,gz)<150||groundY(gx,gz)<=water.position.y+1.2)continue;
+    if(townZones51.some(z=>Math.hypot(z.x-gx,z.z-gz)<112))continue;
+    if(selectedTownPts58.some(z=>Math.hypot(z.x-gx,z.z-gz)<122))continue;
+    selectedTownPts58.push({x:gx,z:gz});
+  }
+}
+for(let i=0;i<selectedTownPts58.length;i++)buildSettlement58(selectedTownPts58[i].x,selectedTownPts58[i].z,['RIDGEWAY','SILVER CREEK','WESTHAVEN'][i],i+3);
+function instancedStrip58(mats,mat,name){const geo=new THREE.BoxGeometry(1,.10,1),mesh=new THREE.InstancedMesh(geo,mat,Math.max(1,mats.length));for(let i=0;i<mats.length;i++)mesh.setMatrixAt(i,mats[i]);mesh.count=mats.length;mesh.instanceMatrix.needsUpdate=true;mesh.receiveShadow=true;mesh.castShadow=false;mesh.userData[name]=true;scene.add(mesh);return mesh;}
+const extraRoadMesh58=instancedStrip58(extraRoadMatrices58,roadMat51,'extraRoad58');
+const extraWalkMesh58=instancedStrip58(extraWalkMatrices58,sidewalkMat51,'extraWalk58');
+if(typeof rebuildCollisionGrid43==='function')rebuildCollisionGrid43();if(typeof syncAuthoredBlockers40==='function')syncAuthoredBlockers40();
+
+const TARGET_CARS58=30;
+function prepareCar58(c,seq){
+  if(!c)return;c.baseWheelY35=(c.wheels22||[]).map(w=>w.position.y);c.wheelSpin57=[];
+  const tier=CAR_TIERS24[seq%CAR_TIERS24.length];c.tier24=tier;c.baseMaxSpeed57=tier.ms;c.maxSpeed=tier.ms*2;c.unlockKills24=tier.minKills;c.mph24=tier.mph;
+  for(const w of c.wheels22||[]){
+    const spin=new THREE.Group();spin.name='wheelSpin57';w.add(spin);const children=[...w.children].filter(o=>o!==spin);
+    for(const ch of children){const p=ch.geometry?.parameters||{},cal=ch.geometry?.type==='BoxGeometry'&&Math.abs((p.width||0)-.08)<.04&&Math.abs((p.height||0)-.24)<.08;if(!cal){w.remove(ch);spin.add(ch);}}
+    w.rotation.x=0;w.position.y=.55;c.wheelSpin57.push(spin);
+  }
+  c.group.traverse(o=>{if(o?.isMesh&&o.material){const m=o.material;if(m.transparent){m.roughness=Math.min(m.roughness??.16,.14);}else if((m.metalness??0)>.45){m.roughness=Math.min(m.roughness??.3,.24);if('clearcoat' in m)m.clearcoat=Math.max(m.clearcoat||0,.8);}}});
+}
+function safeCarPoint58(x,z){for(let i=0;i<28;i++){const a=i/28*Math.PI*2,r=i===0?0:rand(2,10),nx=clamp(x+Math.cos(a)*r,-472,472),nz=clamp(z+Math.sin(a)*r,-472,472);if(groundY(nx,nz)>water.position.y+1&&!blockedPosition(nx,nz))return{x:nx,z:nz};}return{x:clamp(x,-460,460),z:clamp(z,-460,460)};}
+const carWanted58=[];
+for(const t of extraTowns58){carWanted58.push([t.x-12,t.z+1,0],[t.x+13,t.z-2,Math.PI],[t.x+1,t.z+13,Math.PI/2]);}
+carWanted58.push([-430,40,Math.PI/2],[430,40,Math.PI/2],[0,-455,0]);
+let carSeq58=0;
+while(cars19.length<TARGET_CARS58&&carSeq58<carWanted58.length){const q=carWanted58[carSeq58],p=safeCarPoint58(q[0],q[1]),idx=cars19.length,c=makeCar19(p.x,p.z,q[2],idx);rebuildCar22(c,idx);prepareCar58(c,carSeq58);carSeq58++;}
+if(typeof check44==='function'&&typeof qa44!=='undefined'){
+  const checkBeforeCars58=check44;
+  check44=function(ok,note,repair){if(note==='Exactly 18 vehicle slots'){qa44.checks++;if(cars19.length===TARGET_CARS58){qa44.passed++;return true;}qa44.notes.push(`CHECK: Expected ${TARGET_CARS58} vehicle slots · found ${cars19.length}`);return false;}return checkBeforeCars58(ok,note,repair);};
+}
