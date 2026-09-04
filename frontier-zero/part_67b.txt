@@ -1,0 +1,59 @@
+// FRONTIER ZERO ENVIRONMENT REALISM 67B — building facades, roofs, street furniture, town signs
+const facadeWall67=new THREE.MeshStandardMaterial({color:0x555b5a,roughness:.88,metalness:.08});
+const facadeDark67=new THREE.MeshStandardMaterial({color:0x272d2f,roughness:.66,metalness:.24});
+const facadeMetal67=new THREE.MeshStandardMaterial({color:0x6b7376,roughness:.48,metalness:.48});
+const facadeWood67=new THREE.MeshStandardMaterial({color:0x735a42,roughness:.90,metalness:.02});
+const lampGlow67=new THREE.MeshStandardMaterial({color:0xffe5b3,emissive:0xffc86a,emissiveIntensity:.72,roughness:.38});
+function addDetailMesh67(g,geo,mat,x,y,z,rx=0,ry=0,rz=0,shadow=true){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=shadow;m.receiveShadow=true;m.userData.env67=true;g.add(m);return m;}
+
+function detailBuilding67(rec,i){
+  if(!rec?.g||rec.g.userData.envDetail67)return;rec.g.userData.envDetail67=true;const g=rec.g,w=rec.w,d=rec.d;const roofBase=g.children.find(o=>o?.isMesh&&o.material===urbanRoof51&&o.geometry?.type==='BoxGeometry');const h=Math.max(3.2,(roofBase?.position?.y||4.2)-.12);
+  addDetailMesh67(g,new THREE.BoxGeometry(w+.08,.18,.08),facadeDark67,0,.24,d/2+.19,0,0,0,false);
+  addDetailMesh67(g,new THREE.BoxGeometry((rec.doorW||2.1)+.34,.12,.12),facadeMetal67,0,2.72,d/2+.21,0,0,0,false);
+  addDetailMesh67(g,new THREE.BoxGeometry(.11,2.45,.12),facadeMetal67,-((rec.doorW||2.1)/2+.12),1.48,d/2+.21,0,0,0,false);
+  addDetailMesh67(g,new THREE.BoxGeometry(.11,2.45,.12),facadeMetal67,((rec.doorW||2.1)/2+.12),1.48,d/2+.21,0,0,0,false);
+  const roofY=h+.52;
+  if(i%2===0){addDetailMesh67(g,new THREE.BoxGeometry(1.15,.48,.78),facadeMetal67,w*.16,roofY,-d*.12);addDetailMesh67(g,new THREE.BoxGeometry(.82,.12,.46),facadeDark67,w*.16,roofY+.28,-d*.12,false);}
+  addDetailMesh67(g,new THREE.CylinderGeometry(.10,.12,.78,8),facadeMetal67,-w*.28,roofY+.28,d*.12,0,0,0,false);
+  addDetailMesh67(g,new THREE.CylinderGeometry(.035,.045,Math.min(3.1,roofY-.25),7),facadeMetal67,-w/2-.03,Math.min(1.7,roofY*.47),d/2+.15,0,0,0,false);
+  addDetailMesh67(g,new THREE.BoxGeometry(.30,.38,.10),facadeDark67,-w/2+.35,1.05,d/2+.20,0,0,0,false);
+  if(i%3!==1){const aw=addDetailMesh67(g,new THREE.BoxGeometry(Math.min(3.9,w*.48),.10,1.10),i%3===0?facadeWood67:facadeMetal67,0,2.78,d/2+.68,0,0,0,false);aw.rotation.x=-.035;}
+  const winW=Math.min(1.75,w*.22);for(const side of [-1,1])for(const lx of [-w*.28,w*.28])addDetailMesh67(g,new THREE.BoxGeometry(winW+.16,.065,.09),facadeDark67,lx,2.34,side*(d/2+.19),0,0,0,false);
+}
+if(typeof townBuildings51!=='undefined')for(let i=0;i<townBuildings51.length;i++)detailBuilding67(townBuildings51[i],i);
+
+const streetPoleGeo67=new THREE.CylinderGeometry(.055,.075,3.4,7),streetLampGeo67=new THREE.BoxGeometry(.52,.16,.24);
+const poleMatrices67=[],lampMatrices67=[],streetLampPositions67=[];const sd67=new THREE.Object3D();
+if(typeof townZones51!=='undefined')for(const zone of townZones51){
+  if(!zone)continue;const len=zone.bigCity?108:92;
+  for(let a=-len/2+11;a<=len/2-11;a+=18){
+    const spots=[[zone.x+a,zone.z+6.85,0],[zone.x+6.85,zone.z+a,Math.PI/2]];
+    for(const [x,z,rot] of spots){const y=groundY(x,z);sd67.position.set(x,y+1.70,z);sd67.rotation.set(0,rot,0);sd67.scale.set(1,1,1);sd67.updateMatrix();poleMatrices67.push(sd67.matrix.clone());sd67.position.set(x,y+3.40,z);sd67.rotation.set(0,rot,0);sd67.updateMatrix();lampMatrices67.push(sd67.matrix.clone());streetLampPositions67.push(new THREE.Vector3(x,y+3.35,z));}
+  }
+}
+const streetPoles67=makeInstances67(streetPoleGeo67,facadeDark67,poleMatrices67,'streetPoles67');
+const streetLamps67=makeInstances67(streetLampGeo67,lampGlow67,lampMatrices67,'streetLamps67');streetLamps67.receiveShadow=false;
+
+const pooledStreetLights67=[];for(let i=0;i<(envDesktop67?5:2);i++){const l=new THREE.PointLight(0xffd59a,.42,14,2);l.visible=false;scene.add(l);pooledStreetLights67.push(l);}
+let lightThink67=0;
+function updateStreetLights67(dt){lightThink67-=dt;if(lightThink67>0)return;lightThink67=.55;const sorted=streetLampPositions67.map(p=>({p,d:p.distanceToSquared(player.pos)})).sort((a,b)=>a.d-b.d);for(let i=0;i<pooledStreetLights67.length;i++){const l=pooledStreetLights67[i],q=sorted[i];if(!q||q.d>38*38){l.visible=false;continue;}l.visible=true;l.position.copy(q.p);}}
+
+const townSigns67=[];
+function townSign67(zone,idx){
+  const c=document.createElement('canvas');c.width=512;c.height=160;const ctx=c.getContext('2d');ctx.fillStyle='#2e4038';ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle='#c9d1c8';ctx.lineWidth=10;ctx.strokeRect(6,6,c.width-12,c.height-12);ctx.fillStyle='#f2f0de';ctx.font='900 44px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(zone.name||('TOWN '+(idx+1))).toUpperCase(),256,78);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const mat=new THREE.MeshBasicMaterial({map:tex,transparent:false,side:THREE.DoubleSide});
+  const g=new THREE.Group();addDetailMesh67(g,new THREE.PlaneGeometry(3.8,1.15),mat,0,2.05,0,0,0,0,false);addDetailMesh67(g,new THREE.CylinderGeometry(.045,.055,1.7,7),facadeDark67,-1.45,.85,.04,0,0,0,false);addDetailMesh67(g,new THREE.CylinderGeometry(.045,.055,1.7,7),facadeDark67,1.45,.85,.04,0,0,0,false);
+  const len=zone.bigCity?108:92,x=zone.x-len/2+7,z=zone.z+7.35;g.position.set(x,groundY(x,z),z);scene.add(g);townSigns67.push(g);
+}
+if(typeof townZones51!=='undefined')for(let i=0;i<townZones51.length;i++)townSign67(townZones51[i],i);
+
+const propBoxGeo67=new THREE.BoxGeometry(.62,.78,.55),propPostGeo67=new THREE.BoxGeometry(.09,1.0,.09),propRailGeo67=new THREE.BoxGeometry(2.1,.09,.09);
+const propBoxMat67=new THREE.MeshStandardMaterial({color:0x3e4948,roughness:.82,metalness:.22}),propFenceMat67=new THREE.MeshStandardMaterial({color:0x665440,roughness:.92,metalness:.03});
+const boxM67=[],postM67=[],railM67=[];
+if(typeof townBuildings51!=='undefined')for(let i=0;i<townBuildings51.length;i+=2){const rec=townBuildings51[i],p=worldXZ50(rec,rec.w*.34,rec.d/2+.72);sd67.position.set(p.x,groundY(p.x,p.z)+.39,p.z);sd67.rotation.set(0,rec.rot,0);sd67.scale.set(1,1,1);sd67.updateMatrix();boxM67.push(sd67.matrix.clone());}
+if(typeof townZones51!=='undefined')for(const zone of townZones51){for(const side of [-1,1]){const baseX=zone.x+side*32,baseZ=zone.z-30;for(let j=0;j<4;j++){const x=baseX,z=baseZ+j*2.05,y=groundY(x,z);sd67.position.set(x,y+.5,z);sd67.rotation.set(0,0,0);sd67.scale.set(1,1,1);sd67.updateMatrix();postM67.push(sd67.matrix.clone());if(j<3){sd67.position.set(x,y+.62,z+1.02);sd67.rotation.set(0,Math.PI/2,0);sd67.updateMatrix();railM67.push(sd67.matrix.clone());}}}}
+const townBins67=makeInstances67(propBoxGeo67,propBoxMat67,boxM67,'townBins67');
+const fencePosts67=makeInstances67(propPostGeo67,propFenceMat67,postM67,'fencePosts67');
+const fenceRails67=makeInstances67(propRailGeo67,propFenceMat67,railM67,'fenceRails67');
+
+window.__frontierZeroEnv67B={loaded:true,buildings:typeof townBuildings51!=='undefined'?townBuildings51.length:0,streetLights:streetLampPositions67.length,townSigns:townSigns67.length,props:boxM67.length+postM67.length+railM67.length};
