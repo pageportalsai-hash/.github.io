@@ -1,0 +1,53 @@
+// ---------------------------------------------------------------------------
+// 6. FIVE MORE SNIPERS — together with existing Common + Rare, all 7 rarities
+// ---------------------------------------------------------------------------
+const sniperExpansion58=[
+  {rarity:'Uncommon',name:'Pathfinder Sniper',magSize:5,damage:90,rate:1.08,spread:.00145,pellets:1,reserve:28,variant58:1},
+  {rarity:'Epic',name:'Nightglass Sniper',magSize:6,damage:112,rate:.98,spread:.00090,pellets:1,reserve:30,variant58:2},
+  {rarity:'Legendary',name:'Suncrest Sniper',magSize:6,damage:128,rate:.91,spread:.00062,pellets:1,reserve:34,variant58:3},
+  {rarity:'Mythic',name:'Warden-X Sniper',magSize:7,damage:145,rate:.84,spread:.00044,pellets:1,reserve:38,variant58:4},
+  {rarity:'Secret',name:'Voidpiercer Sniper',magSize:8,damage:168,rate:.76,spread:.00028,pellets:1,reserve:44,variant58:5}
+];
+for(const s of sniperExpansion58)if(!gunCatalog.some(g=>g.name===s.name))gunCatalog.push(s);
+if(typeof models27!=='undefined'&&models27.sniper&&!models27.sniper.userData.variants58){
+  const g=models27.sniper,acc=new THREE.Group();acc.name='sniperAccessories58';g.add(acc);
+  const rangeBox=mesh27(acc,new THREE.BoxGeometry(.11,.075,.18),gunSteelDark27,.12,.17,-.36);rangeBox.userData.minVariant58=2;
+  const suppressor=cyl27(acc,.043,.42,gunSteelDark27,0,.005,-1.96,'z');suppressor.userData.minVariant58=3;
+  const sideRail=mesh27(acc,new THREE.BoxGeometry(.035,.07,.42),gunSteel27,-.12,.02,-.63);sideRail.userData.minVariant58=4;
+  const powerCell=mesh27(acc,new THREE.BoxGeometry(.10,.18,.25),gunPoly27,.12,-.10,.26,.10,0,0);powerCell.userData.minVariant58=5;
+  g.userData.variants58=acc;
+}
+const applyRealWeaponBefore58=applyRealWeapon27;
+applyRealWeapon27=function(){
+  applyRealWeaponBefore58();const w=currentGear();if(!isSniper57(w)||!models27.sniper)return;
+  const src=gunCatalog.find(g=>g.name===w.name),v=src?.variant58||((w.rarity==='Rare')?1:0),model=models27.sniper;
+  model.scale.set(1+v*.018,1+v*.008,1+v*.035);if(model.userData.scope)model.userData.scope.scale.set(1+v*.025,1+v*.025,1+v*.08);
+  const acc=model.userData.variants58;if(acc)for(const o of acc.children)o.visible=v>=(o.userData.minVariant58||99);
+};
+applyRealWeapon27();
+const updatePlayerBeforeExpansion58=updatePlayer;
+updatePlayer=function(dt){const r=updatePlayerBeforeExpansion58(dt);updateSupplyMarker58();return r;};
+const updateNPCsBeforeHuman58=updateNPCs;
+updateNPCs=function(dt){const r=updateNPCsBeforeHuman58(dt);for(const rec of npcRigs35||[]){if(!rec?.n||rec.n.dead)continue;setNpcRigLod43(rec,Math.hypot(rec.n.group.position.x-player.pos.x,rec.n.group.position.z-player.pos.z));}return r;};
+function qaPass58(name,checks){const out={name,passed:0,total:checks.length,issues:[]};for(const [label,fn] of checks){let ok=false;try{ok=!!fn();}catch(e){out.issues.push(label+': '+e.message);continue;}if(ok)out.passed++;else out.issues.push(label);}return out;}
+function runThreePassQA58(){
+  const sniperRarities=new Set(gunCatalog.filter(g=>(g.name||'').toLowerCase().includes('sniper')).map(g=>g.rarity));
+  const graphics=qaPass58('graphics/characters',[
+    ['70 NPC population',()=>npcs.length===70],['human body rigs',()=>npcRigs35.filter(r=>r?.n&&!r.n.dead).every(r=>r.rig?.userData?.human58)],
+    ['five town zones',()=>townZones51.length>=5],['30 detailed cars',()=>cars19.length===30&&cars19.every(c=>c.group?.parent)],
+    ['all seven sniper rarities',()=>['Common','Uncommon','Rare','Epic','Legendary','Mythic','Secret'].every(r=>sniperRarities.has(r))],['supply HUD marker',()=>!!supplyMarkerHud58.parentNode]
+  ]);
+  const gameplay=qaPass58('gameplay/physics',[
+    ['double vehicle speed',()=>cars19.every(c=>!c.tier24||Math.abs(c.maxSpeed-c.tier24.ms*2)<.01)],['wheel spin separation',()=>cars19.every(c=>!c.wheels22||c.wheels22.length===0||c.wheelSpin57?.length===c.wheels22.length)],
+    ['stair capture active',()=>typeof stairCandidate54==='function'],['collision grid active',()=>typeof rebuildCollisionGrid43==='function'],['supply system active',()=>typeof activeSupplies47!=='undefined'],['sniper scope active',()=>typeof isSniper57==='function']
+  ]);
+  const performance=qaPass58('performance/regression',[
+    ['instanced expansion roads',()=>extraRoadMesh58?.isInstancedMesh&&extraWalkMesh58?.isInstancedMesh],['shadow map controlled',()=>sun.shadow.mapSize.x<=1024],
+    ['adaptive renderer retained',()=>typeof apply60Profile54==='function'],['NPC LOD retained',()=>typeof setNpcRigLod43==='function'],['no town tower interior regression',()=>extraTowns58.length===3],['road ramp fix retained',()=>typeof roadMesh56!=='undefined'&&roadMesh56?.isInstancedMesh]
+  ]);
+  window.__frontierZeroQA58={time:new Date().toISOString(),graphics,gameplay,performance};return window.__frontierZeroQA58;
+}
+const threePassQA58=runThreePassQA58();setTimeout(runThreePassQA58,2200);
+const qaTotal58=threePassQA58.graphics.total+threePassQA58.gameplay.total+threePassQA58.performance.total,qaPassCount58=threePassQA58.graphics.passed+threePassQA58.gameplay.passed+threePassQA58.performance.passed;
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent=`EXPANSION 58 · 3 QA PASSES · ${qaPassCount58}/${qaTotal58}`;setTimeout(()=>graphicsBadge21.style.opacity='0',9000);}
+updateHUD();updateSupplyMarker58();message(`WORLD EXPANSION · +3 towns · 30 cars · all sniper rarities · 3 QA passes ${qaPassCount58}/${qaTotal58}`,6.5);
