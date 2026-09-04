@@ -1,0 +1,103 @@
+// ============================================================================
+// FRONTIER ZERO CLEAN RUNTIME 71
+// One small final stability layer for the consolidated Build 73 loader.
+// No feature-stack wrappers: just recovery, cheap LOD, door caching and render caps.
+// ============================================================================
+const cleanDesktop71=matchMedia('(pointer:fine)').matches;
+
+// Lower GPU pressure first. Keep shadows, but render fewer pixels and cheaper NPCs.
+renderer.setPixelRatio(Math.min(devicePixelRatio,cleanDesktop71?1.05:0.92));
+renderer.shadowMap.type=THREE.PCFShadowMap;
+if(typeof sun!=='undefined'&&sun?.shadow){sun.shadow.mapSize.set(768,768);}
+
+// Expensive articulated NPC rigs are only needed when close to the player.
+if(typeof setNpcRigLod43==='function'&&typeof npcLodState43!=='undefined'){
+  setNpcRigLod43=function(rec,dist){
+    if(!rec||!rec.rig)return;
+    const onD=cleanDesktop71?48:28,offD=cleanDesktop71?62:38;
+    let near=npcLodState43.has(rec.rig)?npcLodState43.get(rec.rig):dist<onD;
+    if(near&&dist>offD)near=false;else if(!near&&dist<onD)near=true;
+    npcLodState43.set(rec.rig,near);rec.rig.visible=near;
+    for(const o of rec.legacy||[])if(o&&o!==rec.rig)o.visible=!near;
+  };
+}
+for(const n of npcs){if(n?.group)n.group.traverse(o=>{if(o?.isMesh)o.castShadow=false;});}
+
+// Cache automatic-door proximity instead of scanning every NPC for every door every frame.
+const cleanDoor71=new WeakMap();
+function refreshCleanDoors71(){
+  const now=performance.now();
+  for(const rec of buildingNav50){
+    if(!rec?.doorParts?.length)continue;
+    let near=Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<3.15;
+    if(!near){
+      for(const n of npcs){
+        if(!n||n.dead)continue;
+        if(Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<3.35){near=true;break;}
+      }
+    }
+    let s=cleanDoor71.get(rec);if(!s){s={open:false,until:0};cleanDoor71.set(rec,s);}
+    if(near)s.until=now+850;
+    s.open=near||now<s.until;
+  }
+}
+refreshCleanDoors71();
+setInterval(refreshCleanDoors71,125);
+if(typeof doorShouldOpen50==='function')doorShouldOpen50=function(rec){return cleanDoor71.get(rec)?.open||false;};
+
+// Part 43's old recovery arrays were created before the population grew to 70.
+// Use one WeakMap for every NPC so none of the late-spawned six can fall through recovery.
+const cleanNpcState71=new WeakMap();
+function cleanState71(n){
+  let s=cleanNpcState71.get(n);
+  if(!s){s={last:n.group.position.clone(),before:n.group.position.clone(),stuck:0};cleanNpcState71.set(n,s);}
+  return s;
+}
+for(const n of npcs)if(n?.group)cleanState71(n);
+function cleanNpcValid71(p){return !!p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)&&Math.abs(p.x)<494&&Math.abs(p.z)<494&&groundY(p.x,p.z)>water.position.y+.58;}
+
+const cleanNpcCore71=updateNPCs;
+updateNPCs=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);
+  for(const n of npcs)if(n?.group&&!n.dead)cleanState71(n).before.copy(n.group.position);
+  const out=cleanNpcCore71(dt);
+  for(const n of npcs){
+    if(!n?.group||n.dead)continue;
+    const s=cleanState71(n),p=n.group.position;
+    if(!cleanNpcValid71(p)){
+      p.copy(s.last);p.y=groundY(p.x,p.z);n.speed=0;
+      if(n.patrol)n.patrol.set(p.x+rand(-5,5),0,p.z+rand(-5,5));
+      continue;
+    }
+    const moved=Math.hypot(p.x-s.before.x,p.z-s.before.z);
+    // Clamp impossible one-frame jumps without interfering with ordinary movement.
+    const maxMove=6.2*dt+.08;
+    if(moved>maxMove&&moved<2.5){
+      const k=maxMove/moved;p.x=s.before.x+(p.x-s.before.x)*k;p.z=s.before.z+(p.z-s.before.z)*k;p.y=groundY(p.x,p.z);
+    }
+    if(cleanNpcValid71(p))s.last.copy(p);
+  }
+  return out;
+};
+
+// Recover the camera/player only from truly invalid values; never continuously correct valid motion.
+const cleanPlayerCore71=updatePlayer;
+updatePlayer=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);
+  const out=cleanPlayerCore71(dt);
+  if(!Number.isFinite(player.pos.x)||!Number.isFinite(player.pos.y)||!Number.isFinite(player.pos.z)){
+    player.pos.set(0,groundY(0,0)+player.height,0);firing=false;
+  }
+  if(!Number.isFinite(camera.position.x)||!Number.isFinite(camera.position.y)||!Number.isFinite(camera.position.z))camera.position.copy(player.pos);
+  return out;
+};
+
+// Remove a few purely atmospheric costs that do not affect gameplay.
+if(typeof cloud29!=='undefined'&&cloud29)cloud29.visible=false;
+if(typeof mist39!=='undefined')for(const m of mist39)if(m)m.visible=false;
+
+window.__frontierZeroClean71={loaded:true,build:73,mode:'clean-loader',npcRecovery:npcs.length,doorCache:true};
+if(typeof graphicsBadge21!=='undefined'){
+  graphicsBadge21.style.opacity='1';graphicsBadge21.textContent='CLEAN RUNTIME 71 · BUILD 73';setTimeout(()=>graphicsBadge21.style.opacity='0',8000);
+}
+message('CLEAN BUILD 73 · heavy wrapper stack removed',5.0);
