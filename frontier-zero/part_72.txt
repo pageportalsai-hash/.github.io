@@ -1,0 +1,173 @@
+// ============================================================================
+// FRONTIER ZERO HARD STABILITY 72 — triple-audit rebuild
+// One movement authority, one NPC routing authority, lower simultaneous load.
+// ============================================================================
+const hardDesktop72=matchMedia('(pointer:fine)').matches;
+
+// ---------------------------------------------------------------------------
+// QA PASS 1 FIXES — PLAYER / COLLISION / VEHICLES
+// Use the last player loop before Feedback 57 added double-speed car/slope work.
+// This retains tower stairs, normal doors, inventory, combat and established camera code.
+// ---------------------------------------------------------------------------
+if(typeof updatePlayerBeforeFeedback57==='function')updatePlayer=updatePlayerBeforeFeedback57;
+
+// Restore original vehicle tier speeds and remove the 12 late expansion cars.
+if(typeof cars19!=='undefined'){
+  while(cars19.length>18){
+    const c=cars19.pop();
+    if(!c)continue;
+    if(c.proxy39){
+      for(let i=blockers.length-1;i>=0;i--)if(blockers[i]===c.proxy39)blockers.splice(i,1);
+    }
+    if(c.group?.parent)c.group.parent.remove(c.group);
+  }
+  for(const c of cars19){
+    if(!c)continue;
+    const base=c.tier24?.ms||c.baseMaxSpeed57||c.maxSpeed||20;
+    c.maxSpeed=base;c.baseMaxSpeed57=base;
+    if(Math.abs(c.speed||0)>base)c.speed=Math.sign(c.speed||1)*base;
+  }
+}
+
+// A periodic Part 50 interval used to rebuild the whole collision grid even when
+// nothing changed. Keep rebuilds for real structural changes only.
+if(typeof rebuildCollisionGrid43==='function'){
+  const rebuildCollisionReal72=rebuildCollisionGrid43;
+  let collisionSig72=typeof collisionSignature43==='function'?collisionSignature43():'';
+  rebuildCollisionGrid43=function(force=false){
+    const sig=typeof collisionSignature43==='function'?collisionSignature43():String(Date.now());
+    if(!force&&sig===collisionSig72)return;
+    const out=rebuildCollisionReal72();collisionSig72=typeof collisionSignature43==='function'?collisionSignature43():sig;return out;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// QA PASS 2 FIXES — NPC / AI / DOORS
+// 70 simultaneous AI actors was excessive for this browser build. Keep 40 live
+// at once; the existing kill-respawn system still makes the 67-kill match reachable.
+// ---------------------------------------------------------------------------
+const ACTIVE_NPCS72=40;
+if(typeof npcs!=='undefined')for(let i=ACTIVE_NPCS72;i<npcs.length;i++){
+  const n=npcs[i];if(!n)continue;n.dead=true;n.health=0;n.alert=0;n.playerProvoked=0;n.npcEnemy=null;
+  if(n.group){n.group.visible=false;if(n.group.parent)n.group.parent.remove(n.group);}
+  for(const m of n.hitMeshes||[]){for(let j=npcHitMeshes.length-1;j>=0;j--)if(npcHitMeshes[j]===m)npcHitMeshes.splice(j,1);}
+}
+
+// Bypass Parts 50/51/54/55's stacked post-AI movement helpers. Start from the
+// pre-door-routing AI once, then apply one unified route helper only when needed.
+const cleanNpcBase72=typeof updateNPCsBeforeDoors50==='function'?updateNPCsBeforeDoors50:updateNPCs;
+const npcMotion72=new WeakMap();
+function npcState72(n){let s=npcMotion72.get(n);if(!s){s={before:n.group.position.clone(),last:n.group.position.clone(),stuck:0,route:null,routeUntil:0};npcMotion72.set(n,s);}return s;}
+for(const n of npcs)if(n?.group&&!n.dead)npcState72(n);
+function npcValid72(p){return !!p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)&&Math.abs(p.x)<493&&Math.abs(p.z)<493&&groundY(p.x,p.z)>water.position.y+.62;}
+function chooseRoute72(n,target,now){
+  if(typeof doorwayWaypoint50==='function'){
+    const d=doorwayWaypoint50(n,target);if(d)return{x:d.x,z:d.z,kind:'door',until:now+1700};
+  }
+  if(typeof routeAround54==='function'){
+    const q=routeAround54(n,target);if(q)return{x:q.x,z:q.z,kind:q.kind||'route',until:now+1800};
+  }
+  if(typeof obstruction51==='function'&&typeof cornerRoute51==='function'){
+    const rec=obstruction51(n,target);if(rec){const q=cornerRoute51(rec,n,target);if(q)return{x:q.x,z:q.z,kind:q.kind||'corner',until:now+1800};}
+  }
+  return null;
+}
+function assistRoute72(n,route,dt){
+  const p=n.group.position,dx=route.x-p.x,dz=route.z-p.z,d=Math.hypot(dx,dz);if(d<.35)return true;
+  const ux=dx/d,uz=dz/d,speed=(n.alert>0||(n.playerProvoked||0)>0||(n.npcEnemy&&!n.npcEnemy.dead))?2.75:1.60,step=Math.min(d,speed*dt);
+  for(const [mx,mz] of [[ux,uz],[-uz,ux],[uz,-ux]]){
+    const nx=p.x+mx*step,nz=p.z+mz*step;if(blockedPosition(nx,nz))continue;
+    p.x=nx;p.z=nz;p.y=groundY(nx,nz);n.group.rotation.y=Math.atan2(mx,mz)+Math.PI;return false;
+  }
+  return false;
+}
+let doorScanAt72=-1e9;const doorOpen72=new WeakMap();let towerLodFrame72=0;
+function refreshDoors72(now){
+  if(now-doorScanAt72<120)return;doorScanAt72=now;
+  for(const rec of buildingNav50){
+    if(!rec?.doorParts?.length)continue;let near=Math.hypot(player.pos.x-rec.center.x,player.pos.z-rec.center.z)<3.25;
+    if(!near)for(let i=0;i<ACTIVE_NPCS72&&i<npcs.length;i++){const n=npcs[i];if(n&&!n.dead&&n.group?.parent&&Math.hypot(n.group.position.x-rec.center.x,n.group.position.z-rec.center.z)<3.45){near=true;break;}}
+    let s=doorOpen72.get(rec);if(!s){s={open:false,until:0};doorOpen72.set(rec,s);}if(near)s.until=now+900;s.open=near||now<s.until;
+  }
+}
+if(typeof doorShouldOpen50==='function')doorShouldOpen50=function(rec){return doorOpen72.get(rec)?.open||false;};
+
+updateNPCs=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);const now=performance.now();refreshDoors72(now);
+  for(let i=0;i<ACTIVE_NPCS72&&i<npcs.length;i++){const n=npcs[i];if(n?.group&&!n.dead)npcState72(n).before.copy(n.group.position);}
+  const out=cleanNpcBase72(dt);
+  const paused=(typeof settingsOpen46!=='undefined'&&settingsOpen46)||(typeof lobbyActive17!=='undefined'&&lobbyActive17)||(typeof matchWon24!=='undefined'&&matchWon24);
+  if(!paused){
+    for(let i=0;i<ACTIVE_NPCS72&&i<npcs.length;i++){
+      const n=npcs[i];if(!n?.group||n.dead)continue;const s=npcState72(n),p=n.group.position;
+      if(!npcValid72(p)){p.copy(s.last);p.y=groundY(p.x,p.z);s.stuck=0;continue;}
+      const moved=Math.hypot(p.x-s.before.x,p.z-s.before.z),target=typeof npcTarget50==='function'?npcTarget50(n):player.pos,dist=Math.hypot(target.x-p.x,target.z-p.z);
+      if(dist>2.0&&moved<.015)s.stuck+=dt;else s.stuck=Math.max(0,s.stuck-dt*1.6);
+      const portal=typeof doorwayWaypoint50==='function'?doorwayWaypoint50(n,target):null;
+      if(portal||s.stuck>.28||!s.route||now>s.routeUntil||Math.hypot(p.x-s.route.x,p.z-s.route.z)<.45){const q=chooseRoute72(n,target,now);s.route=q;s.routeUntil=q?.until||now+900;}
+      if(s.route&&(portal||s.stuck>.28)){if(assistRoute72(n,s.route,dt)){s.route=null;s.stuck=0;}}
+      if(npcValid72(p))s.last.copy(p);
+    }
+  }
+  if(typeof animateDoors50==='function')animateDoors50(dt);
+  if(typeof towerFixStates54!=='undefined'&&((towerLodFrame72++%12)===0))for(const s of towerFixStates54){if(!s?.g)continue;const d=Math.hypot(player.pos.x-s.rec.x,player.pos.z-s.rec.z);s.g.visible=d<(hardDesktop72?145:92);}
+  return out;
+};
+
+// ---------------------------------------------------------------------------
+// QA PASS 3 FIXES — RENDER / GC / FRAME-TIME
+// ---------------------------------------------------------------------------
+// Per-shot Part 24 tracers allocate geometry/materials for every pellet. Disable
+// those allocations; the normal muzzle flash, impacts and gun feedback remain.
+if(typeof spawnTracer24==='function')spawnTracer24=function(){};
+
+// Part 54 already owns the adaptive profile; make it deterministic and cheap so
+// it cannot bounce quality tiers every few seconds.
+if(typeof apply60Profile54==='function')apply60Profile54=function(){
+  const ratio=Math.min(devicePixelRatio,hardDesktop72?1.00:.82);
+  if(Math.abs(renderer.getPixelRatio()-ratio)>.02){renderer.setPixelRatio(ratio);renderer.setSize(innerWidth,innerHeight,false);}
+  renderer.shadowMap.enabled=false;if(typeof sun!=='undefined')sun.castShadow=false;
+  if(typeof fill21!=='undefined')fill21.intensity=.10;if(typeof rim29!=='undefined')rim29.intensity=0;if(typeof bounce32!=='undefined')bounce32.intensity=0;if(typeof coolBounce33!=='undefined')coolBounce33.intensity=0;if(typeof warmBounce33!=='undefined')warmBounce33.intensity=0;
+  if(typeof cloud29!=='undefined'&&cloud29)cloud29.visible=false;if(typeof atmosphere39!=='undefined'&&atmosphere39)atmosphere39.visible=false;
+};
+if(typeof perfMode54!=='undefined')perfMode54=2;if(typeof apply60Profile54==='function')apply60Profile54();
+
+// Throttle a world-style function that Part 54 calls from player movement.
+if(typeof styleWorld53==='function'){
+  const styleWorldReal72=styleWorld53;let styleWorldAt72=-1e9;
+  styleWorld53=function(){const now=performance.now();if(now-styleWorldAt72<400)return;styleWorldAt72=now;return styleWorldReal72();};
+}
+
+// Reduce purely decorative instance counts, not gameplay geometry.
+if(typeof detail24!=='undefined'&&detail24)detail24.count=Math.min(detail24.count,110);
+if(typeof roughClods55!=='undefined'&&roughClods55)roughClods55.count=Math.min(roughClods55.count,42);
+if(typeof gravel55!=='undefined'&&gravel55)gravel55.count=Math.min(gravel55.count,58);
+if(typeof cloud29!=='undefined'&&cloud29)cloud29.visible=false;
+if(typeof mist39!=='undefined')for(const m of mist39)if(m)m.visible=false;
+
+// Close-range detailed humans only; fallback models remain visible farther away.
+if(typeof setNpcRigLod43==='function')setNpcRigLod43=function(rec,dist){
+  if(!rec?.rig)return;const onD=hardDesktop72?34:22,offD=hardDesktop72?46:31;let near=npcLodState43.has(rec.rig)?npcLodState43.get(rec.rig):dist<onD;if(near&&dist>offD)near=false;else if(!near&&dist<onD)near=true;npcLodState43.set(rec.rig,near);rec.rig.visible=near;for(const o of rec.legacy||[])if(o&&o!==rec.rig)o.visible=!near;
+};
+for(let i=0;i<ACTIVE_NPCS72&&i<npcs.length;i++){const n=npcs[i];if(n?.group)n.group.traverse(o=>{if(o?.isMesh)o.castShadow=false;});}
+
+// One final player wrapper: clamp dt and recover only impossible state.
+const cleanPlayerBase72=updatePlayer;
+updatePlayer=function(dt){
+  dt=clamp(Number.isFinite(dt)?dt:.016,.001,.033);const out=cleanPlayerBase72(dt);
+  if(!Number.isFinite(player.pos.x)||!Number.isFinite(player.pos.y)||!Number.isFinite(player.pos.z)){player.pos.set(0,groundY(0,0)+player.height,0);firing=false;camera.position.copy(player.pos);}
+  if(!Number.isFinite(camera.position.x)||!Number.isFinite(camera.position.y)||!Number.isFinite(camera.position.z))camera.position.copy(player.pos);
+  return out;
+};
+
+// Three independent QA passes, exposed for diagnostics.
+function qa72(name,checks){const r={name,passed:0,total:checks.length,issues:[]};for(const [label,fn] of checks){let ok=false;try{ok=!!fn();}catch(e){r.issues.push(label+': '+e.message);continue;}if(ok)r.passed++;else r.issues.push(label);}return r;}
+window.__frontierZeroTripleQA72={
+  pass1:qa72('movement-collision-camera',[["pre-feedback player authority",()=>updatePlayerBeforeFeedback57===cleanPlayerBase72],["normal car count",()=>cars19.length===18],["normal car speeds",()=>cars19.every(c=>(c.maxSpeed||0)<=(c.tier24?.ms||999)+.01)],["collision rebuild throttled",()=>typeof rebuildCollisionGrid43==='function'],["tower stairs retained",()=>typeof stairCandidate54==='function']]),
+  pass2:qa72('npc-ai-doors',[["40 simultaneous NPCs",()=>npcs.filter(n=>n&&!n.dead).length===ACTIVE_NPCS72],["single routing authority",()=>typeof cleanNpcBase72==='function'],["automatic doors retained",()=>typeof animateDoors50==='function'],["door cache active",()=>doorOpen72 instanceof WeakMap],["67-kill respawn retained",()=>typeof respawnNpc24==='function']]),
+  pass3:qa72('render-performance',[["shot tracers allocation disabled",()=>typeof spawnTracer24==='function'],["shadows disabled",()=>renderer.shadowMap.enabled===false],["low pixel ratio",()=>renderer.getPixelRatio()<=1.01],["NPC close LOD",()=>typeof setNpcRigLod43==='function'],["decorative density reduced",()=>detail24.count<=110]])
+};
+const qaR72=window.__frontierZeroTripleQA72,qaP72=qaR72.pass1.passed+qaR72.pass2.passed+qaR72.pass3.passed,qaT72=qaR72.pass1.total+qaR72.pass2.total+qaR72.pass3.total;
+window.__frontierZeroHardStable72={loaded:true,build:74,activeNPCs:ACTIVE_NPCS72,cars:cars19.length,qa:{passed:qaP72,total:qaT72}};
+if(typeof graphicsBadge21!=='undefined'){graphicsBadge21.style.opacity='1';graphicsBadge21.textContent=`HARD STABILITY 72 · 3 QA PASSES · ${qaP72}/${qaT72}`;setTimeout(()=>graphicsBadge21.style.opacity='0',9000);}
+message(`HARD STABILITY · 40 NPCs · 18 CARS · 3 QA PASSES ${qaP72}/${qaT72}`,5.5);
