@@ -1,66 +1,45 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#080b14" />
-  <title>SHARDBOUND — Collector Simulator</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07110f">
+<title>VIALBREAK — Specimen Collector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="noise"></div>
-  <div id="toast" class="toast" aria-live="polite"></div>
-
-  <header class="topbar">
-    <div class="brand-wrap">
-      <button id="menuBtn" class="icon-btn mobile-only" aria-label="Menu">☰</button>
-      <div class="brand-mark"><span></span></div>
-      <div>
-        <div class="brand">SHARDBOUND</div>
-        <div class="tagline">RIP • DISCOVER • GRADE • TRADE</div>
-      </div>
-    </div>
-    <div class="stats">
-      <div class="stat-pill"><span class="stat-label">CREDITS</span><strong id="credits">750</strong><span class="credit-icon">₡</span></div>
-      <div class="stat-pill"><span class="stat-label">COLLECTION</span><strong id="collectionCount">0 / 36</strong></div>
-      <div class="level-wrap"><div class="level-row"><span>LV <b id="level">1</b></span><span id="xpLabel">0 / 400 XP</span></div><div class="xp-track"><div id="xpBar" class="xp-bar"></div></div></div>
-    </div>
-  </header>
-
-  <aside id="sidebar" class="sidebar">
-    <nav>
-      <button class="nav-item active" data-screen="shop"><span>◈</span><b>Pack Shop</b><small>Open sealed rifts</small></button>
-      <button class="nav-item" data-screen="collection"><span>▦</span><b>The Archive</b><small>Your collection index</small></button>
-      <button class="nav-item" data-screen="grading"><span>◇</span><b>ARC Grading</b><small>Chase perfect 10s</small></button>
-      <button class="nav-item" data-screen="market"><span>⌁</span><b>Night Market</b><small>Sell & watch prices</small></button>
-    </nav>
-    <div class="sidebar-card"><div class="eyebrow">TODAY'S RUMOUR</div><p>Collectors say card #036 has appeared in Black Archive packs.</p><div class="rumour-line"><span></span><i></i><span></span></div></div>
-    <button id="resetBtn" class="reset-btn">Reset save</button>
-  </aside>
-
-  <main class="main">
-    <section id="screen-shop" class="screen active">
-      <div class="hero-panel"><div><div class="eyebrow gold">COLLECTOR DISTRICT // SECTOR 7</div><h1>Tonight's <span>Rift Drop</span></h1><p>Crack sealed fragments from worlds that should not exist. Keep the legends. Grade the gems. Sell the rest.</p></div><div class="hero-badge"><div class="orb"></div><div><small>MARKET PULSE</small><strong id="marketPulse">+4.2%</strong><span>Rift cards rising</span></div></div></div>
-      <div class="section-head"><div><div class="eyebrow">SEALED INVENTORY</div><h2>Choose a pack</h2></div><div class="mini-note">Each pack contains 5 cards</div></div>
-      <div id="packGrid" class="pack-grid"></div>
-      <div class="lower-grid">
-        <div class="panel chase-panel"><div class="panel-head"><div><div class="eyebrow">CURRENT CHASE</div><h3>The End of Time</h3></div><span class="rarity-chip singularity">SINGULARITY</span></div><div class="chase-content"><div class="mini-card singularity-card"><div class="mini-card-inner"><div class="serial">036/036</div><div class="glyph">⌛</div><b>THE END OF TIME</b><span>Anomaly</span></div></div><div class="chase-copy"><p>The rarest card in Rift Zero. Rumoured to appear only when a pack destabilises during opening.</p><div class="price-line"><span>RAW INDEX</span><strong>₡ 18,500</strong></div><div class="price-line"><span>ARC 10 INDEX</span><strong class="gold-text">₡ 96,000</strong></div></div></div></div>
-        <div class="panel activity-panel"><div class="panel-head"><div><div class="eyebrow">YOUR RUN</div><h3>Collector stats</h3></div></div><div class="activity-grid"><div><small>PACKS RIPPED</small><strong id="packsOpened">0</strong></div><div><small>BEST PULL</small><strong id="bestPull">—</strong></div><div><small>CARDS SOLD</small><strong id="cardsSold">0</strong></div><div><small>ARC 10s</small><strong id="tensCount">0</strong></div></div></div>
-      </div>
-    </section>
-
-    <section id="screen-collection" class="screen"><div class="section-head archive-head"><div><div class="eyebrow">THE ARCHIVE // SET 001</div><h2>Discovery Index</h2><p>Every card you discover is permanently logged here.</p></div><div class="archive-progress"><strong id="archivePercent">0%</strong><span>discovered</span></div></div><div class="filter-row"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="owned">Owned</button><button class="filter" data-filter="Rift">Rift+</button><button class="filter" data-filter="graded">Graded</button></div><div id="collectionGrid" class="collection-grid"></div></section>
-
-    <section id="screen-grading" class="screen"><div class="grading-hero"><div><div class="eyebrow">ARCHIVE RATING CORPORATION</div><h2>ARC Grading Lab</h2><p>Submit your best pulls. Surface, edges, centering and print all matter.</p></div><div class="arc-logo">ARC<span>10</span></div></div><div class="grading-layout"><div class="panel"><div class="panel-head"><div><div class="eyebrow">SUBMISSION DESK</div><h3>Choose a card</h3></div><span class="fee-tag">₡ 90 / card</span></div><div id="gradableList" class="gradable-list"></div></div><div class="panel"><div class="panel-head"><div><div class="eyebrow">RETURN VAULT</div><h3>Grading returns</h3></div></div><div id="gradingReturns" class="grading-returns"></div></div></div></section>
-
-    <section id="screen-market" class="screen"><div class="section-head archive-head"><div><div class="eyebrow">MIDNIGHT EXCHANGE</div><h2>Night Market</h2><p>Values move every few seconds. Sell into spikes or hold your chase cards.</p></div><div class="market-clock"><span>LIVE</span><b id="tickerTimer">00:12</b></div></div><div class="market-layout"><div class="panel market-board"><div class="market-row market-header"><span>CARD</span><span>RARITY</span><span>INDEX</span><span>24H</span></div><div id="marketRows"></div></div><div class="panel inventory-panel"><div class="panel-head"><div><div class="eyebrow">YOUR INVENTORY</div><h3>Quick sell</h3></div></div><div id="sellList" class="sell-list"></div></div></div></section>
-  </main>
-
-  <div id="openingOverlay" class="opening-overlay" aria-hidden="true"><button id="closeOpening" class="close-opening">×</button><div class="opening-stage"><div class="opening-title"><span id="openingSet">RIFT ZERO</span><small>SEALED FRAGMENT</small></div><div id="openingPack" class="opening-pack"><div class="pack-tear"></div><div class="pack-logo">SHARD<span>BOUND</span></div><div class="pack-rift"></div><div class="pack-series" id="openingPackName">RIFT ZERO</div><div class="pack-bottom">5 ARCHIVE CARDS</div></div><button id="ripBtn" class="rip-btn">HOLD TO RIP</button><div id="revealArea" class="reveal-area"></div><button id="nextCardBtn" class="next-card-btn hidden">REVEAL NEXT</button><button id="finishPackBtn" class="next-card-btn hidden">ADD TO ARCHIVE</button></div></div>
-  <div id="inspectModal" class="inspect-modal" aria-hidden="true"><div class="inspect-backdrop" data-close-inspect></div><div class="inspect-card-wrap"><button class="inspect-close" data-close-inspect>×</button><div id="inspectCard"></div><div id="inspectInfo" class="inspect-info"></div></div></div>
-  <script src="game.js"></script>
-</body>
-</html>
+<div class="scanlines"></div><div id="toast" class="toast"></div>
+<header class="topbar">
+  <div class="brandwrap"><button id="menuBtn" class="mobile-only icon-btn">☰</button><div class="logo">V<span>//</span>B</div><div><div class="brand">VIALBREAK</div><div class="tagline">CRACK • CULTURE • CERTIFY • CASH OUT</div></div></div>
+  <div class="stats"><div class="stat"><small>CREDITS</small><b id="credits">900</b><span>₡</span></div><div class="stat"><small>SPECIMENS</small><b id="collectionCount">0 / 42</b></div><div class="levelbox"><div><span>LAB LV <b id="level">1</b></span><span id="xpLabel">0 / 500 XP</span></div><i><em id="xpBar"></em></i></div></div>
+</header>
+<aside id="sidebar" class="sidebar">
+  <nav>
+    <button class="nav active" data-screen="shop"><span>▤</span><b>Cold Storage</b><small>Buy sealed vial racks</small></button>
+    <button class="nav" data-screen="collection"><span>🧪</span><b>Specimen Index</b><small>All discovered strains</small></button>
+    <button class="nav" data-screen="tools"><span>⚒</span><b>Crack Bench</b><small>Upgrade opening tools</small></button>
+    <button class="nav" data-screen="grading"><span>⬡</span><b>Seal Certification</b><small>Chase CGC 10 samples</small></button>
+    <button class="nav" data-screen="market"><span>↗</span><b>Grey Market</b><small>Sell strange specimens</small></button>
+  </nav>
+  <div class="sidecard"><small>SHIFT NOTICE</small><p>Techs swear a <b>TOTAL BREACH</b> rack was seen in Blacksite Storage. Every vial inside was premium.</p></div>
+  <button id="resetBtn" class="reset">Reset save</button>
+</aside>
+<main class="main">
+<section id="screen-shop" class="screen active">
+  <div class="hero"><div><div class="eyebrow lime">SUBLEVEL 04 // COLD STORAGE</div><h1>Break seals.<br><span>Find impossible things.</span></h1><p>Each rack carries seven sealed lab vials. Crack them one by one. Vial 7 is the boosted <b>Final Chamber</b>. Very rarely, the whole rack becomes a TOTAL BREACH.</p></div><div class="hero-machine"><div class="warning">CONTAINMENT: <b>UNSTABLE</b></div><div class="reactor"><i></i><i></i><i></i></div><small>Rack anomaly scanner</small></div></div>
+  <div class="section-head"><div><div class="eyebrow">AUTHORIZED INVENTORY</div><h2>Choose a specimen rack</h2></div><div class="note">7 vials per rack • vial 7 has boosted odds</div></div>
+  <div id="rackGrid" class="rack-grid"></div>
+  <div class="bottom-grid">
+    <div class="panel chase"><div class="panel-head"><div><div class="eyebrow">CURRENT NIGHTMARE</div><h3>Reality Itch // Ω</h3></div><span class="chip impossible">IMPOSSIBLE</span></div><div class="chasebody"><div class="hero-vial impossible-vial"><div class="cap"></div><div class="glass"><div class="liquid"></div><div class="organism">Ω</div></div><small>VB-042</small></div><div><p>A sealed specimen that makes nearby labels rewrite themselves. Nobody remembers naming it.</p><div class="kv"><span>RAW INDEX</span><b>₡ 24,800</b></div><div class="kv"><span>CGC 10 INDEX</span><b class="gold">₡ 128,000</b></div></div></div></div>
+    <div class="panel"><div class="panel-head"><div><div class="eyebrow">YOUR SHIFT</div><h3>Lab stats</h3></div></div><div class="statgrid"><div><small>RACKS CRACKED</small><b id="racksOpened">0</b></div><div><small>BEST FIND</small><b id="bestPull">—</b></div><div><small>VIALS SOLD</small><b id="itemsSold">0</b></div><div><small>GOD RACKS</small><b id="godRacks">0</b></div></div></div>
+  </div>
+</section>
+<section id="screen-collection" class="screen"><div class="section-head archive"><div><div class="eyebrow">SPECIMEN INDEX // FREEZER A</div><h2>Discovered cultures</h2><p>Unknown strains stay blacked out until you crack one.</p></div><div class="percent"><b id="archivePercent">0%</b><span>catalogued</span></div></div><div class="filters"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="owned">Owned</button><button class="filter" data-filter="Hazard">Hazard+</button><button class="filter" data-filter="graded">Certified</button></div><div id="collectionGrid" class="collection-grid"></div></section>
+<section id="screen-tools" class="screen"><div class="toolhero"><div><div class="eyebrow">CRACK BENCH // TOOL CONTROL</div><h2>Your opening tool</h2><p>Better equipment cracks each vial faster. Upgrade permanently.</p></div><div id="currentToolDisplay" class="tool-display"></div></div><div id="toolGrid" class="tool-grid"></div></section>
+<section id="screen-grading" class="screen"><div class="cert-hero"><div><div class="eyebrow">CONTAINMENT GRADING CORPORATION</div><h2>CGC Seal Certification</h2><p>Glass clarity, seal integrity, label alignment and culture stability are scored.</p></div><div class="cgc">CGC<span>10</span></div></div><div class="two-col"><div class="panel"><div class="panel-head"><div><div class="eyebrow">SUBMISSION TRAY</div><h3>Choose a vial</h3></div><span class="fee">₡ 110 / vial</span></div><div id="gradableList" class="list"></div></div><div class="panel"><div class="panel-head"><div><div class="eyebrow">RETURN LOCKER</div><h3>Certification returns</h3></div></div><div id="gradingReturns" class="returns"></div></div></div></section>
+<section id="screen-market" class="screen"><div class="section-head archive"><div><div class="eyebrow">UNLICENSED EXCHANGE // LIVE</div><h2>Grey Market</h2><p>Specimen values twitch constantly. Sell duplicates or hold rare cultures.</p></div><div class="ticker"><span>LIVE</span><b id="tickerTimer">00:12</b></div></div><div class="two-col"><div class="panel board"><div class="market-row header"><span>SPECIMEN</span><span>CLASS</span><span>INDEX</span><span>MOVE</span></div><div id="marketRows"></div></div><div class="panel"><div class="panel-head"><div><div class="eyebrow">YOUR FREEZER</div><h3>Quick sell</h3></div></div><div id="sellList" class="list"></div></div></div></section>
+</main>
+<div id="openingOverlay" class="opening-overlay"><button id="closeOpening" class="close">×</button><div class="opening-stage"><div id="breachBanner" class="breach-banner hidden">⚠ TOTAL BREACH // GOD RACK ⚠</div><div class="opening-title"><span id="openingRackName">STARTER CULTURES</span><small>SEALED 7-VIAL RACK</small></div><div id="rackVisual" class="rack-visual"></div><div id="crackStation" class="crack-station hidden"><div class="slot-label">VIAL <b id="slotNum">1</b> / 7 <span id="slotBonus"></span></div><div id="bigVial"></div><div id="toolAnim" class="tool-anim">🔨</div><button id="crackBtn" class="crack-btn">HOLD TO CRACK</button></div><div id="revealArea" class="reveal-area"></div><button id="nextVialBtn" class="next-btn hidden">NEXT VIAL</button><button id="finishRackBtn" class="next-btn hidden">LOCK INTO FREEZER</button></div></div>
+<div id="inspectModal" class="inspect-modal"><div class="backdrop" data-close-inspect></div><div class="inspect-wrap"><button class="inspect-close" data-close-inspect>×</button><div id="inspectVial"></div><div id="inspectInfo" class="inspect-info"></div></div></div>
+<script src="game.js"></script>
+</body></html>
