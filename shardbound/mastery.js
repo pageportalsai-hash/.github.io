@@ -20,7 +20,7 @@
   if(state.toolSystemVersion!==4){state.tool=Math.min(Math.max(Number(state.tool)||0,0),4);state.autoCrack=false;state.toolSystemVersion=4;save()}
   if(state.tool>=tools.length)state.tool=tools.length-1;
   tool=function(){return tools[state.tool]||tools[0]};
-  const containment=()=>Math.min(100,state.discovered.length);
+  const containment=()=>window.VIALBREAK_PROGRESSION?.containment?.()??Math.min(100,Math.floor((state.discovered.length/670)*100));
 
   renderTools=function(){
     const current=tool(),c=containment(),autoReady=state.tool>=AUTO_INDEX;
