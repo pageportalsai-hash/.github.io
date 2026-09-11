@@ -88,5 +88,14 @@
 
   const nav=document.querySelector('[data-screen="collection"] small');if(nav)nav.textContent='10,000-vial master index';
   const side=document.querySelector('.sidecard p');if(side)side.innerHTML='The facility holds <b>10,000 unique specimens across 12 rarity classes</b>, including 8 Credit Ladder chase vials from ₡100 to ₡1,000,000,000.';
+
+  // Load the visible one-vial shop directly under the six rack cards.
+  if(!document.querySelector('link[href="single-vials.css"]')){
+    const link=document.createElement('link');link.rel='stylesheet';link.href='single-vials.css';document.head.appendChild(link);
+  }
+  if(!document.querySelector('script[src="single-vials.js"]')){
+    const script=document.createElement('script');script.src='single-vials.js';document.body.appendChild(script);
+  }
+
   renderAll();
 })();
