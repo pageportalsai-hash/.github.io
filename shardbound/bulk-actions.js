@@ -101,23 +101,34 @@
 
   function sellSelectedInventory(){
     const items=state.inventory.filter(i=>sellSelected.has(i.uid));if(!items.length)return;
-    const total=items.reduce((s,i)=>s+valueOf(i),0),certified=items.filter(i=>i.grade).length,rare=items.filter(i=>rank[byId(i.specimenId).rarity]>=5).length;
+    const total=items.reduce((s,i)=>s+valueOf(i),0),certified=items.filter(i=>i.grade).length,highTier=items.filter(i=>rank[byId(i.specimenId).rarity]>=5).length;
     let msg=`Sell ${items.length} selected vial${items.length===1?'':'s'} for ₡${fmt(total)}?`;
-    if(certified||rare)msg+=`\n\nWARNING: selection includes ${certified} certified and ${rare} Black Label/Impossible vial${rare===1?'':'s'}.`;
+    if(certified||highTier)msg+=`\n\nWARNING: selection includes ${certified} certified and ${highTier} Black Label+ vial${highTier===1?'':'s'}.`;
     if(!confirm(msg+'\n\nThis cannot be undone.'))return;
-    const ids=new Set(items.map(i=>i.uid));state.inventory=state.inventory.filter(i=>!ids.has(i.uid));state.credits+=total;state.itemsSold+=items.length;state.xp+=Math.min(items.length*12,300);sellSelected.clear();save();renderAll();toast(`Sold ${items.length} selected vials for ₡${fmt(total)}.`);
+    const ids=new Set(items.map(i=>i.uid));
+    state.inventory=state.inventory.filter(i=>!ids.has(i.uid));
+    state.credits+=total;
+    state.itemsSold+=items.length;
+    // Match individual selling exactly: +12 XP per vial, no bulk penalty.
+    state.xp+=items.length*12;
+    sellSelected.clear();save();renderAll();toast(`Sold ${items.length} selected vials for ₡${fmt(total)}.`);
   }
 
   function submitSelectedToCGC(){
     const items=state.inventory.filter(i=>!i.grade&&gradeSelected.has(i.uid));if(!items.length)return;
     const cost=items.length*GRADE_FEE;if(state.credits<cost){toast(`You need ₡${fmt(cost)}.`);return}
     if(!confirm(`Submit ${items.length} selected vial${items.length===1?'':'s'} to CGC for ₡${fmt(cost)}?`))return;
-    const ids=new Set(items.map(i=>i.uid));state.inventory=state.inventory.filter(i=>!ids.has(i.uid));state.credits-=cost;const ready=Date.now()+4500;items.forEach(item=>state.returns.push({item,ready}));gradeSelected.clear();state.xp+=Math.min(items.length*8,240);save();renderAll();toast(`${items.length} vials sent to CGC.`);setTimeout(renderAll,4700);
+    const ids=new Set(items.map(i=>i.uid));state.inventory=state.inventory.filter(i=>!ids.has(i.uid));state.credits-=cost;const ready=Date.now()+4500;items.forEach(item=>state.returns.push({item,ready}));gradeSelected.clear();
+    // Individual submission awards no XP until the return is claimed, so bulk submission should not either.
+    save();renderAll();toast(`${items.length} vials sent to CGC.`);setTimeout(renderAll,4700);
   }
 
   function claimAllReady(){
     const now=Date.now(),ready=state.returns.filter(r=>now>=r.ready);if(!ready.length){toast('No CGC returns ready yet.');return}
-    const readySet=new Set(ready);ready.forEach(r=>{r.item.grade=rollGrade(r.item);state.inventory.push(r.item)});state.returns=state.returns.filter(r=>!readySet.has(r));state.xp+=Math.min(ready.length*80,800);save();renderAll();toast(`Claimed ${ready.length} CGC returns.`);beep(900,.18,'sine',.05);
+    const readySet=new Set(ready);ready.forEach(r=>{r.item.grade=rollGrade(r.item);state.inventory.push(r.item)});state.returns=state.returns.filter(r=>!readySet.has(r));
+    // Match individual claiming exactly: +80 XP per returned vial.
+    state.xp+=ready.length*80;
+    save();renderAll();toast(`Claimed ${ready.length} CGC returns.`);beep(900,.18,'sine',.05);
   }
 
   const baseRenderGradable=renderGradable;renderGradable=function(){baseRenderGradable();ensureActionBars();decorateRows();syncButtons()};
