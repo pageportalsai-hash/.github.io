@@ -2,45 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07110f">
-<title>VIALBREAK — Specimen Collector</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<title>VIALBREAK — 10,000 Specimen Collector</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="enhancements.css">
-<link rel="stylesheet" href="progression.css">
-<link rel="stylesheet" href="autocrack.css">
-<link rel="stylesheet" href="bulk-actions.css">
-<link rel="stylesheet" href="realism.css">
+<link rel="stylesheet" href="style.css?v=10k-240">
+<link rel="stylesheet" href="enhancements.css?v=10k-240">
+<link rel="stylesheet" href="progression.css?v=10k-240">
+<link rel="stylesheet" href="autocrack.css?v=10k-240">
+<link rel="stylesheet" href="bulk-actions.css?v=10k-240">
+<link rel="stylesheet" href="realism.css?v=10k-240">
 </head>
 <body>
 <div class="scanlines"></div><div id="toast" class="toast"></div>
 <header class="topbar">
   <div class="brandwrap"><button id="menuBtn" class="mobile-only icon-btn">☰</button><div class="logo">V<span>//</span>B</div><div><div class="brand">VIALBREAK</div><div class="tagline">CRACK • CULTURE • CERTIFY • CASH OUT</div></div></div>
-  <div class="stats"><div class="stat"><small>CREDITS</small><b id="credits">900</b><span>₡</span></div><div class="stat"><small>SPECIMENS</small><b id="collectionCount">0 / 100</b></div><div class="levelbox"><div><span>CONTAINMENT <b id="level">0</b>/100</span><span id="xpLabel">0 / 100 SECURED</span></div><i><em id="xpBar"></em></i></div></div>
+  <div class="stats"><div class="stat"><small>CREDITS</small><b id="credits">900</b><span>₡</span></div><div class="stat"><small>SPECIMENS</small><b id="collectionCount">0 / 10,000</b></div><div class="levelbox"><div><span>CONTAINMENT <b id="level">0</b>/100</span><span id="xpLabel">0 / 10,000 SPECIMENS</span></div><i><em id="xpBar"></em></i></div></div>
 </header>
 <aside id="sidebar" class="sidebar">
   <nav>
     <button class="nav active" data-screen="shop"><span>▤</span><b>Cold Storage</b><small>Buy sealed vial racks</small></button>
-    <button class="nav" data-screen="collection"><span>🧪</span><b>Specimen Index</b><small>100-vial master index</small></button>
+    <button class="nav" data-screen="collection"><span>🧪</span><b>Specimen Index</b><small>10,000-vial master index</small></button>
     <button class="nav" data-screen="tools"><span>⚒</span><b>Crack Bench</b><small>Containment milestone tools</small></button>
     <button class="nav" data-screen="grading"><span>⬡</span><b>Seal Certification</b><small>Chase CGC 10 samples</small></button>
     <button class="nav" data-screen="market"><span>↗</span><b>Grey Market</b><small>60-second sale windows</small></button>
   </nav>
-  <div class="sidecard"><small>SHIFT NOTICE</small><p>The facility holds <b>100 unique specimens</b>. Every new discovery permanently raises your Containment score.</p></div>
+  <div class="sidecard"><small>SHIFT NOTICE</small><p>The facility holds <b>10,000 unique specimens across 12 rarity classes</b>, including the Credit Ladder from ₡100 to ₡1,000,000,000.</p></div>
   <button id="resetBtn" class="reset">Reset save</button>
 </aside>
 <main class="main">
 <section id="screen-shop" class="screen active">
-  <div class="hero"><div><div class="eyebrow lime">CONTAINMENT 0/100 // MASTER FACILITY</div><h1>Break seals.<br><span>Find impossible things.</span></h1><p>One facility. <b>100 unique specimens.</b> Crack racks, discover new cultures and push Containment all the way to 100.</p></div><div class="hero-machine"><div class="warning">CONTAINMENT: <b>UNSTABLE</b></div><div class="reactor"><i></i><i></i><i></i></div><small>Rack anomaly scanner</small></div></div>
-  <div class="section-head"><div><div class="eyebrow">AUTHORIZED INVENTORY</div><h2>Choose a specimen rack</h2></div><div class="note">6 rack classes • 7 sealed vials • Final Chamber boost</div></div>
+  <div class="hero"><div><div class="eyebrow lime">CONTAINMENT 0/100 // MASTER FACILITY</div><h1>Break seals.<br><span>Find impossible things.</span></h1><p>One facility. <b>10,000 unique specimens.</b> Crack racks, discover new cultures and push Containment all the way to 100.</p></div><div class="hero-machine"><div class="warning">CONTAINMENT: <b>UNSTABLE</b></div><div class="reactor"><i></i><i></i><i></i></div><small>Rack anomaly scanner</small></div></div>
+  <div class="section-head"><div><div class="eyebrow">AUTHORIZED INVENTORY</div><h2>Choose a specimen rack</h2></div><div class="note">6 rack classes • 7 sealed vials • 12 rarity classes</div></div>
   <div id="rackGrid" class="rack-grid"></div>
   <div class="bottom-grid">
-    <div class="panel chase"><div class="panel-head"><div><div class="eyebrow">CURRENT NIGHTMARE</div><h3>Unknown Apex</h3></div><span class="chip impossible">APEX</span></div><div class="chasebody"><div class="hero-vial impossible-vial"><div class="cap"></div><div class="glass"><div class="liquid"></div><div class="organism">♛</div></div><small>CLASSIFIED</small></div><div><p>The highest-tier specimen in the facility.</p><div class="kv"><span>RAW INDEX</span><b>—</b></div><div class="kv"><span>CGC 10 EST.</span><b class="gold">—</b></div></div></div></div>
+    <div class="panel chase"><div class="panel-head"><div><div class="eyebrow">CURRENT NIGHTMARE</div><h3>Unknown Origin</h3></div><span class="chip impossible">ORIGIN</span></div><div class="chasebody"><div class="hero-vial impossible-vial"><div class="cap"></div><div class="glass"><div class="liquid"></div><div class="organism">♛</div></div><small>CLASSIFIED</small></div><div><p>The highest-tier specimen in the facility.</p><div class="kv"><span>RAW INDEX</span><b>—</b></div><div class="kv"><span>CGC 10 EST.</span><b class="gold">—</b></div></div></div></div>
     <div class="panel"><div class="panel-head"><div><div class="eyebrow">YOUR SHIFT</div><h3>Lab stats</h3></div></div><div class="statgrid"><div><small>RACKS CRACKED</small><b id="racksOpened">0</b></div><div><small>BEST FIND</small><b id="bestPull">—</b></div><div><small>VIALS SOLD</small><b id="itemsSold">0</b></div><div><small>GOD RACKS</small><b id="godRacks">0</b></div></div></div>
   </div>
 </section>
-<section id="screen-collection" class="screen"><div class="section-head archive"><div><div class="eyebrow">MASTER SPECIMEN INDEX // CONTAINMENT 0/100</div><h2>Discovered cultures</h2><p>Every unique vial permanently advances Containment. No resets. No floors. No levels.</p></div><div class="percent"><b id="archivePercent">0%</b><span>catalogued</span></div></div><div class="filters"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="owned">Owned</button><button class="filter" data-filter="Hazard">Hazard+</button><button class="filter" data-filter="graded">Certified</button></div><div id="collectionGrid" class="collection-grid"></div></section>
-<section id="screen-tools" class="screen"><div class="toolhero"><div><div class="eyebrow">CRACK BENCH // CONTAINMENT TOOL PATH</div><h2>Your opening tool</h2><p>Better tools unlock at Containment milestones. The Auto-Cracker arrives at Containment 70 instead of costing billions.</p></div><div id="currentToolDisplay" class="tool-display"></div></div><div id="toolGrid" class="tool-grid"></div></section>
+<section id="screen-collection" class="screen"><div class="section-head archive"><div><div class="eyebrow">MASTER SPECIMEN INDEX // 0/10,000 FOUND</div><h2>Discovered cultures</h2><p>Search and page through the 10,000-specimen master index. Containment tracks your overall completion.</p></div><div class="percent"><b id="archivePercent">0%</b><span>catalogued</span></div></div><div class="filters"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="owned">Owned</button><button class="filter" data-filter="Hazard">Hazard+</button><button class="filter" data-filter="graded">Certified</button></div><div id="collectionGrid" class="collection-grid"></div></section>
+<section id="screen-tools" class="screen"><div class="toolhero"><div><div class="eyebrow">CRACK BENCH // CONTAINMENT TOOL PATH</div><h2>Your opening tool</h2><p>Upgrade from manual lab tools into autonomous endgame cracking machines as Containment rises.</p></div><div id="currentToolDisplay" class="tool-display"></div></div><div id="toolGrid" class="tool-grid"></div></section>
 <section id="screen-grading" class="screen"><div class="cert-hero"><div><div class="eyebrow">CONTAINMENT GRADING CORPORATION</div><h2>CGC Seal Certification</h2><p>Glass clarity, seal integrity, label alignment and culture stability are scored.</p></div><div class="cgc">CGC<span>10</span></div></div><div class="two-col"><div class="panel"><div class="panel-head"><div><div class="eyebrow">SUBMISSION TRAY</div><h3>Choose a vial</h3></div><span class="fee">₡ 110 / vial</span></div><div id="gradableList" class="list"></div></div><div class="panel"><div class="panel-head"><div><div class="eyebrow">RETURN LOCKER</div><h3>Certification returns</h3></div></div><div id="gradingReturns" class="returns"></div></div></div></section>
 <section id="screen-market" class="screen"><div class="section-head archive"><div><div class="eyebrow">GREY MARKET // 60-SECOND WINDOWS</div><h2>Grey Market</h2><p>Wait for a profitable window before selling. Market prices re-roll once each minute.</p></div><div class="ticker"><span>NEXT SHIFT</span><b id="tickerTimer">01:00</b></div></div><div class="two-col"><div class="panel board"><div class="market-row header"><span>SPECIMEN</span><span>STATUS</span><span>BASE</span><span>MOVE</span></div><div id="marketRows"></div></div><div class="panel"><div class="panel-head"><div><div class="eyebrow">YOUR FREEZER</div><h3>Quick sell</h3></div></div><div id="sellList" class="list"></div></div></div></section>
 </main>
@@ -54,11 +55,11 @@
     history.replaceState(null,'',location.pathname);
   }
 </script>
-<script src="game.js"></script>
-<script src="enhancements.js"></script>
-<script src="progression.js"></script>
-<script src="mastery.js"></script>
-<script src="autocrack.js"></script>
-<script src="bulk-actions.js"></script>
-<script src="price-tune.js"></script>
+<script src="game.js?v=10k-240"></script>
+<script src="enhancements.js?v=10k-240"></script>
+<script src="progression.js?v=10k-240"></script>
+<script src="mastery.js?v=10k-240"></script>
+<script src="autocrack.js?v=10k-240"></script>
+<script src="bulk-actions.js?v=10k-240"></script>
+<script src="price-tune.js?v=10k-240"></script>
 </body></html>
