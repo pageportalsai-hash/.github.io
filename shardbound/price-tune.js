@@ -18,19 +18,21 @@
     Hazard:1.25,
     'Black Label':1.15,
     Impossible:1.05,
-    Apex:1.00
+    Apex:1.00,
+    Relic:1.00,
+    Singularity:1.00
   };
   specimens.forEach(s=>{s.base=Math.round(s.base*(valueBoost[s.rarity]||1))});
 
   // First-time discoveries pay a research grant so keeping a new vial does not stop progression.
-  const discoveryGrant={Stable:20,Oddity:45,Mutant:90,Hazard:220,'Black Label':650,Impossible:1800,Apex:4500};
+  const discoveryGrant={Stable:20,Oddity:45,Mutant:90,Hazard:220,'Black Label':650,Impossible:1800,Apex:4500,Relic:9000,Singularity:20000};
   function payDiscoveryGrants(before){
     const fresh=(state.discovered||[]).filter(id=>!before.has(id));
     if(!fresh.length)return 0;
     const grant=fresh.reduce((sum,id)=>sum+(discoveryGrant[byId(id)?.rarity]||20),0);
     state.credits+=grant;
     if(!Array.isArray(state.economyMilestonesClaimed))state.economyMilestonesClaimed=[];
-    const containment=Math.min(100,Math.floor((state.discovered.length/Math.max(1,specimens.length))*100));
+    const containment=window.VIALBREAK_PROGRESSION?.containment?.()??Math.min(100,Math.floor((state.discovered.length/Math.max(1,specimens.length))*100));
     let milestoneBonus=0;
     for(let m=5;m<=containment;m+=5){
       if(!state.economyMilestonesClaimed.includes(m)){
@@ -83,7 +85,7 @@
     state.marketShiftAt=Date.now();ticker=60;save();renderMarket();
   };
 
-  const nav=document.querySelector('[data-screen="collection"] small');if(nav)nav.textContent='670-vial master index';
-  const side=document.querySelector('.sidecard p');if(side)side.innerHTML='The facility holds <b>670 unique specimens</b>. Every new discovery raises your Containment percentage and earns research funding.';
+  const nav=document.querySelector('[data-screen="collection"] small');if(nav)nav.textContent='770-vial master index';
+  const side=document.querySelector('.sidecard p');if(side)side.innerHTML='The facility holds <b>770 unique specimens across 9 rarity classes</b>. Every new discovery raises your Containment percentage and earns research funding.';
   renderAll();
 })();
