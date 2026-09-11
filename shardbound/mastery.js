@@ -26,7 +26,7 @@
   if(state.toolSystemVersion!==4){state.tool=Math.min(Math.max(Number(state.tool)||0,0),4);state.autoCrack=false;state.toolSystemVersion=4;save()}
   if(state.tool>=tools.length)state.tool=tools.length-1;
   tool=function(){return tools[state.tool]||tools[0]};
-  const containment=()=>window.VIALBREAK_PROGRESSION?.containment?.()??Math.min(100,Math.floor((state.discovered.length/770)*100));
+  const containment=()=>window.VIALBREAK_PROGRESSION?.containment?.()??Math.min(100,Math.floor((state.discovered.length/10000)*100));
 
   renderTools=function(){
     const current=tool(),c=containment(),autoReady=state.tool>=AUTO_INDEX;
@@ -36,8 +36,15 @@
   };
   buyTool=function(i){const x=tools[i],c=containment();if(!x)return;if(i!==state.tool+1){toast('Buy the next tool in the chain first.');return}if(c<x.unlock){toast(`Reach Containment ${x.unlock}/100 first.`);return}if(state.credits<x.price){toast(`You need ₡${fmt(x.price)}.`);return}state.credits-=x.price;state.tool=i;state.xp+=150;if(i<AUTO_INDEX)state.autoCrack=false;save();renderAll();toast(`${x.name} installed.`);beep(620,.1,'triangle',.045)};
 
-  function marketIds(){const ids=new Set(specimens.map(s=>s.id));state.inventory.forEach(i=>ids.add(i.specimenId));state.returns.forEach(r=>ids.add(r.item.specimenId));return[...ids].filter(id=>byId(id))}
-  tickMarket=function(){const ids=marketIds();ids.forEach(id=>state.market[id]=.95+Math.random()*.20);const owned=[...new Set(state.inventory.map(i=>i.specimenId))];const pool=owned.length?owned:ids;if(pool.length){const hot=pool[Math.floor(Math.random()*pool.length)],boost=1.25+Math.random()*.42;state.market[hot]=boost;state.marketHotId=hot;state.marketHotBoost=boost}state.marketShiftAt=Date.now();ticker=60;save();renderMarket()};
+  // With 10,000 specimens, price only owned/returned items plus a rotating sample.
+  function marketIds(){
+    const ids=new Set();
+    state.inventory.forEach(i=>ids.add(i.specimenId));
+    state.returns.forEach(r=>ids.add(r.item.specimenId));
+    for(let i=0;i<120;i++){const s=specimens[Math.floor(Math.random()*specimens.length)];if(s)ids.add(s.id)}
+    return[...ids].filter(id=>byId(id));
+  }
+  tickMarket=function(){const ids=marketIds();ids.forEach(id=>state.market[id]=.95+Math.random()*.20);const owned=[...new Set(state.inventory.map(i=>i.specimenId))].filter(id=>byId(id));const pool=owned.length?owned:ids;if(pool.length){const hot=pool[Math.floor(Math.random()*pool.length)],boost=1.25+Math.random()*.42;state.market[hot]=boost;state.marketHotId=hot;state.marketHotBoost=boost}state.marketShiftAt=Date.now();ticker=60;save();renderMarket()};
   const movePct=id=>(mult(id)-1)*100;
   const marketLabel=p=>p>=55?'RARE SPIKE':p>=20?'HOT':p>3?'ABOVE MARKET':p<-3?'BELOW MARKET':'NEAR BASE';
   renderMarket=function(){const header=$('#screen-market .section-head'),eye=header?.querySelector('.eyebrow'),para=header?.querySelector('p');if(eye)eye.textContent='GREY MARKET // 60-SECOND PRICE WINDOWS';if(para)para.textContent='Most prices move roughly -5% to +15%. One hot specimen can jump as high as +67%. Waiting for a green window can pay.';const tl=$('#screen-market .ticker span');if(tl)tl.textContent='NEXT SHIFT';const hot=byId(state.marketHotId),hotPct=hot?movePct(hot.id):0,board=$('#screen-market .market-row.header');if(board)board.innerHTML='<span>SPECIMEN</span><span>STATUS</span><span>BASE</span><span>MOVE</span>';const candidates=[...new Set(state.inventory.map(i=>i.specimenId))].map(byId).filter(Boolean).sort((a,b)=>movePct(b.id)-movePct(a.id));$('#marketRows').innerHTML=`<div class="market-pulse ${hotPct>=55?'rare-spike':''}"><div><small>HOT SPECIMEN THIS MINUTE</small><b>${hot?hot.name:'WAITING FOR DATA'}</b></div><strong>${hot?`+${hotPct.toFixed(1)}%`:'—'}</strong><span>${hot?'SELL NOW OR WAIT FOR THE NEXT 60-SECOND WINDOW':'OPEN VIALS TO START TRADING'}</span></div>${candidates.slice(0,14).map(s=>{const p=movePct(s.id);return `<div class="market-row market-window-row ${s.id===state.marketHotId?'hot-row':''}"><b>${s.name}</b><span class="${p>=0?'up':'down'}">${marketLabel(p)}</span><span>₡${fmt(s.base)}</span><strong class="${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}%</strong></div>`}).join('')}`;const inv=state.inventory.slice().sort((a,b)=>valueOf(b)-valueOf(a));$('#sellList').innerHTML=inv.length?inv.map(i=>{const s=byId(i.specimenId),p=movePct(s.id);return `<div class="list-item"><div class="thumb" style="--liq:${s.liqA}"></div><div><b>${s.name}${i.grade?` • CGC ${i.grade}`:''}</b><small>${s.rarity}${i.pristine?' • pristine':''} • <span class="${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}% market</span></small></div><button data-sell="${i.uid}">SELL ₡${fmt(valueOf(i))}</button></div>`}).join(''):'<div class="return-box"><small>Your freezer is empty.</small></div>'};
