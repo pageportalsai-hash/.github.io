@@ -1,1 +1,126 @@
-window.R95={};R95.names=['Comet','Blaze','Nova','Shadow','Turbo','Volt','Meteor','Falcon','Drift','Thunder','Storm','Phoenix','Glider','Crusher','Raptor','Vortex','Zoomer','Laser','Orbit','Fury','Rocket','Cruiser','Dash','Flash','Venom','Racer','Knight','Pulse','Monarch','Nebula','Saber','Titan','Aero','Glitch','Sonic','Cobra','Phantom','Frost','Inferno','Bolt','Ridge','Silver','Goldrush','Twister','Jaguar','Starlight','Horizon','Cyclone','Quartz','Velocity'];R95.colors=['#f23850','#ff7b00','#ffd84d','#62ef5b','#2bd5ff','#3d73ff','#9c5cff','#ff57ce','#25c7a5','#ffffff'];R95.cars=R95.names.map((n,i)=>({name:n+' '+(i+1),color:R95.colors[i%10],accent:R95.colors[(i*3+2)%10],speed:5+i%5,grip:6+(i*7)%5,boost:5+(i*5+3)%5,max:5.7+(i%5)*.22,acc:.085+((i*5+3)%5)*.009,turn:.07+((i*7)%5)*.003}));R95.quests=[{name:'Boost Hunter',text:'Drive over 2 boost pads.',type:'boost',goal:2},{name:'Clean Driver',text:'Finish with 8 or fewer grass hits.',type:'grass',goal:8},{name:'Drift Rookie',text:'Drift for 2 seconds total.',type:'drift',goal:120},{name:'Quick Lap',text:'Finish lap 1 in under 40 seconds.',type:'lap1',goal:40000},{name:'Beat The Rival',text:'Finish ahead of the blue rival.',type:'beat',goal:1}];
+window.R95 = {};
+R95.palette = [
+  '#e53935','#ff6f00','#fbc02d','#43a047','#00acc1','#1e88e5','#3949ab','#8e24aa',
+  '#d81b60','#6d4c41','#546e7a','#263238','#ffffff','#c0c0c0','#111111','#ff4fd8',
+  '#00e676','#00b0ff','#ff1744','#ffd600'
+];
+
+const carBlueprints = [
+  ['Apex V12','Supercar','supercar','Italian wedge supercar'],
+  ['Tempest GT','Grand Tourer','gt','European grand tourer'],
+  ['Iron Stallion','Muscle','muscle','American V8 muscle car'],
+  ['Shogun R','Tuner Coupe','tuner','Japanese tuner coupe'],
+  ['Alpine RS','Rally','rally','compact rally hatch'],
+  ['Atlas X','SUV','suv','performance SUV'],
+  ['Metro XR','Hot Hatch','hatch','hot hatchback'],
+  ['Cargo Flash','Van','van','sporty delivery van'],
+  ['Trail Boss','Pickup','pickup','off-road pickup truck'],
+  ['Formula 95','Formula','formula','open-wheel formula racer'],
+  ['Pocket Rocket','Kart','kart','racing go-kart'],
+  ['Heritage 68','Classic','classic','1960s sports coupe'],
+  ['Executive S','Sedan','sedan','luxury sports sedan'],
+  ['Nightblade','Coupe','coupe','modern sports coupe'],
+  ['Sunrunner','Roadster','roadster','two-seat roadster'],
+  ['Mudclaw','Off-Road','offroad','desert off-road racer'],
+  ['Le Mans X','Endurance','prototype','endurance prototype racer'],
+  ['Thunder Pro','Stock Car','stock','oval stock car'],
+  ['Quarter Mile','Dragster','dragster','drag racing special'],
+  ['Retro Wave','Retro','retro','1980s wedge coupe'],
+  ['Volt RS','Electric','electric','electric performance sedan'],
+  ['Royal L','Luxury','luxury','large luxury saloon'],
+  ['City Zip','Compact','compact','tiny city car'],
+  ['Sand Spear','Dune Buggy','dune','open dune buggy'],
+  ['Hyperion X','Hypercar','hypercar','modern aero hypercar'],
+  ['Apex V12 Spyder','Supercar','supercar','open-top exotic supercar'],
+  ['Tempest Touring','Touring Car','touring','touring race car'],
+  ['Iron Stallion 70','Muscle','muscle','classic muscle coupe'],
+  ['Shogun Track','Tuner Coupe','tuner','wide-body tuner'],
+  ['Alpine Dirt','Rally','rally','gravel rally car'],
+  ['Atlas Sport','SUV','suv','sport crossover'],
+  ['Metro Cup','Hot Hatch','hatch','one-make hatch racer'],
+  ['Cargo Turbo','Van','van','high-roof race van'],
+  ['Trail Boss Baja','Pickup','pickup','Baja trophy truck'],
+  ['Formula Junior','Formula','formula','light open-wheel racer'],
+  ['Pocket Kart X','Kart','kart','high-grip kart'],
+  ['Heritage Racer','Classic','classic','classic endurance coupe'],
+  ['Executive Touring','Sedan','sedan','touring sedan'],
+  ['Nightblade Z','Coupe','coupe','front-engine sports coupe'],
+  ['Sunrunner Club','Roadster','roadster','club racing roadster'],
+  ['Mudclaw X','Off-Road','offroad','rock-crawling racer'],
+  ['Le Mans 95','Endurance','prototype','closed-cockpit prototype'],
+  ['Thunder Oval','Stock Car','stock','NASCAR-style stock racer'],
+  ['Quarter Mile X','Dragster','dragster','long-wheelbase dragster'],
+  ['Retro Turbo','Retro','retro','turbocharged 1980s coupe'],
+  ['Volt Hyper','Electric','electric','electric hyper-sedan'],
+  ['Royal Coupe','Luxury','luxury','luxury performance coupe'],
+  ['City Rally','Compact','compact','small city rally car'],
+  ['Sandstorm','Dune Buggy','dune','desert buggy'],
+  ['Hyperion LM','Hypercar','hypercar','track-focused hypercar']
+];
+
+R95.cars = carBlueprints.map((c,i) => ({
+  id:i,
+  name:c[0],
+  className:c[1],
+  shape:c[2],
+  inspired:c[3],
+  defaultColor:R95.palette[i % R95.palette.length],
+  accent:R95.palette[(i*7+3) % R95.palette.length],
+  variant:i % 4,
+  speed:5 + (i*3)%5,
+  grip:6 + (i*7)%5,
+  boost:5 + (i*5+2)%5,
+  max:5.45 + ((i*3)%5)*0.23,
+  acc:0.09 + ((i*5+2)%5)*0.009,
+  turn:0.068 + ((i*7)%5)*0.0032,
+  drag:0.990 - ((i*7)%5)*0.00045
+}));
+
+const trackBlueprints = [
+ ['Emerald Circuit','grass',101,3,'Wide green circuit'],
+ ['Desert Canyon','desert',202,4,'Fast desert canyon loop'],
+ ['Alpine Sprint','snow',303,4,'Snowy alpine raceway'],
+ ['Neon City','neon',404,5,'Night city with neon glow'],
+ ['Sunset Coast','beach',505,3,'Coastal sunset course'],
+ ['Volcano Run','volcano',606,5,'Dark volcanic island road'],
+ ['Autumn Ring','autumn',707,3,'Orange autumn woodland'],
+ ['Pine Forest','forest',808,4,'Dense pine forest circuit'],
+ ['Harbor Rush','harbor',909,4,'Dockside harbor track'],
+ ['Moonlight Loop','night',1010,4,'Moonlit midnight race'],
+ ['Red Rock Raceway','canyon',1111,5,'Red rock canyon track'],
+ ['Ice Lake Circuit','ice',1212,5,'Frozen lake circuit'],
+ ['Sakura Speedway','sakura',1313,3,'Pink blossom speedway'],
+ ['Rain City','rain',1414,5,'Wet city street circuit'],
+ ['Golden Dunes','desert',1515,4,'Rolling golden dunes'],
+ ['Mountain Pass','mountain',1616,5,'Twisty high mountain pass'],
+ ['Tropical Island','tropical',1717,3,'Bright island course'],
+ ['Industrial Zone','industrial',1818,4,'Factory district circuit'],
+ ['Blue Lagoon','beach',1919,3,'Blue-water coastal loop'],
+ ['Thunder Plains','storm',2020,4,'Stormy open plains'],
+ ['Crystal Valley','crystal',2121,4,'Fantasy crystal valley'],
+ ['Metro Night','neon',2222,5,'Dense neon downtown'],
+ ['Redwood Circuit','forest',2323,4,'Tall redwood forest'],
+ ['Coral Coast','tropical',2424,3,'Tropical coral coastline'],
+ ['Ashen Ridge','volcano',2525,5,'Ash and lava mountain'],
+ ['Frostbite Ring','snow',2626,5,'Deep winter raceway'],
+ ['Meadow Grand Prix','grass',2727,2,'Easy open meadow track'],
+ ['Copper Canyon','canyon',2828,5,'Copper-coloured canyon'],
+ ['Airport Sprint','airport',2929,3,'Runways and hangars'],
+ ['Midnight Harbor','harborNight',3030,5,'Night-time docklands']
+];
+
+R95.tracks = trackBlueprints.map((t,i)=>({
+  id:i,
+  name:t[0],theme:t[1],seed:t[2],difficulty:t[3],description:t[4],
+  roadWidth: 142 + ((i*11)%28),
+  points: 10 + (i%4)
+}));
+
+R95.quests = [
+ {name:'Boost Hunter',text:'Drive over 3 boost pads.',type:'boost',goal:3,reward:100},
+ {name:'Clean Driver',text:'Spend less than 3 seconds off-road.',type:'offroad',goal:3,reward:120},
+ {name:'Drift Rookie',text:'Drift for 2.5 seconds total.',type:'drift',goal:2.5,reward:110},
+ {name:'Quick Lap',text:'Finish lap 1 in under 45 seconds.',type:'lap1',goal:45000,reward:140},
+ {name:'Beat The Pack',text:'Finish the race in 1st place.',type:'beat',goal:1,reward:150},
+ {name:'Speed Star',text:'Reach 125 km/h.',type:'speed',goal:125,reward:100}
+];
