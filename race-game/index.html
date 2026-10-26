@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Race 95</title>
+<style>
+  *{box-sizing:border-box} html,body{margin:0;height:100%;background:#101318;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff;overflow:hidden}
+  body{display:grid;place-items:center}
+  .wrap{position:relative;width:min(100vw,calc(100vh * 4 / 3));aspect-ratio:4/3;background:#16bf38;overflow:hidden;box-shadow:0 0 40px #000}
+  canvas{width:100%;height:100%;display:block;touch-action:none}
+  .hud{position:absolute;inset:14px 14px auto 14px;display:flex;justify-content:space-between;gap:10px;pointer-events:none;font-weight:800;text-shadow:0 2px 4px #000}
+  .pill{background:#0009;border:2px solid #fff3;border-radius:14px;padding:8px 12px;backdrop-filter:blur(3px)}
+  .center{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;text-align:center}
+  .message{font-size:clamp(44px,9vw,96px);font-weight:1000;letter-spacing:.04em;text-shadow:0 5px 0 #000,0 0 20px #000;opacity:0;transform:scale(.85);transition:.16s}
+  .message.show{opacity:1;transform:scale(1)}
+  .help{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#0009;border-radius:12px;padding:6px 10px;font-size:13px;font-weight:700;white-space:nowrap}
+  .controls{display:none;position:absolute;inset:auto 0 14px 0;padding:0 14px;justify-content:space-between;align-items:end}
+  .pad{display:grid;grid-template-columns:58px 58px;gap:8px}.pedals{display:grid;gap:8px}.btn{width:62px;height:62px;border-radius:50%;border:2px solid #fff8;background:#111a;color:#fff;font-size:28px;font-weight:900;display:grid;place-items:center;user-select:none;touch-action:none}.pedals .btn{width:72px;height:72px}
+  @media (pointer:coarse){.controls{display:flex}.help{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="game" width="960" height="720"></canvas>
+  <div class="hud">
+    <div class="pill" id="lap">LAP 1 / 3</div>
+    <div class="pill" id="time">0:00.000</div>
+    <div class="pill" id="speed">0 km/h</div>
+  </div>
+  <div class="center"><div id="message" class="message">3</div></div>
+  <div class="help">Arrow keys / WASD • R = restart</div>
+  <div class="controls">
+    <div class="pad"><div class="btn" data-key="ArrowLeft">◀</div><div class="btn" data-key="ArrowRight">▶</div></div>
+    <div class="pedals"><div class="btn" data-key="ArrowUp">▲</div><div class="btn" data-key="ArrowDown">▼</div></div>
+  </div>
+</div>
+<script>
+(() => {
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const lapEl=document.getElementById('lap'),timeEl=document.getElementById('time'),speedEl=document.getElementById('speed'),message=document.getElementById('message');
+const W=960,H=720;
+const keys={};
+addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key.toLowerCase()==='r')reset();});
+addEventListener('keyup',e=>keys[e.key]=false);
+document.querySelectorAll('.btn').forEach(b=>{const k=b.dataset.key;['pointerdown','pointerenter'].forEach(ev=>b.addEventListener(ev,e=>{if(ev==='pointerenter'&&e.buttons===0)return;keys[k]=true;e.preventDefault()}));['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,e=>{keys[k]=false;e.preventDefault()}));});
+
+function trackPath(c){
+  c.beginPath();
+  c.moveTo(480,610);
+  c.bezierCurveTo(700,610,820,620,862,520);
+  c.bezierCurveTo(900,430,818,388,830,300);
+  c.bezierCurveTo(846,180,872,86,690,92);
+  c.bezierCurveTo(550,98,500,152,365,150);
+  c.bezierCurveTo(216,148,116,164,104,292);
+  c.bezierCurveTo(92,410,172,430,252,480);
+  c.bezierCurveTo(332,530,350,610,480,610);
+}
+function drawTrack(){
+  ctx.fillStyle='#18bf38';ctx.fillRect(0,0,W,H);
+  ctx.lineCap='round';ctx.lineJoin='round';
+  trackPath(ctx);ctx.strokeStyle='#fff';ctx.lineWidth=190;ctx.stroke();
+  trackPath(ctx);ctx.strokeStyle='#474747';ctx.lineWidth=176;ctx.stroke();
+  trackPath(ctx);ctx.strokeStyle='#505050';ctx.lineWidth=2;ctx.globalAlpha=.25;ctx.stroke();ctx.globalAlpha=1;
+  const x=480,y=610,band=18,roadH=176,cell=14;
+  for(let r=0;r<Math.ceil(roadH/cell);r++) for(let col=0;col<2;col++){
+    ctx.fillStyle=(r+col)%2?'#000':'#fff';ctx.fillRect(x-band+col*band,y-roadH/2+r*cell,band,cell+1);
+  }
+}
+const mask=document.createElement('canvas');mask.width=W;mask.height=H;const mx=mask.getContext('2d');mx.fillStyle='#000';mx.fillRect(0,0,W,H);mx.lineCap='round';mx.lineJoin='round';trackPath(mx);mx.strokeStyle='#fff';mx.lineWidth=172;mx.stroke();
+function onTrack(x,y){if(x<0||y<0||x>=W||y>=H)return false;return mx.getImageData(x|0,y|0,1,1).data[0]>128;}
+
+let car,startTime,raceStart,countdownEnd,finished,lastFinishSide,checkpointPassed;
+function reset(){
+ car={x:395,y:610,a:0,v:0};
+ startTime=performance.now(); countdownEnd=startTime+3200; raceStart=countdownEnd; finished=false; lastFinishSide=car.x-480; checkpointPassed=false; car.lap=1;
+ lapEl.textContent='LAP 1 / 3'; message.className='message show';message.textContent='3'; finishTime=0;
+}
+reset();
+
+function drawCar(){
+ ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.a);
+ ctx.fillStyle='#161616';ctx.fillRect(-29,-24,17,9);ctx.fillRect(12,-24,17,9);ctx.fillRect(-29,15,17,9);ctx.fillRect(12,15,17,9);
+ ctx.fillStyle='#ed1c24';ctx.strokeStyle='#111';ctx.lineWidth=4;
+ ctx.beginPath();ctx.moveTo(34,0);ctx.lineTo(24,-18);ctx.quadraticCurveTo(5,-27,-26,-20);ctx.lineTo(-34,-13);ctx.lineTo(-34,13);ctx.lineTo(-26,20);ctx.quadraticCurveTo(5,27,24,18);ctx.closePath();ctx.fill();ctx.stroke();
+ ctx.fillStyle='#ed1c24';ctx.fillRect(-40,-23,7,46);ctx.strokeRect(-40,-23,7,46);
+ ctx.fillStyle='#28b8f5';ctx.beginPath();ctx.moveTo(13,-15);ctx.lineTo(20,0);ctx.lineTo(13,15);ctx.lineTo(-10,14);ctx.lineTo(-10,-14);ctx.closePath();ctx.fill();ctx.stroke();
+ ctx.strokeStyle='#ffd400';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-26,-10);ctx.lineTo(25,-7);ctx.stroke();
+ ctx.save();ctx.rotate(Math.PI/2);ctx.fillStyle='#fff';ctx.strokeStyle='#111';ctx.lineWidth=3;ctx.font='900 18px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeText('95',0,4);ctx.fillText('95',0,4);ctx.restore();
+ ctx.restore();
+}
+function format(ms){ms=Math.max(0,ms);const m=Math.floor(ms/60000),s=Math.floor(ms%60000/1000),n=Math.floor(ms%1000);return `${m}:${String(s).padStart(2,'0')}.${String(n).padStart(3,'0')}`}
+function update(now,dt){
+ const canDrive=now>=countdownEnd&&!finished;
+ if(now<countdownEnd){const left=countdownEnd-now;message.className='message show';message.textContent=left>2200?'3':left>1200?'2':left>200?'1':'GO!';}
+ else if(now<countdownEnd+900){message.className='message show';message.textContent='GO!';}
+ else if(!finished)message.className='message';
+ if(canDrive){
+   const forward=keys.ArrowUp||keys.w||keys.W, back=keys.ArrowDown||keys.s||keys.S;
+   const left=keys.ArrowLeft||keys.a||keys.A, right=keys.ArrowRight||keys.d||keys.D;
+   const road=onTrack(car.x,car.y);
+   const accel=road?0.15:0.07,max=road?8.2:3.2;
+   if(forward)car.v+=accel*dt; if(back)car.v-=0.11*dt;
+   car.v*=Math.pow(road?0.985:0.955,dt); car.v=Math.max(-3.2,Math.min(max,car.v));
+   const steer=(left?-1:0)+(right?1:0); if(steer&&Math.abs(car.v)>.08)car.a+=steer*0.042*dt*(car.v>=0?1:-1)*Math.min(1,Math.abs(car.v)/2);
+   car.x+=Math.cos(car.a)*car.v*dt;car.y+=Math.sin(car.a)*car.v*dt;
+   car.x=Math.max(5,Math.min(W-5,car.x));car.y=Math.max(5,Math.min(H-5,car.y));
+   if(car.y<190&&car.x>300&&car.x<720)checkpointPassed=true;
+   const side=car.x-480;
+   const nearFinish=Math.abs(car.y-610)<90;
+   if(nearFinish&&lastFinishSide<0&&side>=0&&checkpointPassed&&car.v>0){
+      if(car.lap>=3){finished=true;car.v=0;message.textContent='FINISH!';message.className='message show';}
+      else{car.lap++;lapEl.textContent=`LAP ${car.lap} / 3`;checkpointPassed=false;}
+   }
+   lastFinishSide=side;
+ }
+ speedEl.textContent=Math.round(Math.abs(car.v)*24)+' km/h';
+ timeEl.textContent=format((finished?finishTime||now:now)-raceStart);
+ if(finished&&!finishTime)finishTime=now;
+}
+let prev=performance.now(),finishTime=0;
+function loop(now){const dt=Math.min(2.2,(now-prev)/16.6667);prev=now;update(now,dt);drawTrack();drawCar();requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
