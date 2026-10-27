@@ -38,5 +38,5 @@ function paintFans(c,t,route,width){
  c.restore();
 }
 Art.paintRoad=paintFans;
-window.R95Spectators19={version:19,groups:band};
+window.R95Spectators19={version:19,enabled:true};
 })();
