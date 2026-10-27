@@ -80,6 +80,7 @@
     ui.start.textContent=activity.value==='cup'?'START CHAMPIONSHIP':activity.value==='stunt'?'ENTER STUNT LAB':'START RACE';
     if(activity.value==='stunt'){ui.mapTitle.textContent='Stunt Lab • Free-drive practice';ui.mapDesc.textContent='3 ramps • 3 landing targets • 2 tunnels • no time limit';}
     if(activity.value==='cup'){ui.mapTitle.textContent='Brother Battle Championship';ui.mapDesc.textContent='Five chosen tracks • 3 laps each • highest points wins';}
+    E.menu();
   }
   for(let i=0;i<5;i++){const group=document.createElement('div'),lab=document.createElement('label'),select=document.createElement('select');lab.htmlFor='cupTrack'+i;lab.textContent='Race '+(i+1);select.id=lab.htmlFor;D.tracks.forEach((t,j)=>select.add(new Option((j+1)+'. '+t.name,j)));select.value=i;group.append(lab,select);$('cupTracks14').appendChild(group);}
   activity.onchange=()=>{if(activity.value==='cup')ui.mode.value='2';updGarage();};
@@ -215,6 +216,7 @@
     if(E.isCity(session.config.activity)){ui.lap.textContent=session.config.activity==='police'?'POLICE CHASE':'OPEN CITY';ui.pos.textContent=state.two?'P1 + P2 • COOPERATIVE':'Free drive';ui.best.textContent='Session rewards: '+session.earned+' coins';mission.textContent=E.status(track,cars);}
     ui.timer.textContent=fmt(state.mode==='fin'?state.finish:state.clock);ui.speed.textContent=Math.round(Math.abs(p1.v)*18);
     note.textContent=stunt?'STUNT LAB • '+X.profile.coins+' coins • M for garage':(cup?`CUP ${session.round+1}/5 • P1 ${session.points.P1||0} pts${state.two?' • P2 '+(session.points.P2||0)+' pts':''}`:'v14 • Smooth rails • No edge penalty');
+    if(E.isCity(session.config.activity))note.textContent='v16 • City & Chase • '+X.profile.coins+' coins • M for garage';
     if(p1.def.id===100)note.textContent+=' • Rocket fuel '+Math.round(p1.fuel)+'%';
   }
   function draw(){
