@@ -1,21 +1,32 @@
-# My ChatGPT
+# My ChatGPT • AI + Game Studio
 
-An independently built ChatGPT-style personal chat application.
+A personal ChatGPT-inspired project with chat history, a game studio, live browser code previews, writing shortcuts, theme switching and HTML downloads.
 
-## Live GitHub Pages demo
+**Live demo**: https://pageportalsai-hash.github.io/.github.io/my-chatgpt/
 
-Open the /my-chatgpt/ URL on this repository's GitHub Pages site. It is an interactive **demo with simulated responses** — not real AI. Try new chats, saved chat history, exporting conversations, and light/dark mode.
+## Works on GitHub Pages without a server
+- Play four built-in games: racing, space shooter, snake, platform jumper.
+- Pick a game template by describing an idea; open it in Code Lab, edit and download it as HTML.
+- Create and test HTML/CSS/JS sites in an isolated iframe.
+- Manage conversations locally and export chat history.
+- Chat answers are **not AI** until you configure a private backend.
 
-## Run it with actual OpenAI responses
+## Make it real AI
 
-GitHub Pages cannot execute Node.js or conceal private API keys. For real GPT replies, run or host the Node server included here:
+GitHub Pages is static and **cannot run a private OpenAI API key**. Never commit OPENAI_API_KEY or APP_PASSWORD and never put the API key into the browser.
 
-1. Install Node.js 20+ and run npm install from this folder.
-2. Copy .env.example to .env (never commit .env).
-3. Put your own API key in OPENAI_API_KEY, and configure a unique APP_PASSWORD (12+ characters). Optional: OPENAI_MODEL.
-4. Run npm start and open http://localhost:3000.
-5. On the Node-hosted site, enter your app password when prompted. Your API key never goes in the browser or GitHub source.
+This repository includes a Node.js server for the OpenAI Responses API:
 
-To host online, connect this repo to a Node host such as Render, set **root directory to my-chatgpt**, build command npm install, start command npm start, and configure OPENAI_API_KEY and APP_PASSWORD as private environment variables. The host will give you a *separate* URL for actual AI chat. Hosting and API usage may incur charges; ChatGPT subscription billing does not include API usage.
+1. Create an OpenAI Platform API key with billing enabled (separate from ChatGPT subscriptions).
+2. Deploy the folder my-chatgpt on a Node host (such as Render). Node 20+.
+   - Root directory: my-chatgpt
+   - Install/build command: npm install
+   - Start command: npm start
+   - Environment variables: OPENAI_API_KEY, APP_PASSWORD (12+ characters), optionally OPENAI_MODEL (default gpt-5-mini).
+   - ALLOWED_ORIGINS may be set to https://pageportalsai-hash.github.io or to a comma-separated list of trusted site origins.
+3. Open the GitHub Pages URL, click **AI settings**, paste the secure HTTPS address of the hosted Node server and your APP_PASSWORD, then Test connection and Save.
+4. The game builder now asks AI for a custom single-file HTML5 game; ordinary chat works as AI chat.
 
-The Node site has basic password gating and rate limits; it is intended for a small personal prototype, not a multi-user public service. Conversations are stored in browser localStorage, not synced across devices. This is not the official ChatGPT app.
+For local use: run npm install, create .env using .env.example, run npm start and open http://localhost:3000.
+
+**Security and limitations:** The default authentication is basic shared-password gating intended for personal prototypes only. Protect your server URL and password, set budget limits on your API account, and do not expose an unauthenticated API. Browser chat history is stored locally and not synced. AI-generated HTML may contain mistakes and should be reviewed before sharing. The game iframe is sandboxed; downloading HTML and running it outside the app removes that protection. The app cannot automatically browse the web, send messages, create pictures, access files or operate GitHub without separately engineered integrations and permission.
