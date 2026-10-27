@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id),Mega=window.R95Mega20,X=window.R95Extras
 const panel=$('megaPanel20');if(!panel)return;
 const d=new Date();const today=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
 const modes=Mega.arenaModes,seed=d.getFullYear()*372+d.getMonth()*31+d.getDate(),challenge=modes[seed % modes.length];
-let completed=localStorage.getItem('r95.daily20.done')===today;
+let completed=false;try{completed=localStorage.getItem('r95.daily20.done')===today}catch{}
 const el=document.createElement('div');el.id='daily20';el.style.cssText='padding:13px;margin-top:12px;border-radius:12px;background:#20324e;border:1px solid #f8d56b99';
 el.innerHTML='<h3 style="color:#ffe58e;margin:0">📅 DAILY CHALLENGE & TROPHY ROOM</h3><p id="dailyInfo20" style="font-size:13px"></p><button type="button" id="dailyPlay20" style="margin:0;padding:9px 13px">PLAY TODAY’S CHALLENGE</button><button type="button" id="trophyToggle20" style="margin:6px 0;padding:9px 13px">🏆 TROPHY ROOM</button><div id="trophyList20" class="hidden" style="font-size:13px;margin-top:8px;color:#cfffe7"></div>';
 panel.appendChild(el);
