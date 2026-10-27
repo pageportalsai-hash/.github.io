@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111218">
+<title>My ChatGPT • AI & Game Studio</title>
+<link rel="stylesheet" href="./studio.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar" id="sidebar">
+  <div class="brand"><div class="brand-icon">✦</div><span>My ChatGPT</span><button class="icon-only mobile-close" id="closeMenu" aria-label="Close menu">×</button></div>
+  <button class="primary wide" id="newChat">＋ &nbsp;New conversation</button>
+  <div class="nav-group">
+    <div class="nav-title">WORKSPACE</div>
+    <button class="nav active" data-view="chat"><span>◈</span> Chat</button>
+    <button class="nav" data-view="games"><span>◉</span> Game Studio <span class="small-tag">NEW</span></button>
+    <button class="nav" data-view="code"><span>⌘</span> Code Lab</button>
+    <button class="nav" data-view="write"><span>✎</span> Writing</button>
+  </div>
+  <div class="nav-title">YOUR CHATS</div>
+  <nav id="history" class="history" aria-label="Saved chats"></nav>
+  <div class="sidebar-bottom">
+    <div id="sideStatus" class="connection">● &nbsp;Studio demo</div>
+    <button class="nav" id="configBtn"><span>⚙</span> AI settings</button>
+    <div class="tiny">Chats and games are saved in this browser.</div>
+  </div>
+</aside>
+<div class="workspace">
+  <header class="header">
+    <div class="header-left"><button id="openMenu" class="icon-only hamburger" aria-label="Open menu">☰</button><div><strong id="pageTitle">Chat</strong><div id="pageSubtitle">Your creative workspace</div></div></div>
+    <div class="header-actions"><span class="mode-label" id="modeLabel">DEMO MODE</span><button class="ghost" id="themeBtn" title="Toggle theme">◐</button><button class="ghost" id="exportChat" title="Export current chat">↓ Export</button></div>
+  </header>
+  <div class="view" id="chatView">
+    <div class="chat-scroll" id="chatScroll">
+      <section class="welcome" id="welcome">
+        <div class="welcome-symbol">✦</div>
+        <span class="eyebrow">CREATE • LEARN • BUILD</span>
+        <h1>What shall we <em>make today?</em></h1>
+        <p>Chat, design games, experiment with code, and explore your next big idea.</p>
+        <div class="starter-grid">
+          <button data-shortcut="games"><b>🎮 Make a game</b><small>Build something you can play</small></button>
+          <button data-shortcut="code"><b>💻 Create a website</b><small>Write and preview HTML</small></button>
+          <button data-ask="Explain how black holes work"><b>✦ Ask a question</b><small>Learn something new</small></button>
+          <button data-shortcut="write"><b>✍️ Write something</b><small>Stories, messages and ideas</small></button>
+        </div>
+      </section>
+      <div class="messages" id="messages" aria-live="polite"></div>
+    </div>
+    <div class="composer-area">
+      <div id="chatNotice" class="notice">Demo mode: game templates work now; general AI answers require a connected private backend.</div>
+      <form id="chatForm" class="composer"><textarea id="chatInput" rows="2" maxlength="12000" placeholder="Message My ChatGPT…" aria-label="Chat message"></textarea><div class="compose-bottom"><span>Enter to send · Shift+Enter for a new line</span><button class="send" id="sendChat" type="submit" aria-label="Send">↑</button></div></form>
+      <div class="disclaimer">Independent project, not the official ChatGPT. Check important information.</div>
+    </div>
+  </div>
+  <div class="view hidden scrollview" id="gamesView">
+    <div class="section-head"><span class="eyebrow">BUILD & PLAY</span><h1>Game Studio</h1><p>Describe a game and build a playable browser version. Without AI, choose from four working game templates; connect a backend for custom game generation.</p></div>
+    <div class="split">
+      <section class="panel builder">
+        <label for="gamePrompt">Your game idea</label>
+        <textarea id="gamePrompt" rows="4" placeholder="Make a space shooter with neon colors and tough enemies">Make a fun arcade racing game</textarea>
+        <label for="gameType">Starter template (used without AI)</label>
+        <select id="gameType"><option value="auto">Auto-pick from idea</option><option value="racer">🏎️ Racing / dodge</option><option value="space">🚀 Space shooter</option><option value="snake">🐍 Snake</option><option value="platform">🕹️ Platform jumper</option></select>
+        <button class="primary wide" id="buildGame">✦ Build my game</button>
+        <div id="gameStatus" class="helper" role="status">Ready to build. Choose a template or connect real AI.</div>
+        <div class="divider"></div>
+        <strong>Quick starts</strong>
+        <div class="tiles">
+          <button class="tile" data-game="racer">🏎️ <span>Racing</span></button>
+          <button class="tile" data-game="space">🚀 <span>Space</span></button>
+          <button class="tile" data-game="snake">🐍 <span>Snake</span></button>
+          <button class="tile" data-game="platform">🕹️ <span>Jumper</span></button>
+        </div>
+        <div class="helper">Keyboard: arrows / WASD, and Space. Touch buttons are included inside the games.</div>
+      </section>
+      <section class="panel preview-panel">
+        <div class="panel-head"><strong>Playable preview</strong><div class="button-row"><button class="ghost" id="editGame">Edit code</button><button class="ghost" id="downloadGame">↓ Save HTML</button></div></div>
+        <iframe id="gameFrame" title="Playable game preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+        <div class="preview-footer">The game runs in an isolated preview. Download the HTML file to keep or share it.</div>
+      </section>
+    </div>
+  </div>
+  <div class="view hidden scrollview" id="codeView">
+    <div class="section-head"><span class="eyebrow">BUILD • TEST • SAVE</span><h1>Code Lab</h1><p>Edit a single-file HTML app or game, preview it instantly, and download the working file.</p></div>
+    <div class="code-actions"><button id="runCode" class="primary">▶ Run preview</button><button id="saveCode" class="ghost">↓ Download HTML</button><button id="resetCode" class="ghost">Reset editor</button></div>
+    <div class="editor-grid"><div class="panel editor-panel"><div class="panel-head"><strong>HTML / CSS / JavaScript</strong><span class="tag">index.html</span></div><textarea id="codeEditor" spellcheck="false" aria-label="HTML editor"></textarea></div><div class="panel editor-panel"><div class="panel-head"><strong>Live preview</strong><span class="tag">Sandboxed</span></div><iframe id="codeFrame" title="Code preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></div></div>
+  </div>
+  <div class="view hidden scrollview" id="writeView">
+    <div class="section-head"><span class="eyebrow">IDEAS TO WORDS</span><h1>Writing desk</h1><p>Start a writing task. When real AI is connected, Chat can help draft, revise and brainstorm.</p></div>
+    <div class="writing-grid">
+      <button data-writing="Write me an exciting opening to a fantasy adventure story.">📖 <b>Write a story</b><small>Characters, worlds and plots</small></button>
+      <button data-writing="Help me write a clear, friendly email. Ask me for the details.">✉️ <b>Draft an email</b><small>Messages that sound right</small></button>
+      <button data-writing="Brainstorm 10 original video game ideas with fun mechanics.">🎮 <b>Invent game ideas</b><small>From concept to game design</small></button>
+      <button data-writing="Help me plan a simple website. Ask what it needs to do.">🌐 <b>Plan a website</b><small>Pages and features</small></button>
+    </div>
+  </div>
+</div>
+</div>
+<div class="modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="settings panel"><div class="panel-head"><h2 id="settingsTitle">Connect real AI</h2><button id="closeSettings" class="icon-only" aria-label="Close settings">×</button></div>
+    <p>The free GitHub Pages website can run games and previews, but a private server is required to talk to OpenAI. Do not paste an OpenAI API key here.</p>
+    <label for="apiUrl">Your private AI server address (HTTPS)</label><input id="apiUrl" type="url" placeholder="https://your-app.onrender.com" autocomplete="off">
+    <label for="appPassword">Your server's APP_PASSWORD</label><input id="appPassword" type="password" placeholder="Password you set on your server" autocomplete="off">
+    <label class="checkbox"><input type="checkbox" id="showPass"> Show password</label>
+    <div id="settingStatus" class="helper">Not connected.</div>
+    <div class="button-row"><button id="testAi" class="ghost">Test connection</button><button id="saveSettings" class="primary">Save settings</button><button id="clearSettings" class="ghost">Disconnect</button></div>
+    <div class="hint">Your server URL is saved in this browser. The app password is kept only for this browser tab/session. API secrets belong on the server, never in GitHub.</div>
+  </div>
+</div>
+<script src="./studio.js"></script>
+</body>
+</html>
