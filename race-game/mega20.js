@@ -56,14 +56,14 @@ addEventListener('keydown',e=>{if(e.repeat||/^(INPUT|SELECT|TEXTAREA)$/.test(doc
 });
 addEventListener('keyup',e=>{if(e.code==='KeyN')nitroDown=false});
 let ghostTrail=false;
-function gamepad(kind){const gp=navigator.getGamepads?.()[kind==='p1'?0:1];if(!gp||!gp.connected)return null;const stick=gp.axes?.[0]||0,gas=(gp.buttons[7]?.value||0)>.15||gp.buttons[0]?.pressed,brake=(gp.buttons[6]?.value||0)>.15||gp.buttons[1]?.pressed;return{f:gas,b:brake,l:stick<-.24||gp.buttons[14]?.pressed,r:stick>.24||gp.buttons[15]?.pressed}}
+function gamepad(kind){const gamepads=navigator.getGamepads?.();const gp=gamepads?.[kind==='p1'?0:1];if(!gp||!gp.connected)return null;const stick=gp.axes?.[0]||0,gas=(gp.buttons[7]?.value||0)>.15||gp.buttons[0]?.pressed,brake=(gp.buttons[6]?.value||0)>.15||gp.buttons[1]?.pressed;return{f:gas,b:brake,l:stick<-.24||gp.buttons[14]?.pressed,r:stick>.24||gp.buttons[15]?.pressed}}
 function menu(activity,ui){if(isMode(activity.value)){
  ui.start.textContent=isArenaMode(activity.value)?'START '+A.get(activity.value)[1]:'START '+R.get(activity.value)[1];
  ui.track.disabled=isArenaMode(activity.value);ui.mapTitle.textContent=(A.get(activity.value)||R.get(activity.value))[1];
  ui.mapDesc.textContent=(A.get(activity.value)||R.get(activity.value))[2]+' • Keep your car, colours and rewards';
 }}
 function arena(W,H,mode){
- const t=X.arena(W,H);t.def.name=(A.get(mode)||['','Arcade Challenge'])[0]||'MEGA ARCADE';
+ const t=X.arena(W,H);t.def.name=(A.get(mode)||['','Arcade Challenge'])[1]||'MEGA ARCADE';
  const c=t.bg.getContext('2d');c.clearRect(0,0,W,H);
  const z=c.createLinearGradient(0,0,W,H);z.addColorStop(0,['lava','tornado'].includes(mode)?'#532334':'#10304a');z.addColorStop(1,mode==='ice'?'#bde6ff':'#112037');c.fillStyle=z;c.fillRect(0,0,W,H);
  c.strokeStyle='#76dcec';c.lineWidth=7;c.strokeRect(50,100,W-100,H-175);
