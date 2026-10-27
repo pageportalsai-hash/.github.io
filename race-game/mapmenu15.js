@@ -9,7 +9,7 @@ const css=document.createElement('style');css.textContent='#routeCard15{margin-t
 let cupIndex=0,shown=-1;const thumbnails=new Map();
 function activeSelect(){return $('activity14').value==='cup'?$('cupTrack'+cupIndex):$('trackSelect');}
 function refresh(force=false){
- const mode=$('activity14').value;card.classList.toggle('hidden',mode==='stunt');if(mode==='stunt')return;
+ const mode=$('activity14').value;card.classList.toggle('hidden',['stunt','city','police'].includes(mode));if(['stunt','city','police'].includes(mode))return;
  const select=activeSelect(),idx=Number(select.value)||0,t=D.tracks[idx];
  $('routeHint15').textContent=mode==='cup'?'Previewing championship race '+(cupIndex+1)+'. Change any of the five race choices to inspect its route.':'Preview the actual track before you race. The Start button applies your choice.';
  $('routeCount15').textContent='MAP '+String(idx+1).padStart(2,'0')+' / 30';$('routeTitle15').textContent=t.name+' • '+t.tag;$('routeDescription15').textContent=t.desc;

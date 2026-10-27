@@ -4,6 +4,7 @@
   const $=id=>document.getElementById(id), C=$('game'),g=C.getContext('2d'),W=C.width,H=C.height;
   const D=window.R95V8, Draw=window.R95Draw, Rail=window.R95Rails13, MapArt=window.R95Map12, X=window.R95Extras14;
   const ui={garage:$('garage'),mode:$('modeSelect'),p1car:$('p1Car'),p2car:$('p2Car'),p1color:$('p1Color'),p2color:$('p2Color'),track:$('trackSelect'),start:$('startBtn'),random:$('randomBtn'),preview:$('preview'),carTitle:$('carTitle'),carDesc:$('carDesc'),mapTitle:$('mapTitle'),mapDesc:$('mapDesc'),lap:$('lap'),pos:$('pos'),timer:$('timer'),best:$('best'),speed:$('speed'),carName:$('carName'),trackName:$('trackName'),message:$('message'),p2Panel:$('p2Panel')};
+  const E=window.R95Expansion16;
   const P=ui.preview.getContext('2d'), keys=Object.create(null), clamp=Rail.clamp;
   const read=(k,f)=>{try{return localStorage.getItem(k)??f;}catch{return f;}};
   const write=(k,v)=>{try{localStorage.setItem(k,String(v));}catch{}};
@@ -118,15 +119,15 @@
   }
   function mk(def,idx,kind,paint,label,side){const p=track.path[idx],pos=Rail.nearest(track.rail,p.x,p.y);return{x:p.x+p.nx*side,y:p.y+p.ny*side,a:Math.atan2(p.ty,p.tx),v:0,i:idx,lap:1,gate:0,prog:pos.s/track.rail.total,last:pos.s/track.rail.total,def:{...def,paint},kind,label,lapStart:0,fin:false,finishTime:Infinity,edge:false,bestLap:null,lapTimes:[],fuel:100,steer:0,stunt:{jumps:0,targets:0,tunnels:0}};}
 
-  function choices(){return{sel1,sel2,paint1,paint2,two:two(),activity:activity.value,maps:activity.value==='cup'?Array.from({length:5},(_,i)=>Number($('cupTrack'+i).value)):[selT],gear:JSON.parse(JSON.stringify(X.profile.equipment))};}
+  function choices(){return{sel1,sel2,paint1,paint2,two:two(),activity:activity.value,maps:activity.value==='cup'?Array.from({length:5},(_,i)=>Number($('cupTrack'+i).value)):[selT],environment:E.environment(),gear:JSON.parse(JSON.stringify(X.profile.equipment))};}
   function startEvent(config=choices()){
     X.audioStart();audioUI();session={id:uid(),config:JSON.parse(JSON.stringify(config)),round:0,points:{},history:[],fastest:{},stuntSeq:0,missions:{ramps:new Set(),targets:new Set(),tunnels:new Set()},earned:0,missionDone:new Set()};attempt=0;state.mode='garage';startRace();
   }
   function rematch(){if(session)startEvent(session.config);else startEvent();}
   function startRace(){
     if(!session){startEvent();return;}if(state.mode==='fin'){rematch();return;}
-    release();results.classList.add('hidden');const q=session.config,stunt=q.activity==='stunt';attempt++;
-    track=stunt?X.arena(W,H):makeTrack(D.tracks[q.maps[session.round]]);
+    release();results.classList.add('hidden');const q=session.config,city=E.isCity(q.activity),stunt=q.activity==='stunt'||city;attempt++;
+    track=city?E.city(W,H,q.activity):stunt?X.arena(W,H):makeTrack(D.tracks[q.maps[session.round]]);
     const a=D.cars[q.sel1],b=D.cars[q.sel2],n=stunt?0:track.path.length;
     if(stunt){
       const create=(def,kind,paint,label,y)=>({x:145,y,a:0,v:0,i:0,lap:1,gate:0,prog:0,last:0,def:{...def,paint},kind,label,lapStart:0,fin:false,finishTime:Infinity,edge:false,bestLap:null,lapTimes:[],fuel:100,steer:0,stunt:{jumps:0,targets:0,tunnels:0}});
@@ -137,8 +138,9 @@
       cars.push(mk({...D.cars[(q.sel1+13)%D.cars.length],max:4.15,acc:.058},n-20,'ai','#ffaf3b','AI2',-20));cars.push(mk({...D.cars[(q.sel1+19)%D.cars.length],max:4.1,acc:.056},n-20,'ai','#6ce879','AI3',20));
     }
     cars.forEach(o=>{o.def.cosmetic=q.gear[o.label]||X.stock();o.def.flying=false;o.def.boosting=false;o.def.jumpHeight=0;});
+    if(city)E.begin(track,cars,session);
     state={started:true,mode:stunt?'run':'count',clock:stunt?0:-3200,paused:false,two:q.two,bannerUntil:0,best:stunt?null:bestFor(cars[0]),finish:0,beep:0,awarded:false};
-    ui.garage.classList.add('hidden');ui.trackName.textContent=track.def.name;ui.carName.textContent=state.two?'P1 + P2':a.name;last=performance.now();mission.classList.toggle('hidden',!stunt);show(stunt?'STUNT LAB\nFollow the ramp arrows':'3',stunt?1700:0);buttonState();hud();
+    ui.garage.classList.add('hidden');ui.trackName.textContent=track.def.name;ui.carName.textContent=state.two?'P1 + P2':a.name;last=performance.now();mission.classList.toggle('hidden',!stunt);show(city?(q.two?'CITY CO-OP':'CITY DRIVE'):stunt?'STUNT LAB\nFollow the ramp arrows':'3',stunt?1700:0);buttonState();hud();
   }
   ui.start.onclick=()=>startEvent();$('playTop14').onclick=()=>startEvent();$('rewardsTop14').onclick=()=>$('shop14').scrollIntoView({behavior:'smooth',block:'start'});
   $('next14').onclick=()=>{if(!session||session.config.activity!=='cup'||session.round>=4||state.mode!=='fin')return;session.round++;state.mode='garage';startRace();};
@@ -147,7 +149,7 @@
   function control(o){if(o.kind==='p1')return{f:keys.KeyW,b:keys.KeyS,l:keys.KeyA,r:keys.KeyD};if(o.kind==='p2')return{f:keys.ArrowUp,b:keys.ArrowDown,l:keys.ArrowLeft,r:keys.ArrowRight};return null;}
 
   function updateCar(o,dt){
-    if(o.fin)return;const ctl=control(o),stunt=session.config.activity==='stunt';o.last=o.prog;
+    if(o.fin)return;const ctl=control(o),city=E.isCity(session.config.activity),stunt=session.config.activity==='stunt'||city;o.last=o.prog;
     let max=o.def.max,acc=o.def.acc,turn=o.def.turn;o.def.boosting=false;
     if(o.def.id===100&&ctl){const boost=keys[o.kind==='p1'?'ShiftLeft':'ShiftRight']&&o.fuel>1;o.def.boosting=!!boost;
       if(boost){o.fuel=Math.max(0,o.fuel-.75*dt);max=11.5;acc=.34;turn=.06;}else{o.fuel=Math.min(100,o.fuel+.16*dt);if(o.def.flying){max=8.2;acc=.13;turn=.063;}}
@@ -159,6 +161,7 @@
     }
     // Equal rolling drag everywhere; rails never subtract speed.
     o.v*=Math.pow(.994,dt);
+    if(city){E.move(o,dt,track);return;}
     if(stunt){X.updateStunt(o,dt,track,state.clock,stuntEvent);return;}
     Rail.move(o,track.rail,track.road,dt);
     let delta=o.prog-o.last;if(delta<-.5)delta+=1;if(delta>.5)delta-=1;
@@ -184,7 +187,7 @@
   function ranked(){return [...cars].sort((a,b)=>a.fin&&b.fin?a.finishTime-b.finishTime:a.fin?-1:b.fin?1:(b.lap+b.prog)-(a.lap+a.prog));}
 
   function finishIfNeeded(){
-    if(session.config.activity==='stunt'||state.awarded||!cars.filter(o=>o.kind!=='ai').every(o=>o.fin))return;
+    if(E.isCity(session.config.activity)||session.config.activity==='stunt'||state.awarded||!cars.filter(o=>o.kind!=='ai').every(o=>o.fin))return;
     state.mode='fin';state.finish=state.clock;state.awarded=true;release();cars.forEach(o=>{o.v=0;o.def.boosting=false;});
     const order=ranked(),points=[10,7,5,3];let reward=0;
     order.forEach((o,i)=>{session.points[o.label]=(session.points[o.label]||0)+points[i];if(o.kind!=='ai'){reward+=([100,80,65,50][i]||40)+o.lapTimes.length*10;session.fastest[o.label]=Math.min(session.fastest[o.label]||Infinity,o.bestLap||Infinity);}});
@@ -209,6 +212,7 @@
     if(stunt){ui.lap.textContent='STUNT LAB';ui.pos.textContent=state.two?`P1 jumps ${p1.stunt.jumps} • P2 ${p2.stunt.jumps}`:`Jumps ${p1.stunt.jumps} • Targets ${p1.stunt.targets}`;ui.best.textContent='Session rewards: '+session.earned+' coins';
       mission.innerHTML='<strong>STUNT CHALLENGES • +60 each</strong><br>Jump from all 3 ramps: '+session.missions.ramps.size+'/3<br>Land in 2 different targets: '+session.missions.targets.size+'/2<br>Pass through both tunnels: '+session.missions.tunnels.size+'/2';
     }else{const order=ranked();ui.lap.textContent=state.two?`P1 ${p1.lap}/3 • P2 ${p2.lap}/3`:`Lap ${p1.lap}/3`;ui.pos.textContent=state.two?`P1 #${order.indexOf(p1)+1} • P2 #${order.indexOf(p2)+1}`:`Position ${order.indexOf(p1)+1}/${cars.length}`;ui.best.textContent='Saved best '+(state.best==null?'--':fmt(state.best));}
+    if(E.isCity(session.config.activity)){ui.lap.textContent=session.config.activity==='police'?'POLICE CHASE':'OPEN CITY';ui.pos.textContent=state.two?'P1 + P2 • COOPERATIVE':'Free drive';ui.best.textContent='Session rewards: '+session.earned+' coins';mission.textContent=E.status(track,cars);}
     ui.timer.textContent=fmt(state.mode==='fin'?state.finish:state.clock);ui.speed.textContent=Math.round(Math.abs(p1.v)*18);
     note.textContent=stunt?'STUNT LAB • '+X.profile.coins+' coins • M for garage':(cup?`CUP ${session.round+1}/5 • P1 ${session.points.P1||0} pts${state.two?' • P2 '+(session.points.P2||0)+' pts':''}`:'v14 • Smooth rails • No edge penalty');
     if(p1.def.id===100)note.textContent+=' • Rocket fuel '+Math.round(p1.fuel)+'%';
@@ -217,6 +221,7 @@
     g.clearRect(0,0,W,H);g.drawImage(track.bg,0,0);const stunt=session?.config.activity==='stunt';
     if(stunt){cars.filter(o=>!o.jump&&!o.def.flying).forEach(o=>Draw.renderCar(g,o.x,o.y,o.a,o.def,o.label));X.tunnelRoofs(g,track,cars);cars.filter(o=>o.jump||o.def.flying).forEach(o=>Draw.renderCar(g,o.x,o.y,o.a,o.def,o.label));}
     else for(const o of cars)Draw.renderCar(g,o.x,o.y,o.a,o.def,o.label);
+    if(session){if(E.isCity(session.config.activity))E.draw(g,track,cars);E.weather(g,cars,session.config.environment,W,H,state.clock);}
   }
 
   function frame(now){
@@ -224,7 +229,7 @@
     if(!state.paused&&!isGarage()&&!isResults()){
       if(state.mode==='count'||state.mode==='run')state.clock+=elapsed;
       if(state.mode==='count'){const beat=Math.max(0,Math.min(3,Math.ceil(-state.clock/1000)));if(state.beep!==beat){X.tone(beat===0?880:440,.13);state.beep=beat;}show(state.clock>0?'GO!':String(Math.min(3,Math.ceil(-state.clock/1000))));if(state.clock>=0){state.mode='run';show('GO!',650);}}
-      else if(state.mode==='run'){cars.forEach(o=>updateCar(o,elapsed/16.6667));finishIfNeeded();}
+      else if(state.mode==='run'){cars.forEach(o=>updateCar(o,elapsed/16.6667));if(E.isCity(session.config.activity))E.update(track,cars,elapsed/1000,session);finishIfNeeded();}
       if(state.mode==='run'&&state.clock>=state.bannerUntil)ui.message.classList.remove('show');
       if(cars.length)hud();draw();
     }
@@ -235,7 +240,7 @@
   // Refresh the preview when embedded car images finish decoding.
   setTimeout(()=>{if(isGarage())updGarage();},400);setTimeout(()=>{if(isGarage())updGarage();},1200);
 
-  window.R95Game14={version:'14',snapshot:()=>({mode:state.mode,paused:state.paused,clock:state.clock,carCount:D.cars.length,mapCount:D.tracks.length,activity:session?.config.activity||'garage',round:session?session.round+1:0,points:session?.points||{},history:session?.history||[],track:track.def.name,coins:X.profile.coins,equipment:JSON.parse(JSON.stringify(X.profile.equipment)),audio:{available:X.sound.available,state:X.sound.ctx?.state,muted:X.sound.muted,active:X.sound.active,voices:X.sound.voices.length},cars:cars.map(o=>({id:o.def.id,kind:o.kind,x:o.x,y:o.y,speed:o.v,edge:o.edge,lap:o.lap,progress:o.prog,finished:o.fin,flight:o.def.flying,fuel:o.fuel,jump:o.jump,stunt:o.stunt,cosmetic:o.def.cosmetic,distanceFromTrack:track.rail?Rail.nearest(track.rail,o.x,o.y).d:0}))})};
+  window.R95Game14={version:'16',snapshot:()=>({mode:state.mode,paused:state.paused,clock:state.clock,carCount:D.cars.length,mapCount:D.tracks.length,expansion:E.snapshot(),activity:session?.config.activity||'garage',round:session?session.round+1:0,points:session?.points||{},history:session?.history||[],track:track.def.name,coins:X.profile.coins,equipment:JSON.parse(JSON.stringify(X.profile.equipment)),audio:{available:X.sound.available,state:X.sound.ctx?.state,muted:X.sound.muted,active:X.sound.active,voices:X.sound.voices.length},cars:cars.map(o=>({id:o.def.id,kind:o.kind,x:o.x,y:o.y,speed:o.v,edge:o.edge,lap:o.lap,progress:o.prog,finished:o.fin,flight:o.def.flying,fuel:o.fuel,jump:o.jump,stunt:o.stunt,cosmetic:o.def.cosmetic,distanceFromTrack:track.rail?Rail.nearest(track.rail,o.x,o.y).d:0}))})};
 
   requestAnimationFrame(frame);
 })();
