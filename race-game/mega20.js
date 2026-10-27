@@ -18,7 +18,7 @@ const arenaModes=[
  ['stadium','🏟️ Stadium Sprint','Race through stadium gates']
 ];
 const raceModes=[['time','⏱️ Time Trial','Beat your own best laps'],['ghost','👻 Ghost Racing','Race a replay of your fastest recorded drive'],['reverse','🔄 Reverse Race','Race a course in the other direction'],['formula','🏎️ Formula Cup','Race in Formula-style cars']];
-const A=new Map(arenaModes),R=new Map(raceModes);
+const A=new Map(arenaModes.map(x=>[x[0],x])),R=new Map(raceModes.map(x=>[x[0],x]));
 const list=[...arenaModes,...raceModes], choose=$('activity14');
 for(const [id,name]of list)if(!Array.from(choose.options).some(o=>o.value===id))choose.add(new Option(name,id));
 const isArenaMode=id=>A.has(id),isRaceMode=id=>R.has(id),isMode=id=>isArenaMode(id)||isRaceMode(id);
@@ -94,7 +94,7 @@ function updateStatus(){if(!current||!isMode(current.mode))return;const s=curren
  status.textContent=lines.join('\n');
 }
 function move(car,dt,track,clock){
- const seconds=dt/60;if(!car.nitro)car.nitro=100;
+ const seconds=dt/60;if(car.nitro==null)car.nitro=100;
  if(nitroDown&&car.kind==='p1'&&car.nitro>0){car.v=Math.min(9,car.v+.07*dt);car.nitro-=.9*dt;car.def.boosting=true;achieve('First Nitro');}
  else car.nitro=Math.min(100,car.nitro+.2*dt);
  if(current?.mode==='ice'){car.a+=(car.steer||0)*.004*dt;}
