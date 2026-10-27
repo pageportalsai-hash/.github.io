@@ -1,112 +1,112 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#101014">
-<title>My ChatGPT — Interactive Preview</title>
-<style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--bg:#121218;--side:#191920;--panel:#22222b;--border:#34323f;--ink:#f6f5fb;--mute:#ada9bd;--accent:#b9a9ff;--button:#b9a9ff;color-scheme:dark}
-:root[data-theme="light"]{--bg:#fbfafd;--side:#f0eff6;--panel:#fff;--border:#e2dfea;--ink:#221d31;--mute:#716b80;--accent:#7154bb;--button:#8068c5;color-scheme:light}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}button,textarea{font:inherit}button{cursor:pointer}.shell{display:flex;height:100dvh;min-height:420px}.side{width:270px;flex:0 0 270px;border-right:1px solid var(--border);background:var(--side);padding:23px 15px;display:flex;flex-direction:column;gap:16px}.brand{display:flex;align-items:center;gap:9px;font-size:19px;font-weight:750;padding:0 7px}.mark{display:grid;place-items:center;background:#a894fc22;color:var(--accent);border:1px solid #9b8cbb66;width:33px;height:33px;border-radius:11px;font-size:23px}.new{width:100%;border:1px solid var(--border);background:var(--panel);color:var(--ink);padding:13px;text-align:left;border-radius:12px;font-weight:650}.new span{color:var(--accent);font-size:21px;vertical-align:middle}.navlabel{font-size:10px;letter-spacing:1.5px;color:var(--mute);font-weight:750;margin:14px 9px 0}.history{flex:1;overflow-y:auto;min-height:0}.history button{border:0;width:100%;padding:11px 10px;border-radius:9px;background:transparent;color:var(--mute);text-align:left;display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-size:13px}.history button:hover,.history button.active{background:var(--panel);color:var(--ink)}.sidetext{border-top:1px solid var(--border);padding:18px 8px;color:var(--mute);font-size:11px;line-height:1.5}.main{flex:1;min-width:0;display:flex;flex-direction:column}.top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);height:69px;padding:0 25px;gap:12px}.topname{font-weight:700;font-size:14px}.right{display:flex;gap:6px}.tool{border:0;background:transparent;color:var(--mute);border-radius:8px;padding:7px 9px;font-size:19px}.tool:hover{background:var(--panel);color:var(--ink)}.banner{padding:10px 18px;text-align:center;background:#4b391a;color:#ffe4a1;font-size:12px;line-height:1.4}.banner strong{font-weight:800}.chats{flex:1;overflow:auto;min-height:0;scroll-behavior:smooth}.welcome{max-width:790px;margin:auto;padding:55px 22px 25px;text-align:center}.logo{margin:0 auto 24px;display:grid;place-items:center;width:65px;height:65px;border:1px solid #9984cd;background:#7f69a824;border-radius:21px;font-size:42px;color:var(--accent)}.eyebrow{font-size:10px;color:var(--accent);font-weight:800;letter-spacing:2.2px}.welcome h1{font-size:clamp(28px,3.8vw,43px);letter-spacing:-1.8px;line-height:1.15;margin:19px 0 11px}.welcome h1 em{font-style:normal;color:var(--accent)}.subtitle{font-size:14px;line-height:1.7;color:var(--mute);margin-bottom:35px}.suggest{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;max-width:660px;margin:auto}.suggest button{min-height:79px;text-align:left;background:var(--panel);color:var(--ink);border:1px solid var(--border);border-radius:13px;padding:14px 17px}.suggest button:hover{border-color:var(--accent)}.suggest b,.suggest small{display:block}.suggest b{font-size:13px;margin-bottom:6px}.suggest small{font-size:11px;color:var(--mute)}.messages{max-width:860px;margin:auto;padding:30px 25px;width:100%}.msg{margin-bottom:22px;display:flex;gap:12px;align-items:flex-start}.msg.user{justify-content:flex-end}.avatar{width:33px;height:33px;border-radius:10px;flex-shrink:0;display:grid;place-items:center;background:#8c74bc2b;color:var(--accent);font-weight:800}.msg.user .avatar{order:2;background:#8273a333;font-size:10px;color:var(--ink)}.bubble{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.75;font-size:14px;padding:2px 0;max-width:100%}.msg.user .bubble{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px 15px;max-width:80%}.compose-area{padding:11px 22px 17px}.form{max-width:805px;margin:auto;border:1px solid #72668f;background:var(--panel);border-radius:17px;padding:13px 16px 11px}.form textarea{background:transparent;color:var(--ink);border:0;outline:none;resize:none;width:100%;min-height:31px;max-height:160px;font-size:14px;line-height:1.5;display:block}.form-bottom{display:flex;align-items:center;justify-content:space-between}.tip{color:var(--mute);font-size:10px}.send{background:var(--button);border:0;border-radius:10px;width:35px;height:35px;color:#171024;font-size:24px;font-weight:700}.foot{text-align:center;font-size:10px;color:var(--mute);margin-top:11px}.hamburger{display:none}.hide{display:none!important}.errors{color:#ffc5bc;font-size:12px;max-width:805px;margin:0 auto 6px}.mobile-close{display:none}@media(max-width:820px){.side{position:fixed;top:0;bottom:0;left:0;z-index:4;transform:translateX(-103%);transition:transform .2s;box-shadow:14px 0 40px #0004}.side.open{transform:none}.hamburger,.mobile-close{display:block}.top{padding:0 13px}.welcome{padding-top:30px}}@media(max-width:520px){.suggest{grid-template-columns:1fr}.suggest button{min-height:58px;padding:10px 15px}.welcome h1{letter-spacing:-1px}.welcome{padding-top:25px}.subtitle{margin-bottom:21px}.topname{font-size:12px}.banner{font-size:11px;padding:9px}.compose-area{padding:9px}.messages{padding:20px 14px}.bubble{font-size:13px}}
-</style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111218">
+<title>My ChatGPT • AI & Game Studio</title>
+<link rel="stylesheet" href="./studio.css">
 </head>
 <body>
-<div class="shell">
-<aside class="side" id="side">
-  <div class="brand"><span class="mark">✳</span> My ChatGPT <button class="tool mobile-close" id="closeSide" aria-label="Close menu">×</button></div>
-  <button class="new" id="new"><span>＋</span> New conversation</button>
-  <div class="navlabel">YOUR CONVERSATIONS</div>
-  <nav class="history" id="history" aria-label="Conversation history"></nav>
-  <div class="sidetext">✳ Interactive preview<br>Chats are saved in this browser.</div>
+<div class="app">
+<aside class="sidebar" id="sidebar">
+  <div class="brand"><div class="brand-icon">✦</div><span>My ChatGPT</span><button class="icon-only mobile-close" id="closeMenu" aria-label="Close menu">×</button></div>
+  <button class="primary wide" id="newChat">＋ &nbsp;New conversation</button>
+  <div class="nav-group">
+    <div class="nav-title">WORKSPACE</div>
+    <button class="nav active" data-view="chat"><span>◈</span> Chat</button>
+    <button class="nav" data-view="games"><span>◉</span> Game Studio <span class="small-tag">NEW</span></button>
+    <button class="nav" data-view="code"><span>⌘</span> Code Lab</button>
+    <button class="nav" data-view="write"><span>✎</span> Writing</button>
+  </div>
+  <div class="nav-title">YOUR CHATS</div>
+  <nav id="history" class="history" aria-label="Saved chats"></nav>
+  <div class="sidebar-bottom">
+    <div id="sideStatus" class="connection">● &nbsp;Studio demo</div>
+    <button class="nav" id="configBtn"><span>⚙</span> AI settings</button>
+    <div class="tiny">Chats and games are saved in this browser.</div>
+  </div>
 </aside>
-<main class="main">
-  <div class="top"><div><button class="tool hamburger" id="menu" aria-label="Open menu">☰</button><span class="topname">My ChatGPT <span style="color:var(--mute)">⌄</span></span></div><div class="right"><button class="tool" id="theme" aria-label="Toggle light or dark mode" title="Light / dark">◐</button><button class="tool" id="export" title="Export chat" aria-label="Export chat">⇩</button><button class="tool" id="delete" title="Delete chat" aria-label="Delete chat">♲</button></div></div>
-  <div class="banner"><strong>DEMO MODE</strong> — This is an interactive preview. Replies are simulated, not generated by real AI. The OpenAI backend is not connected.</div>
-  <section class="chats" id="scroll">
-   <section class="welcome" id="welcome">
-    <div class="logo">✳</div><div class="eyebrow">YOUR PERSONAL CHAT WORKSPACE</div>
-    <h1>What can I help you <em>think through?</em></h1>
-    <p class="subtitle">Explore the interface, start conversations, and see how your chatbot could look.</p>
-    <div class="suggest"><button data-prompt="Help me plan my week"><b>◷ Plan my week</b><small>Organise priorities</small></button><button data-prompt="Help me write an email"><b>✎ Write something</b><small>Draft a friendly message</small></button><button data-prompt="Tell me a joke"><b>✦ Tell me a joke</b><small>Have some fun</small></button><button data-prompt="What can you do?"><b>◇ Explore features</b><small>Test the chat demo</small></button></div>
-   </section><div class="messages hide" id="messages" aria-live="polite"></div>
-  </section>
-  <div class="compose-area"><p class="errors hide" id="error"></p><form class="form" id="form"><textarea id="prompt" rows="1" maxlength="10000" placeholder="Message My ChatGPT…" aria-label="Message"></textarea><div class="form-bottom"><span class="tip">This preview uses example responses.</span><button type="submit" class="send" title="Send message">↑</button></div></form><div class="foot">Interactive demo • Your chats stay in this browser • Not connected to OpenAI</div></div>
-</main></div>
-<script>
-(function(){
-'use strict';
-var KEY='pageportals-my-chatgpt-demo-v1';
-var DEMO=/\.github\.io$/i.test(location.hostname)||location.protocol==='file:';
-var BUSY=false;
-async function liveAnswer(messages){
-  var pass=sessionStorage.getItem('pageportals-mychat-password');
-  if(!pass){
-    pass=window.prompt('Enter the APP_PASSWORD you configured on your private AI server:');
-    if(!pass)throw Error('App password is required to use the real AI chat.');
-    sessionStorage.setItem('pageportals-mychat-password',pass);
-  }
-  var response=await fetch('/api/chat',{
-    method:'POST',headers:{'Content-Type':'application/json','x-app-password':pass},
-    body:JSON.stringify({messages:messages})
-  });
-  if(!response.ok){
-    if(response.status===401)sessionStorage.removeItem('pageportals-mychat-password');
-    var detail=await response.json().catch(function(){return {}});
-    throw Error(detail.error||'The AI server could not reply ('+response.status+').');
-  }
-  var raw=await response.text();var result='';var finished=false;
-  for(var line of raw.split('\n')){
-    if(!line.trim())continue;
-    var item=JSON.parse(line);
-    if(item.type==='delta')result+=item.text||'';
-    if(item.type==='error')throw Error(item.message||'The AI reply failed');
-    if(item.type==='done')finished=true;
-  }
-  if(!finished||!result.trim())throw Error('AI reply was interrupted. Please try again.');
-  return result;
-}
-
-var chats=[];var active=null;
-var e=function(id){return document.getElementById(id)};
-function read(){try{var data=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(data)){chats=data.filter(function(x){return x&&typeof x.id==='string'&&Array.isArray(x.messages)}).slice(0,60)}}catch(err){}active=chats.length?chats[0].id:null}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(chats.slice(0,60)))}catch(err){}}
-function current(){return chats.find(function(x){return x.id===active})}
-function newChat(){var c={id:crypto.randomUUID(),title:'New conversation',messages:[],updated:Date.now()};chats.unshift(c);active=c.id;save();render();e('prompt').focus();e('side').classList.remove('open')}
-function render(){e('history').replaceChildren();chats.slice().sort(function(a,b){return b.updated-a.updated}).forEach(function(c){var b=document.createElement('button');b.textContent='▢  '+c.title;b.className=c.id===active?'active':'';b.title=c.title;b.onclick=function(){active=c.id;render();e('side').classList.remove('open')};e('history').append(b)});var c=current();e('messages').replaceChildren();var has=!!(c&&c.messages.length);e('welcome').classList.toggle('hide',has);e('messages').classList.toggle('hide',!has);if(has){c.messages.forEach(function(m){append(m.role,m.content)});bottom()}}
-function append(role,text){var a=document.createElement('article');a.className='msg '+role;var icon=document.createElement('div');icon.className='avatar';icon.textContent=role==='user'?'YOU':'✳';var b=document.createElement('div');b.className='bubble';b.textContent=text;a.append(icon,b);e('messages').append(a);return b}
-function bottom(){e('scroll').scrollTop=e('scroll').scrollHeight}
-function respond(s){var t=s.toLowerCase();var p='DEMO RESPONSE — not real AI.\n\n';if(/hello|hey|good morning/.test(t))return p+'Hello there! This is your working chat interface. Try creating chats, switching themes, or exporting messages.';if(/joke|funny/.test(t))return p+'Why did the programmer get stuck in the shower? The instructions said: Lather, rinse, repeat!';if(/plan|week|priorit/.test(t))return p+'Here is a simple plan:\n1. Choose three priorities.\n2. Block time for the hardest one.\n3. Leave room for breaks.\n4. Review what you achieved.';if(/email|write|draft/.test(t))return p+'Hi [Name],\n\nI hope you are well. I wanted to follow up about [topic]. Could you please let me know your thoughts?\n\nThanks,\n[Your name]';if(/what can you do|features|help/.test(t))return p+'You can test new chats, saved conversation history, light/dark mode, exported chat files, and mobile layout. To answer any question with real AI, this project still needs an OpenAI API server.';return p+'You wrote: “'+s.slice(0,200)+'”\n\nI received your message. This GitHub Pages preview cannot generate real ChatGPT answers yet. It needs a secure server connected to the OpenAI API.'}
-e('form').addEventListener('submit',async function(ev){
-  ev.preventDefault();if(BUSY)return;
-  var s=e('prompt').value.trim();if(!s)return;
-  var c=current();if(!c){newChat();c=current()}
-  c.messages.push({role:'user',content:s});
-  if(c.messages.length===1)c.title=s.slice(0,36)+(s.length>36?'…':'');
-  c.updated=Date.now();e('prompt').value='';
-  var requestMessages=c.messages.slice(-30);
-  c.messages.push({role:'assistant',content:DEMO?respond(s):'Thinking…'});
-  save();render();
-  if(DEMO)return;
-  BUSY=true;
-  e('prompt').disabled=true;document.querySelector('.send').disabled=true;
-  try{c.messages[c.messages.length-1].content=await liveAnswer(requestMessages)}
-  catch(error){c.messages[c.messages.length-1].content='Unable to answer: '+(error.message||'Unknown error')}
-  finally{BUSY=false;e('prompt').disabled=false;document.querySelector('.send').disabled=false;save();render();e('prompt').focus()}
-});
-e('prompt').addEventListener('keydown',function(ev){if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ev.preventDefault();e('form').requestSubmit()}});
-e('new').onclick=newChat;e('menu').onclick=function(){e('side').classList.add('open')};e('closeSide').onclick=function(){e('side').classList.remove('open')};
-e('theme').onclick=function(){var next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;localStorage.setItem('pageportals-chat-theme',next)};
-e('delete').onclick=function(){if(!current())return;if(!confirm('Delete this conversation?'))return;chats=chats.filter(function(c){return c.id!==active});active=chats[0]&&chats[0].id||null;save();render()};
-e('export').onclick=function(){var c=current();if(!c||!c.messages.length){alert('There is no chat to export yet.');return}var blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var link=document.createElement('a');link.href=url;link.download='my-chat-'+Date.now()+'.json';link.click();setTimeout(function(){URL.revokeObjectURL(url)},1000)};
-document.querySelectorAll('[data-prompt]').forEach(function(b){b.onclick=function(){e('prompt').value=b.dataset.prompt;e('prompt').focus()}});
-if(!DEMO){
-  document.querySelector('.banner').classList.add('hide');
-  document.querySelector('.foot').textContent='OpenAI-powered chat • Password required • Chats stored in this browser';
-  document.querySelector('.tip').textContent='AI can make mistakes. Verify important details.';
-  document.querySelector('.subtitle').textContent='Ask anything, explore an idea or get things done.';
-}
-if(localStorage.getItem('pageportals-chat-theme')==='light')document.documentElement.dataset.theme='light';read();render();
-})();
-</script>
-</body></html>
+<div class="workspace">
+  <header class="header">
+    <div class="header-left"><button id="openMenu" class="icon-only hamburger" aria-label="Open menu">☰</button><div><strong id="pageTitle">Chat</strong><div id="pageSubtitle">Your creative workspace</div></div></div>
+    <div class="header-actions"><span class="mode-label" id="modeLabel">DEMO MODE</span><button class="ghost" id="themeBtn" title="Toggle theme">◐</button><button class="ghost" id="exportChat" title="Export current chat">↓ Export</button></div>
+  </header>
+  <div class="view" id="chatView">
+    <div class="chat-scroll" id="chatScroll">
+      <section class="welcome" id="welcome">
+        <div class="welcome-symbol">✦</div>
+        <span class="eyebrow">CREATE • LEARN • BUILD</span>
+        <h1>What shall we <em>make today?</em></h1>
+        <p>Chat, design games, experiment with code, and explore your next big idea.</p>
+        <div class="starter-grid">
+          <button data-shortcut="games"><b>🎮 Make a game</b><small>Build something you can play</small></button>
+          <button data-shortcut="code"><b>💻 Create a website</b><small>Write and preview HTML</small></button>
+          <button data-ask="Explain how black holes work"><b>✦ Ask a question</b><small>Learn something new</small></button>
+          <button data-shortcut="write"><b>✍️ Write something</b><small>Stories, messages and ideas</small></button>
+        </div>
+      </section>
+      <div class="messages" id="messages" aria-live="polite"></div>
+    </div>
+    <div class="composer-area">
+      <div id="chatNotice" class="notice">Demo mode: game templates work now; general AI answers require a connected private backend.</div>
+      <form id="chatForm" class="composer"><textarea id="chatInput" rows="2" maxlength="12000" placeholder="Message My ChatGPT…" aria-label="Chat message"></textarea><div class="compose-bottom"><span>Enter to send · Shift+Enter for a new line</span><button class="send" id="sendChat" type="submit" aria-label="Send">↑</button></div></form>
+      <div class="disclaimer">Independent project, not the official ChatGPT. Check important information.</div>
+    </div>
+  </div>
+  <div class="view hidden scrollview" id="gamesView">
+    <div class="section-head"><span class="eyebrow">BUILD & PLAY</span><h1>Game Studio</h1><p>Describe a game and build a playable browser version. Without AI, choose from four working game templates; connect a backend for custom game generation.</p></div>
+    <div class="split">
+      <section class="panel builder">
+        <label for="gamePrompt">Your game idea</label>
+        <textarea id="gamePrompt" rows="4" placeholder="Make a space shooter with neon colors and tough enemies">Make a fun arcade racing game</textarea>
+        <label for="gameType">Starter template (used without AI)</label>
+        <select id="gameType"><option value="auto">Auto-pick from idea</option><option value="racer">🏎️ Racing / dodge</option><option value="space">🚀 Space shooter</option><option value="snake">🐍 Snake</option><option value="platform">🕹️ Platform jumper</option></select>
+        <button class="primary wide" id="buildGame">✦ Build my game</button>
+        <div id="gameStatus" class="helper" role="status">Ready to build. Choose a template or connect real AI.</div>
+        <div class="divider"></div>
+        <strong>Quick starts</strong>
+        <div class="tiles">
+          <button class="tile" data-game="racer">🏎️ <span>Racing</span></button>
+          <button class="tile" data-game="space">🚀 <span>Space</span></button>
+          <button class="tile" data-game="snake">🐍 <span>Snake</span></button>
+          <button class="tile" data-game="platform">🕹️ <span>Jumper</span></button>
+        </div>
+        <div class="helper">Keyboard: arrows / WASD, and Space. Touch buttons are included inside the games.</div>
+      </section>
+      <section class="panel preview-panel">
+        <div class="panel-head"><strong>Playable preview</strong><div class="button-row"><button class="ghost" id="editGame">Edit code</button><button class="ghost" id="downloadGame">↓ Save HTML</button></div></div>
+        <iframe id="gameFrame" title="Playable game preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+        <div class="preview-footer">The game runs in an isolated preview. Download the HTML file to keep or share it.</div>
+      </section>
+    </div>
+  </div>
+  <div class="view hidden scrollview" id="codeView">
+    <div class="section-head"><span class="eyebrow">BUILD • TEST • SAVE</span><h1>Code Lab</h1><p>Edit a single-file HTML app or game, preview it instantly, and download the working file.</p></div>
+    <div class="code-actions"><button id="runCode" class="primary">▶ Run preview</button><button id="saveCode" class="ghost">↓ Download HTML</button><button id="resetCode" class="ghost">Reset editor</button></div>
+    <div class="editor-grid"><div class="panel editor-panel"><div class="panel-head"><strong>HTML / CSS / JavaScript</strong><span class="tag">index.html</span></div><textarea id="codeEditor" spellcheck="false" aria-label="HTML editor"></textarea></div><div class="panel editor-panel"><div class="panel-head"><strong>Live preview</strong><span class="tag">Sandboxed</span></div><iframe id="codeFrame" title="Code preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></div></div>
+  </div>
+  <div class="view hidden scrollview" id="writeView">
+    <div class="section-head"><span class="eyebrow">IDEAS TO WORDS</span><h1>Writing desk</h1><p>Start a writing task. When real AI is connected, Chat can help draft, revise and brainstorm.</p></div>
+    <div class="writing-grid">
+      <button data-writing="Write me an exciting opening to a fantasy adventure story.">📖 <b>Write a story</b><small>Characters, worlds and plots</small></button>
+      <button data-writing="Help me write a clear, friendly email. Ask me for the details.">✉️ <b>Draft an email</b><small>Messages that sound right</small></button>
+      <button data-writing="Brainstorm 10 original video game ideas with fun mechanics.">🎮 <b>Invent game ideas</b><small>From concept to game design</small></button>
+      <button data-writing="Help me plan a simple website. Ask what it needs to do.">🌐 <b>Plan a website</b><small>Pages and features</small></button>
+    </div>
+  </div>
+</div>
+</div>
+<div class="modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="settings panel"><div class="panel-head"><h2 id="settingsTitle">Connect real AI</h2><button id="closeSettings" class="icon-only" aria-label="Close settings">×</button></div>
+    <p>The free GitHub Pages website can run games and previews, but a private server is required to talk to OpenAI. Do not paste an OpenAI API key here.</p>
+    <label for="apiUrl">Your private AI server address (HTTPS)</label><input id="apiUrl" type="url" placeholder="https://your-app.onrender.com" autocomplete="off">
+    <label for="appPassword">Your server's APP_PASSWORD</label><input id="appPassword" type="password" placeholder="Password you set on your server" autocomplete="off">
+    <label class="checkbox"><input type="checkbox" id="showPass"> Show password</label>
+    <div id="settingStatus" class="helper">Not connected.</div>
+    <div class="button-row"><button id="testAi" class="ghost">Test connection</button><button id="saveSettings" class="primary">Save settings</button><button id="clearSettings" class="ghost">Disconnect</button></div>
+    <div class="hint">Your server URL is saved in this browser. The app password is kept only for this browser tab/session. API secrets belong on the server, never in GitHub.</div>
+  </div>
+</div>
+<script src="./studio.js"></script>
+</body>
+</html>
